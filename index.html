@@ -665,7 +665,7 @@ function shootDaysToText(days){ return (days||[]).map(d=>d.day+' | '+(d.date||''
    never a hardcoded one, since an OAuth client's authorised
    origins are locked to specific hosting URLs.
 ================================================================ */
-const GSHEETS_SCOPE='https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file';
+const GSHEETS_SCOPE='https://www.googleapis.com/auth/drive.file';
 let _sheetsToken=null;
 
 function sheetsSignIn(clientId){
@@ -2799,12 +2799,12 @@ function CameraReport(){
                     <input type="checkbox" checked={isSel} onChange={()=>toggleTakeSel(t.id)} style={{cursor:'pointer'}}/>
                   </td>
                   <td style={{borderRight:`1px solid ${T.rule}`}}>
-                    <ScenePicker value={t.scene||''} scenes={scenes} displayValue={sceneWithIE(t.scene)}
-                      onChange={v=>{
+                    <input value={t.scene||''} placeholder="-" onChange={e=>{
+                        const v=e.target.value;
                         const first=v.split(',')[0].trim();
                         const newTake=first?takeNoFor(first,t.shot||'/',t.id):t.take;
                         patchTake(t.id,{scene:v,take:String(newTake)});
-                      }}/>
+                      }} style={cellInput}/>
                   </td>
                   <td style={{borderRight:`1px solid ${T.rule}`}}><input value={t.shot||''} placeholder="/" onChange={e=>changeTakeShot(t.id,e.target.value.toUpperCase())} style={{...cellInput,textAlign:'center'}}/></td>
                   <td style={{borderRight:`1px solid ${T.rule}`}}><input value={t.take||''} onChange={e=>patchTake(t.id,{take:e.target.value})} style={{...cellInput,textAlign:'center'}} inputMode="numeric"/></td>
