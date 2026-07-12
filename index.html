@@ -82,7 +82,7 @@ const LOC_COLORS=["#7ab6c4","#d49a5c","#c4654b","#7aa37a","#c9a14a","#a07bc4"];
 ═══════════════════════════════════════════════════════════ */
 const LANGS={
   en:{
-    cabinet:"Script Breaker",newVersion:"v12.18 · Sticky Header Offset",importJson:"Import JSON",
+    cabinet:"Script Breaker",newVersion:"v12.19 · Frozen Table Header",importJson:"Import JSON",
     noProjects:"No projects yet",importFirst:"Import a JSON breakdown from Claude to get started",
     howItWorks:"How it works",
     step1t:"Analyse in Claude Project",step1d:"Upload screenplay PDF to a Claude Project. Ask Claude to output a full breakdown JSON.",
@@ -104,7 +104,7 @@ const LANGS={
     allLocations:"All locations",
   },
   zh:{
-    cabinet:"Script Breaker",newVersion:"v12.18 · 表头贴顶留隙",importJson:"导入JSON",
+    cabinet:"Script Breaker",newVersion:"v12.19 · 表格标题冻结",importJson:"导入JSON",
     noProjects:"暂无项目",importFirst:"从Claude导入JSON解构文件即可开始",
     howItWorks:"使用流程",
     step1t:"在Claude Project分析剧本",step1d:"上传剧本PDF至Claude Project，让Claude输出完整解构JSON。",
@@ -126,7 +126,7 @@ const LANGS={
     allLocations:"全部地点",
   },
   ja:{
-    cabinet:"Script Breaker",newVersion:"v12.18",importJson:"JSONインポート",
+    cabinet:"Script Breaker",newVersion:"v12.19",importJson:"JSONインポート",
     noProjects:"プロジェクトなし",importFirst:"ClaudeからJSONをインポートして開始",
     howItWorks:"使い方",
     step1t:"Claudeで脚本分析",step1d:"脚本PDFをClaudeプロジェクトにアップロード。完全なJSONを出力するよう依頼。",
@@ -4802,6 +4802,7 @@ function CameraReport(){
   const [showAIFill,setShowAIFill]=React.useState(false);
   const [filterDay,setFilterDay]=React.useState('all');
   const [selTakeIds,setSelTakeIds]=React.useState([]); // multi-selected clip rows (for moving)
+  const [rollMetaOpen,setRollMetaOpen]=React.useState(true); // collapse roll meta to free table space
   const [showSearch,setShowSearch]=React.useState(false);
   const [searchQ,setSearchQ]=React.useState({});  // field -> search string
   const unsubRef=React.useRef(null);
@@ -5601,11 +5602,10 @@ function CameraReport(){
   const metaInput={background:T.surface2,border:'1px solid '+T.border,borderRadius:4,padding:'3px 5px',fontSize:10,color:T.text,fontFamily:"'Geist Mono',monospace",width:'100%'};
   const metaLabel={fontSize:7,fontFamily:"'Geist Mono',monospace",letterSpacing:'0.06em',color:T.textDim,marginBottom:1,display:'block'};
   const cellInput={background:'transparent',border:'none',padding:'8px 6px',fontSize:12,color:T.text,width:'100%',fontFamily:"'Geist Mono',monospace"};
-  // Sticky header offset: NOT 0, so the header doesn't freeze the instant you
-  // start scrolling (which would waste screen space, especially on mobile).
-  // Instead it stays in normal flow until scrolling pushes it near the top,
-  // then "catches" about 5mm down — clear of the phone's status bar / notch.
-  const STICKY_TOP='5mm';
+  // The take-table <div> is now the scroll container (overflow:auto), so the
+  // header sticks to the TOP of that region — which sits below the roll-meta
+  // block, well clear of the phone status bar. top:0 is correct here.
+  const STICKY_TOP=0;
   const th={padding:'6px 5px',background:CAM.header,color:'#fff',fontSize:9,fontFamily:"'Geist Mono',monospace",letterSpacing:'0.05em',textAlign:'left',whiteSpace:'nowrap',position:'sticky',top:STICKY_TOP,zIndex:2};
 
   return(
@@ -5889,9 +5889,9 @@ function CameraReport(){
         <button onClick={()=>addRoll(activeCam,'blank')} style={{padding:'8px 18px',borderRadius:6,background:T.accent,border:'none',color:'#0e0d0b',fontWeight:600,fontSize:12,cursor:'pointer'}}>+ Start a roll</button>
       </div>}
 
-      {roll&&!(showSearch&&hasSearch)&&<div style={{flex:1,overflow:'auto',minHeight:0}}>
+      {roll&&!(showSearch&&hasSearch)&&<div style={{flex:1,display:'flex',flexDirection:'column',minHeight:0,overflow:'hidden'}}>
         {/* Roll header / meta - compact: one dense grid for everything */}
-        <div style={{padding:mob?'6px 8px':'7px 12px',borderBottom:`1px solid ${T.rule}`}}>
+        <div style={{padding:mob?'6px 8px':'7px 12px',borderBottom:`1px solid ${T.rule}`,flexShrink:0}}>
           <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6,flexWrap:'wrap'}}>
             <div>
               <span style={metaLabel}>ROLL #</span>
@@ -5910,10 +5910,14 @@ function CameraReport(){
               </select>
             </div>
             <div style={{flex:1}}/>
+            <button onClick={()=>setRollMetaOpen(v=>!v)} title={rollMetaOpen?'Hide roll details (more table space)':'Show roll details'}
+              style={{padding:'3px 9px',borderRadius:5,fontSize:9,fontFamily:"'Geist Mono',monospace",background:'transparent',border:`1px solid ${T.border}`,color:T.textDim,cursor:'pointer'}}>
+              {rollMetaOpen?'\u25B2 details':'\u25BC details'}
+            </button>
             <button onClick={()=>deleteRoll(roll.id)} style={{padding:'3px 9px',borderRadius:5,fontSize:9,fontFamily:"'Geist Mono',monospace",background:'transparent',border:`1px solid ${T.danger}55`,color:T.danger,cursor:'pointer'}}>Delete roll</button>
           </div>
 
-          <div style={{display:'grid',gridTemplateColumns:mob?'repeat(3,1fr)':'repeat(7,1fr)',gap:'5px 7px'}}>
+          {rollMetaOpen&&<div style={{display:'grid',gridTemplateColumns:mob?'repeat(3,1fr)':'repeat(7,1fr)',gap:'5px 7px'}}>
             <div>
               <span style={metaLabel}>SHOOT DAY</span>
               <select value={roll.shootDay||''} onChange={e=>{
@@ -5974,7 +5978,7 @@ function CameraReport(){
               <span style={metaLabel}>DEFAULT LENS</span>
               <LensFocalPicker value={roll.lens||''} onChange={v=>patchRoll(roll.id,{lens:v})} options={LENS_OPTIONS} inputStyle={metaInput}/>
             </div>
-          </div>
+          </div>}
         </div>
 
         {/* Take table */}
@@ -5982,7 +5986,7 @@ function CameraReport(){
         {selTakeIds.length>0&&(()=>{
           const sameCamRolls=rolls.filter(r=>camOf(r)===activeCam&&r.id!==roll.id);
           return(
-            <div style={{padding:'8px 16px',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',
+            <div style={{padding:'8px 16px',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',flexShrink:0,
               background:CAM.tint,borderBottom:`1px solid ${CAM.accent}44`}}>
               <span style={{fontSize:11,fontFamily:"'Geist Mono',monospace",color:CAM.accent,fontWeight:600}}>
                 {selTakeIds.length} clip{selTakeIds.length!==1?'s':''} selected
@@ -6005,7 +6009,7 @@ function CameraReport(){
           );
         })()}
 
-        <div style={{overflowX:'auto'}}>
+        <div style={{flex:1,minHeight:0,overflow:'auto'}}>
           <table style={{borderCollapse:'collapse',width:'100%',minWidth:1342}}>
             <thead><tr>
               <th style={{...th,width:30,textAlign:'center'}}>
@@ -6110,7 +6114,7 @@ function CameraReport(){
             </tbody>
           </table>
         </div>
-        <div style={{padding:'10px 16px',display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
+        <div style={{padding:'10px 16px',display:'flex',gap:8,flexWrap:'wrap',alignItems:'center',flexShrink:0,borderTop:`1px solid ${T.rule}`}}>
           <button onClick={addTake} style={{padding:'7px 16px',borderRadius:6,border:`1px dashed ${CAM.accent}66`,background:CAM.tint,color:CAM.accent,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:'pointer'}}>+ Add take</button>
           <button onClick={addShot} style={{padding:'7px 16px',borderRadius:6,border:`1px dashed ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:'pointer'}}>+ New shot</button>
           <button onClick={addNewScene} style={{padding:'7px 16px',borderRadius:6,border:`1px dashed ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:'pointer'}}>+ New scene</button>
