@@ -608,6 +608,19 @@ async function analyseCameraSlate(dataUrlOrArray, existingRoll){
 ================================================================ */
 const SB_STANDALONE_KEY='camrep_standalone_v1';
 
+/* This is a public OAuth Client ID, not a secret (Client Secret is the part
+   that must stay private - we never use it, this is browser-only GIS auth).
+   Baking it in here means every device that opens this hosted copy of the
+   app gets "Backup to Google Sheets" working immediately with zero setup -
+   each person still signs into their OWN Google account and writes to their
+   OWN Drive; this ID only identifies "which app is asking", the same way
+   any public web app's OAuth client ID ships in its client-side JS.
+   If you fork this app to a different hosting URL, generate your own Client
+   ID (see Project Settings for how) and either replace the value below or
+   paste it into the Settings override field - a per-device Settings value
+   always wins over this default. */
+const DEFAULT_GSHEETS_CLIENT_ID='398002070662-oi0fuarrsmec4a1m8a3aie874bn7b0id.apps.googleusercontent.com';
+
 function loadStandaloneData(){
   try{
     const raw=JSON.parse(localStorage.getItem(SB_STANDALONE_KEY)||'null');
@@ -3000,17 +3013,17 @@ function SettingsModal({onClose}){
           </div>
 
           <div style={{borderTop:`1px solid ${T.rule}`,paddingTop:14}}>
-            <span style={lbl}>GOOGLE SHEETS CLIENT ID (only needed for the "Backup to Google Sheets" button)</span>
-            <input value={clientId} onChange={e=>setClientId(e.target.value)} style={inp} placeholder="xxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com"/>
+            <span style={lbl}>GOOGLE SHEETS CLIENT ID (optional override - leave blank to use this deployment's default)</span>
+            <input value={clientId} onChange={e=>setClientId(e.target.value)} style={inp} placeholder={DEFAULT_GSHEETS_CLIENT_ID}/>
             <div style={hint}>
-              Everything else in this app (logging takes, print, CSV export, AI photo fill) works with zero setup and no internet.
-              Only the Google Sheets backup button needs this one-time step: create a free Google Cloud OAuth Client ID
-              (OAuth consent screen + Client ID for a Web Application), and add the URL you open this file from as an
-              "Authorized JavaScript origin". Paste that Client ID above. Each crew/deployment needs its own Client ID -
-              a Client ID's authorized origins only work for the exact URL(s) you register.
+              "Backup to Google Sheets" already works with no setup - every device that opens this app shares one
+              Client ID baked into this deployment (that's a public app identifier, not a secret; each person still
+              signs into their own Google account and writes to their own Drive). Only fill this in if you've forked
+              this app to a different web address and generated your own Client ID for it - a value here always
+              overrides the built-in default on this device.
               <br/><br/>
               <span style={{color:T.textMute}}>
-                {'中文说明：除了"备份到 Google 表格"这个按钮外，这个工具的其他功能（记录拍摄数据、打印、导出 CSV、AI 识别板照照片）都不需要网络，也不需要任何设置。如果需要备份到 Google 表格，每个剧组/每个部署需要自己申请一个免费的 Google Cloud OAuth 客户端 ID，并将打开此文件的网址添加为 "已授权的 JavaScript 来源"，然后将客户端 ID 粘贴在上面。这只需要设置一次。'}
+                {'中文说明："备份到 Google 表格"这个功能已经内建好了，不用设置，任何人打开这个网址都能直接用（大家共用同一个 Client ID，这个 ID 是公开的应用程式身分标识，不是密钥；每个人登录的还是自己的 Google 账号，数据也只会存进自己的 Drive）。这一栏只有在你把这个工具复制到别的网址、自己申请了新的 Client ID 时才需要填 —— 填了就会盖过这台设备上内建的默认值。'}
               </span>
             </div>
           </div>
@@ -3036,7 +3049,10 @@ function BackupModal({onClose}){
   const {data,updateData}=useStandaloneData();
   const [status,setStatus]=React.useState('idle'); // idle | working | done | error
   const [errMsg,setErrMsg]=React.useState('');
-  const hasClientId=!!(data.gsheetsClientId&&data.gsheetsClientId.trim());
+  // A per-device Settings value always overrides the baked-in shared default -
+  // that's what lets a fork on a different hosting URL use its own Client ID.
+  const effectiveClientId=(data.gsheetsClientId&&data.gsheetsClientId.trim())||DEFAULT_GSHEETS_CLIENT_ID;
+  const hasClientId=!!(effectiveClientId&&effectiveClientId.trim());
   const hasSpreadsheet=!!(data.gsheetsSpreadsheetId&&data.gsheetsSpreadsheetId.trim());
   const totalTakes=React.useMemo(()=>(data.rolls||[]).reduce((n,r)=>n+((r.takes||[]).length),0),[data.rolls]);
 
@@ -3046,7 +3062,7 @@ function BackupModal({onClose}){
       const sid=await backupToSheets({
         rolls: data.rolls||[],
         projectName: data.projectName,
-        clientId: data.gsheetsClientId,
+        clientId: effectiveClientId,
         spreadsheetId: data.gsheetsSpreadsheetId||null
       });
       updateData({gsheetsSpreadsheetId:sid});
