@@ -787,6 +787,12 @@ function colLetter(n){
 /* Full-overwrite backup: create the spreadsheet the first time (storing its
    id), then clear + rewrite the whole sheet every time "Backup Now" is
    clicked. This is a manual snapshot button, not live sync. */
+// Fixed tab name we control ourselves, rather than assuming Google's default
+// first-sheet name - that default is LOCALE-DEPENDENT (e.g. an account set
+// to Chinese gets "工作表1", not "Sheet1"), which made every write fail with
+// "Unable to parse range" for anyone not on an English-locale account.
+const GSHEETS_TAB_NAME='Data';
+
 async function backupToSheets({rolls, projectName, clientId, spreadsheetId}){
   const token=await ensureSheetsToken(clientId);
   let sid=spreadsheetId;
@@ -795,7 +801,7 @@ async function backupToSheets({rolls, projectName, clientId, spreadsheetId}){
     const resp=await fetch('https://sheets.googleapis.com/v4/spreadsheets',{
       method:'POST',
       headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
-      body:JSON.stringify({properties:{title:title}})
+      body:JSON.stringify({properties:{title:title}, sheets:[{properties:{title:GSHEETS_TAB_NAME}}]})
     });
     if(!resp.ok){
       const e=await resp.json().catch(()=>({}));
@@ -807,11 +813,11 @@ async function backupToSheets({rolls, projectName, clientId, spreadsheetId}){
   const rows=flattenRollsForSheet(rolls);
   const lastCol=colLetter(rows[0].length);
   try{
-    await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+sid+'/values/Sheet1:clear',{
+    await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+sid+'/values/'+encodeURIComponent(GSHEETS_TAB_NAME)+':clear',{
       method:'POST', headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'}
     });
   }catch(e){ /* non-fatal - the values.update below still overwrites the top rows */ }
-  const range='Sheet1!A1:'+lastCol+rows.length;
+  const range=GSHEETS_TAB_NAME+'!A1:'+lastCol+rows.length;
   const putResp=await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+sid+'/values/'+encodeURIComponent(range)+'?valueInputOption=RAW',{
     method:'PUT',
     headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
