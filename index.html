@@ -1691,6 +1691,23 @@ function CameraReport(){
   const [showSearch,setShowSearch]=React.useState(false);
   const [searchQ,setSearchQ]=React.useState({});  // field -> search string
 
+  // ---- Floating take-table header (JS-driven; replaces unreliable CSS
+  // position:sticky-in-a-table, which never worked on real Safari) ----
+  // scrollBoxRef = the single scrolling container (roll meta + table).
+  // theadSentinelRef = zero-height marker sitting exactly where the real
+  // header naturally starts; once it scrolls past ~5mm from the top of the
+  // scroll box, we swap in a position:fixed clone of the header ("pinned")
+  // so it looks locked in place, Excel-freeze-panes style. Horizontal
+  // scroll position is mirrored onto the clone on every scroll tick so
+  // columns stay lined up with the real table beneath it.
+  const scrollBoxRef=React.useRef(null);
+  const theadSentinelRef=React.useRef(null);
+  const tableRef=React.useRef(null);
+  const floatingWrapRef=React.useRef(null);
+  const floatingInnerRef=React.useRef(null);
+  const [pinned,setPinned]=React.useState(false);
+  const STICKY_TOP_PX=19; // ~5mm - matches the old CSS sticky offset
+
   const scenes=proj.scenes||[];
   // Format a scene string ("S01, S23") into "S01 EXT, S23 INT" using slugs.
   function sceneWithIE(sceneStr){
@@ -2473,17 +2490,88 @@ function CameraReport(){
   const metaInput={background:T.surface2,border:'1px solid '+T.border,borderRadius:4,padding:'3px 5px',fontSize:10,color:T.text,fontFamily:"'Geist Mono',monospace",width:'100%'};
   const metaLabel={fontSize:7,fontFamily:"'Geist Mono',monospace",letterSpacing:'0.06em',color:T.textDim,marginBottom:1,display:'block'};
   const cellInput={background:'transparent',border:'none',padding:'8px 6px',fontSize:12,color:T.text,width:'100%',fontFamily:"'Geist Mono',monospace"};
-  // Sticky header: NOT pinned from the very start (so a few visible rows
-  // aren't wasted on a small mobile screen) - it scrolls normally with the
-  // table until it would scroll past ~5mm from the top of the scroll area,
-  // then locks there. That small gap (rather than top:0) also keeps it clear
-  // of the iOS status bar/notch when this is opened as an installed PWA.
+  // Take-table header positioning is now handled entirely by the JS
+  // floating-header effect below (position:sticky on <th> inside a table
+  // never reliably locked in place on real Safari, even after the
+  // border-collapse fix) - so this style is just the plain, non-positioned
+  // look shared by both the real <thead> and its floating clone.
+  const th={padding:'6px 5px',background:CAM.header,color:'#fff',fontSize:9,fontFamily:"'Geist Mono',monospace",letterSpacing:'0.05em',textAlign:'left',whiteSpace:'nowrap'};
+  // Kept only for the smaller search-results table below, which still uses
+  // plain CSS sticky (lower-traffic view; not worth the JS treatment yet).
   const STICKY_TOP='5mm';
-  // WebkitPosition + a higher z-index are extra belt-and-suspenders for the
-  // Safari sticky-in-a-table bug fixed above via border-collapse:'separate' -
-  // WebKit has historically needed both to composite sticky header cells
-  // (with their background) correctly above the scrolling rows beneath them.
-  const th={padding:'6px 5px',background:CAM.header,color:'#fff',fontSize:9,fontFamily:"'Geist Mono',monospace",letterSpacing:'0.05em',textAlign:'left',whiteSpace:'nowrap',WebkitPosition:'sticky',position:'sticky',top:STICKY_TOP,zIndex:5};
+
+  // Re-measure and re-position the fixed floating header clone so it sits
+  // exactly over where the real header would be (viewport top + ~5mm),
+  // spans the same left/width as the scroll box, and mirrors the scroll
+  // box's current horizontal scroll offset via a transform (imperative DOM
+  // writes here, not React state, so this stays smooth during a scroll
+  // gesture instead of forcing a re-render on every tick).
+  const positionFloatingHeader=React.useCallback(()=>{
+    const box=scrollBoxRef.current, wrap=floatingWrapRef.current;
+    if(!box||!wrap)return;
+    const r=box.getBoundingClientRect();
+    wrap.style.top=(r.top+STICKY_TOP_PX)+'px';
+    wrap.style.left=r.left+'px';
+    wrap.style.width=r.width+'px';
+    if(floatingInnerRef.current){
+      // Match the clone's width to the real table's actual rendered width
+      // (it can be wider than its own minWidth on a big screen, since the
+      // real table is width:'100%') so the translateX below keeps every
+      // column lined up with the real table beneath, at any viewport size.
+      if(tableRef.current)floatingInnerRef.current.style.width=tableRef.current.offsetWidth+'px';
+      floatingInnerRef.current.style.transform='translateX(-'+box.scrollLeft+'px)';
+    }
+  },[STICKY_TOP_PX]);
+
+  React.useEffect(()=>{
+    if(pinned)positionFloatingHeader();
+  },[pinned,positionFloatingHeader]);
+
+  React.useEffect(()=>{
+    const box=scrollBoxRef.current, sentinel=theadSentinelRef.current;
+    if(!box||!sentinel)return;
+    const obs=new IntersectionObserver((entries)=>{
+      setPinned(!entries[0].isIntersecting);
+    },{root:box,rootMargin:`-${STICKY_TOP_PX}px 0px 0px 0px`,threshold:0});
+    obs.observe(sentinel);
+    const onScroll=()=>positionFloatingHeader();
+    const onResize=()=>positionFloatingHeader();
+    box.addEventListener('scroll',onScroll,{passive:true});
+    window.addEventListener('resize',onResize);
+    window.addEventListener('orientationchange',onResize);
+    return ()=>{
+      obs.disconnect();
+      box.removeEventListener('scroll',onScroll);
+      window.removeEventListener('resize',onResize);
+      window.removeEventListener('orientationchange',onResize);
+      setPinned(false); // don't leave a stale floating clone up if this section unmounts
+    };
+    // Re-attach whenever the take-table section (un)mounts - it's wrapped in
+    // {roll && !(showSearch&&hasSearch) && ...}, so scrollBoxRef/theadSentinelRef
+    // go from null to real nodes (or back) whenever those flip.
+  },[roll&&roll.id,showSearch,hasSearch,positionFloatingHeader]);
+
+  // Header cells shared verbatim by the real <thead> and the floating clone
+  // below, so they never drift out of sync with each other.
+  const takeHeaderCells=roll?(
+    <>
+      <th style={{...th,width:30,textAlign:'center'}}>
+        <input type="checkbox"
+          checked={roll.takes.length>0&&selTakeIds.length===roll.takes.length}
+          onChange={e=>setSelTakeIds(e.target.checked?roll.takes.map(t=>t.id):[])}
+          style={{cursor:'pointer'}} title="Select all"/>
+      </th>
+      <th style={{...th,minWidth:110}}>SCENE</th><th style={{...th,width:38}}>SHOT</th><th style={{...th,width:46}}>TAKE</th><th style={{...th,width:36}}>T/S</th>
+      <th style={{...th,width:88}}>CLIP</th><th style={{...th,width:72}}>LENS</th><th style={{...th,width:65}}>FOCAL</th>
+      <th style={{...th,width:66}}>STOP</th>
+      <th style={{...th,width:80,whiteSpace:'normal',lineHeight:1.15}}>SHUTTER</th>
+      <th style={{...th,width:50}}>EI</th><th style={{...th,width:64}}>FILTER 1</th>
+      <th style={{...th,width:80}}>FILTER 2</th><th style={{...th,width:70}}>FILTER 3</th><th style={{...th,width:76}}>WB</th>
+      <th style={{...th,width:46,whiteSpace:'normal',lineHeight:1.15,verticalAlign:'middle'}}>FOCUS<br/>(ft)</th>
+      <th style={{...th,minWidth:180}}>NOTES</th><th style={{...th,width:44}}>{'📷'}</th>
+      <th style={{...th,width:78,whiteSpace:'normal',lineHeight:1.15,textAlign:'center'}}>INSERT<br/>ROW</th>
+    </>
+  ):null;
 
   return(
     <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden',border:`1px solid ${T.border}`,borderTop:'none',background:T.panel}}>
@@ -2771,7 +2859,7 @@ function CameraReport(){
         <button onClick={()=>addRoll(activeCam,'blank')} style={{padding:'8px 18px',borderRadius:6,background:T.accent,border:'none',color:'#0e0d0b',fontWeight:600,fontSize:12,cursor:'pointer'}}>+ Start a roll</button>
       </div>}
 
-      {roll&&!(showSearch&&hasSearch)&&<div style={{flex:1,overflow:'auto',minHeight:0}}>
+      {roll&&!(showSearch&&hasSearch)&&<div ref={scrollBoxRef} style={{flex:1,overflow:'auto',minHeight:0,position:'relative'}}>
         {/* Roll header / meta - compact: one dense grid for everything */}
         <div style={{padding:mob?'6px 8px':'7px 12px',borderBottom:`1px solid ${T.rule}`}}>
           <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6,flexWrap:'wrap'}}>
@@ -2886,34 +2974,22 @@ function CameraReport(){
         {/* No separate overflowX wrapper here on purpose: the outer scroll
             div above (flex:1, overflow:'auto') already handles both axes.
             Nesting a second overflow-x:auto div here used to create a
-            second, ambiguous "nearest scrolling ancestor" for the sticky
-            header th's below, which stopped them from actually sticking -
-            they'd scroll away with the rest of the table instead of locking
-            in place. Keeping the table a direct child of the single
-            scrolling div fixes that. */}
-          {/* border-collapse:'separate' (not 'collapse') is required here - WebKit/Safari has a
-              long-standing bug where position:sticky on <th>/<td> silently stops working once the
-              table uses border-collapse:collapse. Cells only ever declare borderRight/borderBottom
-              (never the mirroring borderLeft/borderTop), so switching to separate + 0 spacing does
-              not create doubled border lines. */}
-          <table style={{borderCollapse:'separate',borderSpacing:0,width:'100%',minWidth:1342}}>
-            <thead><tr>
-              <th style={{...th,width:30,textAlign:'center'}}>
-                <input type="checkbox"
-                  checked={roll.takes.length>0&&selTakeIds.length===roll.takes.length}
-                  onChange={e=>setSelTakeIds(e.target.checked?roll.takes.map(t=>t.id):[])}
-                  style={{cursor:'pointer'}} title="Select all"/>
-              </th>
-              <th style={{...th,minWidth:110}}>SCENE</th><th style={{...th,width:38}}>SHOT</th><th style={{...th,width:46}}>TAKE</th><th style={{...th,width:36}}>T/S</th>
-              <th style={{...th,width:88}}>CLIP</th><th style={{...th,width:72}}>LENS</th><th style={{...th,width:65}}>FOCAL</th>
-              <th style={{...th,width:66}}>STOP</th>
-              <th style={{...th,width:80,whiteSpace:'normal',lineHeight:1.15}}>SHUTTER</th>
-              <th style={{...th,width:50}}>EI</th><th style={{...th,width:64}}>FILTER 1</th>
-              <th style={{...th,width:80}}>FILTER 2</th><th style={{...th,width:70}}>FILTER 3</th><th style={{...th,width:76}}>WB</th>
-              <th style={{...th,width:46,whiteSpace:'normal',lineHeight:1.15,verticalAlign:'middle'}}>FOCUS<br/>(ft)</th>
-              <th style={{...th,minWidth:180}}>NOTES</th><th style={{...th,width:44}}>{'\uD83D\uDCF7'}</th>
-              <th style={{...th,width:78,whiteSpace:'normal',lineHeight:1.15,textAlign:'center'}}>INSERT<br/>ROW</th>
-            </tr></thead>
+            second, ambiguous "nearest scrolling ancestor", which is also
+            why the floating header clone measures THIS box for its
+            position/size rather than anything nested inside it. */}
+          {/* border-collapse:'separate' (not 'collapse') avoids a WebKit/Safari
+              table-cell border/paint bug unrelated to the header fix below.
+              Cells only ever declare borderRight/borderBottom/borderTop (never
+              their mirrors), so this never creates doubled border lines. */}
+          {/* theadSentinelRef marks exactly where the header naturally sits;
+              once it scrolls past the ~5mm threshold the floating clone
+              (rendered below, outside this scrolling box) takes over so the
+              header appears locked in place - see the effect above. Real
+              <thead> below never uses position:sticky - that approach was
+              tried twice and never actually stuck on real Safari. */}
+          <div ref={theadSentinelRef} style={{height:0}}/>
+          <table ref={tableRef} style={{borderCollapse:'separate',borderSpacing:0,width:'100%',minWidth:1342}}>
+            <thead><tr>{takeHeaderCells}</tr></thead>
             <tbody>
               {roll.takes.map((t,i)=>{
                 const prev=i>0?roll.takes[i-1]:null;
@@ -2929,14 +3005,19 @@ function CameraReport(){
                 const needStop=hasScene&&isFirstTakeOfShot&&!String(t.stop||'').trim();
                 const reqStyle={background:'rgba(229,72,77,0.16)',boxShadow:'inset 0 0 0 1.5px #e5484d'};
                 const isSel=selTakeIds.includes(t.id);
+                // border-collapse:'separate' (needed for the sticky/floating header
+                // fix above) means a border set directly on the <tr> no longer paints
+                // reliably in most browsers - so the shot/scene divider line has to be
+                // applied to every <td> in the row instead, spread in first so it never
+                // clobbers each cell's own borderRight/background.
+                const gb=newGroup?{borderTop:`2px solid ${T.accent}66`}:{};
                 return(
                 <tr key={t.id} style={{borderBottom:`1px solid ${T.rule}`,
-                  borderTop:newGroup?`2px solid ${T.accent}66`:'none',
                   background:isSel?(CAM.tint):(i%2?T.surface2+'55':'transparent')}}>
-                  <td style={{borderRight:`1px solid ${T.rule}`,textAlign:'center'}}>
+                  <td style={{...gb,borderRight:`1px solid ${T.rule}`,textAlign:'center'}}>
                     <input type="checkbox" checked={isSel} onChange={()=>toggleTakeSel(t.id)} style={{cursor:'pointer'}}/>
                   </td>
-                  <td style={{borderRight:`1px solid ${T.rule}`}}>
+                  <td style={{...gb,borderRight:`1px solid ${T.rule}`}}>
                     <input value={t.scene||''} placeholder="-" onChange={e=>{
                         const v=e.target.value;
                         const first=v.split(',')[0].trim();
@@ -2944,22 +3025,22 @@ function CameraReport(){
                         patchTake(t.id,{scene:v,take:String(newTake)});
                       }} style={cellInput}/>
                   </td>
-                  <td style={{borderRight:`1px solid ${T.rule}`}}><input value={t.shot||''} placeholder="/" onChange={e=>changeTakeShot(t.id,e.target.value.toUpperCase())} style={{...cellInput,textAlign:'center'}}/></td>
-                  <td style={{borderRight:`1px solid ${T.rule}`}}><input value={t.take||''} onChange={e=>patchTake(t.id,{take:e.target.value})} style={{...cellInput,textAlign:'center'}} inputMode="numeric"/></td>
-                  <td style={{borderRight:`1px solid ${T.rule}`,textAlign:'center'}}>
+                  <td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.shot||''} placeholder="/" onChange={e=>changeTakeShot(t.id,e.target.value.toUpperCase())} style={{...cellInput,textAlign:'center'}}/></td>
+                  <td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.take||''} onChange={e=>patchTake(t.id,{take:e.target.value})} style={{...cellInput,textAlign:'center'}} inputMode="numeric"/></td>
+                  <td style={{...gb,borderRight:`1px solid ${T.rule}`,textAlign:'center'}}>
                     <button onClick={()=>patchTake(t.id,{tail:!t.tail})} title="Tail slate" aria-label="Toggle tail slate" style={{background:'transparent',border:'none',cursor:'pointer',fontSize:14,padding:'2px'}}>{t.tail?'\u2705':'\u2610'}</button>
                   </td>
-                  <td style={{borderRight:`1px solid ${T.rule}`}}><input value={t.clip||''} onChange={e=>patchTake(t.id,{clip:e.target.value})} style={{...cellInput,textAlign:'right'}}/></td>
-                  <td style={{borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.lens||''} onChange={v=>patchTake(t.id,{lens:v})} options={LENS_OPTIONS} inputStyle={cellInput} noFilter/></td>
-                  <td style={{borderRight:`1px solid ${T.rule}`,...(needFocal?reqStyle:{})}}><LensFocalPicker value={t.focal||''} onChange={v=>patchTake(t.id,{focal:v})} options={FOCAL_OPTIONS} inputStyle={cellInput}/></td>
-                  <td style={{borderRight:`1px solid ${T.rule}`,...(needStop?reqStyle:{})}}><LensFocalPicker value={t.stop||''} onChange={v=>patchTake(t.id,{stop:v})} options={STOP_OPTIONS} inputStyle={cellInput}/></td>
-                  <td style={{borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.shutter||''} onChange={v=>patchTake(t.id,{shutter:v})} options={SHUTTER_OPTIONS} placeholder={roll.shutter||''} inputStyle={{...cellInput,textAlign:'center'}}/></td>
-                  <td style={{borderRight:`1px solid ${T.rule}`}}><input value={t.ei||''} onChange={e=>patchTake(t.id,{ei:e.target.value})} style={cellInput}/></td>
-                  <td style={{borderRight:`1px solid ${T.rule}`}}><input value={t.intFilters||''} onChange={e=>patchTake(t.id,{intFilters:e.target.value})} style={cellInput}/></td>
-                  <td style={{borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.filters||''} onChange={v=>patchTake(t.id,{filters:v})} options={FILTER2_OPTIONS} inputStyle={cellInput}/></td>
-                  <td style={{borderRight:`1px solid ${T.rule}`}}><input value={t.filters3||''} onChange={e=>patchTake(t.id,{filters3:e.target.value})} style={cellInput}/></td>
-                  <td style={{borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.wb||''} onChange={v=>patchTake(t.id,{wb:v})} options={WB_OPTIONS} inputStyle={cellInput}/></td>
-                  <td style={{borderRight:`1px solid ${T.rule}`}}>
+                  <td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.clip||''} onChange={e=>patchTake(t.id,{clip:e.target.value})} style={{...cellInput,textAlign:'right'}}/></td>
+                  <td style={{...gb,borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.lens||''} onChange={v=>patchTake(t.id,{lens:v})} options={LENS_OPTIONS} inputStyle={cellInput} noFilter/></td>
+                  <td style={{...gb,borderRight:`1px solid ${T.rule}`,...(needFocal?reqStyle:{})}}><LensFocalPicker value={t.focal||''} onChange={v=>patchTake(t.id,{focal:v})} options={FOCAL_OPTIONS} inputStyle={cellInput}/></td>
+                  <td style={{...gb,borderRight:`1px solid ${T.rule}`,...(needStop?reqStyle:{})}}><LensFocalPicker value={t.stop||''} onChange={v=>patchTake(t.id,{stop:v})} options={STOP_OPTIONS} inputStyle={cellInput}/></td>
+                  <td style={{...gb,borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.shutter||''} onChange={v=>patchTake(t.id,{shutter:v})} options={SHUTTER_OPTIONS} placeholder={roll.shutter||''} inputStyle={{...cellInput,textAlign:'center'}}/></td>
+                  <td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.ei||''} onChange={e=>patchTake(t.id,{ei:e.target.value})} style={cellInput}/></td>
+                  <td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.intFilters||''} onChange={e=>patchTake(t.id,{intFilters:e.target.value})} style={cellInput}/></td>
+                  <td style={{...gb,borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.filters||''} onChange={v=>patchTake(t.id,{filters:v})} options={FILTER2_OPTIONS} inputStyle={cellInput}/></td>
+                  <td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.filters3||''} onChange={e=>patchTake(t.id,{filters3:e.target.value})} style={cellInput}/></td>
+                  <td style={{...gb,borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.wb||''} onChange={v=>patchTake(t.id,{wb:v})} options={WB_OPTIONS} inputStyle={cellInput}/></td>
+                  <td style={{...gb,borderRight:`1px solid ${T.rule}`}}>
                     {/* Underlying value stays a plain number (that's what print/CSV/Sheets
                         export expect) - the trailing feet mark is just a visual suffix shown
                         next to the input, so typing "6" reads as 6' without any cursor-jump
@@ -2970,15 +3051,15 @@ function CameraReport(){
                       {String(t.focus||'').trim()&&<span style={{fontSize:12,color:T.text,flexShrink:0,paddingRight:2}}>{"'"}</span>}
                     </div>
                   </td>
-                  <td style={{borderRight:`1px solid ${T.rule}`}}><NotesPicker value={t.notes||''} onChange={v=>patchTake(t.id,{notes:v})}/></td>
-                  <td style={{borderRight:`1px solid ${T.rule}`,padding:'4px 2px'}}>
+                  <td style={{...gb,borderRight:`1px solid ${T.rule}`}}><NotesPicker value={t.notes||''} onChange={v=>patchTake(t.id,{notes:v})}/></td>
+                  <td style={{...gb,borderRight:`1px solid ${T.rule}`,padding:'4px 2px'}}>
                     <TakePhotoCell projId={projId} take={t}
                       onAddPhoto={imgId=>patchTake(t.id,{photoIds:[...(t.photoIds||[]),imgId]})}
                       onRemovePhoto={imgId=>{
                         patchTake(t.id,{photoIds:(t.photoIds||[]).filter(x=>x!==imgId)});
                       }}/>
                   </td>
-                  <td style={{textAlign:'center',whiteSpace:'nowrap',padding:'4px 2px'}}>
+                  <td style={{...gb,textAlign:'center',whiteSpace:'nowrap',padding:'4px 2px'}}>
                     <button onClick={()=>insertTakeAfter(t.id)} title="Insert row below" aria-label="Insert row below"
                       style={{background:T.accent+'14',border:`1px solid ${T.accent}44`,borderRadius:5,
                         color:T.accent,cursor:'pointer',fontSize:16,fontWeight:600,width:26,height:26,lineHeight:1,padding:0,marginRight:4}}>+</button>
@@ -3053,6 +3134,22 @@ function CameraReport(){
           </button>
         </div>
       </div>}
+
+      {/* Floating header clone - only rendered while "pinned" (scrolled past
+          the ~5mm threshold). Lives outside the scrolling box on purpose:
+          position:fixed is relative to the viewport, and its top/left/width
+          are written imperatively onto floatingWrapRef by positionFloatingHeader()
+          above rather than kept in React state, so dragging to scroll stays
+          smooth instead of triggering a re-render on every pixel. */}
+      {pinned&&roll&&(
+        <div ref={floatingWrapRef} style={{position:'fixed',overflow:'hidden',zIndex:50,pointerEvents:'none',background:CAM.header,boxShadow:'0 2px 6px rgba(0,0,0,0.35)'}}>
+          <div ref={floatingInnerRef} style={{willChange:'transform',pointerEvents:'auto'}}>
+            <table style={{borderCollapse:'separate',borderSpacing:0,width:'100%',minWidth:1342}}>
+              <thead><tr>{takeHeaderCells}</tr></thead>
+            </table>
+          </div>
+        </div>
+      )}
 
       {showAIFill&&roll&&(
         <AIFillModal
