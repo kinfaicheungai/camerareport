@@ -2479,7 +2479,11 @@ function CameraReport(){
   // then locks there. That small gap (rather than top:0) also keeps it clear
   // of the iOS status bar/notch when this is opened as an installed PWA.
   const STICKY_TOP='5mm';
-  const th={padding:'6px 5px',background:CAM.header,color:'#fff',fontSize:9,fontFamily:"'Geist Mono',monospace",letterSpacing:'0.05em',textAlign:'left',whiteSpace:'nowrap',position:'sticky',top:STICKY_TOP,zIndex:2};
+  // WebkitPosition + a higher z-index are extra belt-and-suspenders for the
+  // Safari sticky-in-a-table bug fixed above via border-collapse:'separate' -
+  // WebKit has historically needed both to composite sticky header cells
+  // (with their background) correctly above the scrolling rows beneath them.
+  const th={padding:'6px 5px',background:CAM.header,color:'#fff',fontSize:9,fontFamily:"'Geist Mono',monospace",letterSpacing:'0.05em',textAlign:'left',whiteSpace:'nowrap',WebkitPosition:'sticky',position:'sticky',top:STICKY_TOP,zIndex:5};
 
   return(
     <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden',border:`1px solid ${T.border}`,borderTop:'none',background:T.panel}}>
@@ -2670,9 +2674,9 @@ function CameraReport(){
         <div style={{flex:1,overflow:'auto',minHeight:0}}>
           {(searchResults||[]).length===0
             ?<div style={{padding:24,textAlign:'center',color:T.textDim,fontFamily:"'Geist Mono',monospace",fontSize:12}}>No takes match</div>
-            :<table style={{borderCollapse:'collapse',width:'100%',minWidth:900}}>
+            :<table style={{borderCollapse:'separate',borderSpacing:0,width:'100%',minWidth:900}}>
               <thead><tr>
-                <th style={{...th,width:80,position:'sticky',top:STICKY_TOP,left:0,zIndex:3}}>ROLL·DAY</th>
+                <th style={{...th,width:80,WebkitPosition:'sticky',position:'sticky',top:STICKY_TOP,left:0,zIndex:6}}>ROLL·DAY</th>
                 <th style={{...th,minWidth:90}}>SCENE</th>
                 <th style={{...th,width:36}}>SHOT</th><th style={{...th,width:42}}>TAKE</th><th style={{...th,width:34}}>T/S</th>
                 <th style={{...th,width:80}}>CLIP</th><th style={{...th,width:60}}>EI</th>
@@ -2833,10 +2837,6 @@ function CameraReport(){
               <input value={roll.fps||''} onChange={e=>patchRoll(roll.id,{fps:e.target.value})} style={metaInput}/>
             </div>
             <div>
-              <span style={metaLabel}>SHUTTER</span>
-              <input value={roll.shutter||''} onChange={e=>patchRoll(roll.id,{shutter:e.target.value})} style={metaInput}/>
-            </div>
-            <div>
               <span style={metaLabel}>BASE EI</span>
               <input value={roll.baseEI||''} onChange={e=>patchRoll(roll.id,{baseEI:e.target.value})} style={metaInput}/>
             </div>
@@ -2891,7 +2891,12 @@ function CameraReport(){
             they'd scroll away with the rest of the table instead of locking
             in place. Keeping the table a direct child of the single
             scrolling div fixes that. */}
-          <table style={{borderCollapse:'collapse',width:'100%',minWidth:1342}}>
+          {/* border-collapse:'separate' (not 'collapse') is required here - WebKit/Safari has a
+              long-standing bug where position:sticky on <th>/<td> silently stops working once the
+              table uses border-collapse:collapse. Cells only ever declare borderRight/borderBottom
+              (never the mirroring borderLeft/borderTop), so switching to separate + 0 spacing does
+              not create doubled border lines. */}
+          <table style={{borderCollapse:'separate',borderSpacing:0,width:'100%',minWidth:1342}}>
             <thead><tr>
               <th style={{...th,width:30,textAlign:'center'}}>
                 <input type="checkbox"
@@ -2906,7 +2911,8 @@ function CameraReport(){
               <th style={{...th,width:50}}>EI</th><th style={{...th,width:64}}>FILTER 1</th>
               <th style={{...th,width:80}}>FILTER 2</th><th style={{...th,width:70}}>FILTER 3</th><th style={{...th,width:76}}>WB</th>
               <th style={{...th,width:46,whiteSpace:'normal',lineHeight:1.15,verticalAlign:'middle'}}>FOCUS<br/>(ft)</th>
-              <th style={{...th,minWidth:180}}>NOTES</th><th style={{...th,width:44}}>{'\uD83D\uDCF7'}</th><th style={{...th,width:78}}></th>
+              <th style={{...th,minWidth:180}}>NOTES</th><th style={{...th,width:44}}>{'\uD83D\uDCF7'}</th>
+              <th style={{...th,width:78,whiteSpace:'normal',lineHeight:1.15,textAlign:'center'}}>INSERT<br/>ROW</th>
             </tr></thead>
             <tbody>
               {roll.takes.map((t,i)=>{
@@ -2961,7 +2967,7 @@ function CameraReport(){
                     <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:1}}>
                       <input value={t.focus||''} placeholder="e.g. 6" onChange={e=>patchTake(t.id,{focus:e.target.value})}
                         style={{...cellInput,padding:'8px 0 8px 3px',textAlign:'right',width:'100%'}}/>
-                      {String(t.focus||'').trim()&&<span style={{fontSize:12,color:T.textDim,flexShrink:0,paddingRight:2}}>{"'"}</span>}
+                      {String(t.focus||'').trim()&&<span style={{fontSize:12,color:T.text,flexShrink:0,paddingRight:2}}>{"'"}</span>}
                     </div>
                   </td>
                   <td style={{borderRight:`1px solid ${T.rule}`}}><NotesPicker value={t.notes||''} onChange={v=>patchTake(t.id,{notes:v})}/></td>
