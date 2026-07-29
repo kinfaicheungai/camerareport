@@ -669,6 +669,34 @@ function parseShootDaysText(txt){
 }
 function shootDaysToText(days){ return (days||[]).map(d=>d.day+' | '+(d.date||'')).join('\n'); }
 
+/* Scenes are stored as {id, slug} where slug is free text like
+   "INT. APARTMENT - DAY" - sceneIntExt() pulls the INT/EXT tag out of it
+   with a regex. The structured Scene editor splits that same slug into an
+   INT/EXT/INT-EXT picker plus a plain description field, so the picker is
+   just a friendlier way to edit the same underlying string - nothing
+   downstream (the tag badge, search, print) needs to change. */
+function decomposeSlug(slug){
+  const s=(slug||'').trim();
+  const m=s.match(/^(INT\/EXT|INT|EXT)\.?\s*/i);
+  if(m) return {intExt:m[1].toUpperCase(), desc:s.slice(m[0].length).trim()};
+  return {intExt:'', desc:s};
+}
+function composeSlug(intExt,desc){
+  const d=(desc||'').trim();
+  if(!intExt) return d;
+  return intExt+(d?'. '+d:'.');
+}
+// Shoot-day date arithmetic for the "+ Add day" smart default: given the
+// previous day's date string, suggest the next calendar day.
+function addOneDay(dateStr){
+  const m=String(dateStr||'').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(!m) return '';
+  const d=new Date(Number(m[1]),Number(m[2])-1,Number(m[3]));
+  d.setDate(d.getDate()+1);
+  const pad=n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+}
+
 /* ===============================================================
    GOOGLE SHEETS BACKUP (the ONLY feature that ever touches the
    network, and only when the user clicks "Backup Now"). Uses
@@ -834,6 +862,7 @@ const SB_NOTE_PRESETS_KEY='sb_camrep_note_presets';
 const SB_FOCAL_PRESETS_KEY='sb_camrep_focal_presets';
 const SB_STOP_PRESETS_KEY='sb_camrep_stop_presets';
 const SB_FILTER2_PRESETS_KEY='sb_camrep_filter2_presets';
+const SB_LENS_PRESETS_KEY='sb_camrep_lens_presets';
 
 /* Multi-camera config: each camera letter has a distinct header colour so
    the user can tell at a glance which camera's report they're editing. */
@@ -842,8 +871,9 @@ const CAM_CONFIG={
   B:{label:'B', header:'#1e3a6b', accent:'#4d8ee5', tint:'rgba(77,142,229,0.14)'},  // blue
   C:{label:'C', header:'#1f5f3a', accent:'#3ec17a', tint:'rgba(62,193,122,0.14)'},  // green
   D:{label:'D', header:'#7a4a1f', accent:'#e5934d', tint:'rgba(229,147,77,0.14)'},  // orange
+  E:{label:'E', header:'#4a1f6b', accent:'#a866e5', tint:'rgba(168,102,229,0.14)'}, // purple
 };
-const CAM_ORDER=['A','B','C','D'];
+const CAM_ORDER=['A','B','C','D','E'];
 function camOf(roll){ return (roll&&roll.cam)||'A'; }
 
 
@@ -1138,7 +1168,7 @@ function SearchInputAC({value,onChange,suggestions,placeholder}){
     </div>
   );
 }
-function LensFocalPicker({value,onChange,options,placeholder,inputStyle,align}){
+function LensFocalPicker({value,onChange,options,placeholder,inputStyle,align,noFilter}){
   const [open,setOpen]=React.useState(false);
   const [fixPos,setFixPos]=React.useState({top:0,left:0,width:150,up:false});
   const wrapRef=React.useRef(null);
@@ -1148,7 +1178,10 @@ function LensFocalPicker({value,onChange,options,placeholder,inputStyle,align}){
   // Typeahead: once the user starts typing, narrow the option list to values
   // that CONTAIN what they typed (e.g. "56" -> 5600, 5650, 3200...no just
   // ones containing "56"), instead of always showing the full list.
-  const q=(value||'').trim().toLowerCase();
+  // Lens passes noFilter - there, the field already holding a value used to
+  // filter the list down to just itself, making it impossible to open the
+  // dropdown and pick a DIFFERENT lens without clearing the field first.
+  const q=noFilter?'':(value||'').trim().toLowerCase();
   const filteredOptions=React.useMemo(()=>{
     if(!q)return options;
     return options.filter(o=>o.toLowerCase().includes(q));
@@ -1311,7 +1344,7 @@ function TakePhotoCell({projId,take,onAddPhoto,onRemovePhoto}){
         onChange={e=>{handleFile(e.target.files[0]);e.target.value='';}}/>
       <input ref={camRef} type="file" accept="image/*" capture="environment" style={{display:'none'}}
         onChange={e=>{handleFile(e.target.files[0]);e.target.value='';}}/>
-      <button type="button" onClick={toggleOpen} title="Reference photos (stored on this device only)"
+      <button type="button" onClick={toggleOpen} title="Reference photos (stored on this device only)" aria-label="Reference photos"
         style={{display:'flex',alignItems:'center',gap:3,
           background:idCount?T.accent+'18':'transparent',
           border:`1px solid ${idCount?T.accent+'44':T.border}`,borderRadius:5,
@@ -1617,14 +1650,16 @@ function CameraReport(){
   const SHUTTER_OPTIONS=['180','172.8'];
   // WB 3200K..7000K in 50K steps
   const WB_OPTIONS=(()=>{const a=[];for(let k=3200;k<=7000;k+=50)a.push(k+'');return a;})();
-  const LENS_OPTIONS=['Cooke Panchro i','Cooke S4','Cooke S7','Zeiss Master Prime','Zeiss Ultra Prime','Zeiss Supreme','Arri Signature Prime','Leica Summilux-C','Angenieux Zoom','Canon CN-E'];
+  const DEFAULT_LENS=['Cooke Panchro i','Cooke S4','Cooke S7','Zeiss Master Prime','Zeiss Ultra Prime','Zeiss Supreme','Arri Signature Prime','Leica Summilux-C','Angenieux Zoom','Canon CN-E'];
   const DEFAULT_FOCAL=['21mm','27mm','32mm','40mm','50mm','65mm','75mm','85mm','100mm','110mm'];
   const DEFAULT_STOP=['T1.4','T2','T2.2','T2.5','T2.8','T3.2','T3.5','T4','T4.5','T5.6','T6.3','T7.1','T8','T9','T11','T13','T16','T22'];
   const DEFAULT_FILTER2=['ND0.6','ND1.2','ND1.8','ND2.4','ND3.0'];
   const loadOpts=(key,def)=>{try{const v=JSON.parse(localStorage.getItem(key)||'null');return (Array.isArray(v)&&v.length)?v:def;}catch{return def;}};
+  const [lensOptions,setLensOptions]=React.useState(()=>loadOpts(SB_LENS_PRESETS_KEY,DEFAULT_LENS));
   const [focalOptions,setFocalOptions]=React.useState(()=>loadOpts(SB_FOCAL_PRESETS_KEY,DEFAULT_FOCAL));
   const [stopOptions,setStopOptions]=React.useState(()=>loadOpts(SB_STOP_PRESETS_KEY,DEFAULT_STOP));
   const [filter2Options,setFilter2Options]=React.useState(()=>loadOpts(SB_FILTER2_PRESETS_KEY,DEFAULT_FILTER2));
+  const LENS_OPTIONS=lensOptions;
   const FOCAL_OPTIONS=focalOptions;
   const STOP_OPTIONS=stopOptions;
   const FILTER2_OPTIONS=filter2Options;
@@ -1633,11 +1668,12 @@ function CameraReport(){
   // Registry of all editable dropdown-option lists  -  add future fields here.
   const PRESET_CONFIGS={
     notes:  {title:'Note Presets',    storageKey:SB_NOTE_PRESETS_KEY,    defaults:null,            placeholder:'Add a preset note...',   onSaved:null},
+    lens:   {title:'Lens Presets',    storageKey:SB_LENS_PRESETS_KEY,    defaults:DEFAULT_LENS,    placeholder:'e.g. Zeiss Supreme',   onSaved:setLensOptions},
     focal:  {title:'Focal Length Presets', storageKey:SB_FOCAL_PRESETS_KEY, defaults:DEFAULT_FOCAL, placeholder:'e.g. 135mm or 135', normalize:v=>/^\d+(\.\d+)?$/.test(v)?v+'mm':v, onSaved:setFocalOptions},
     stop:   {title:'T-Stop Presets',  storageKey:SB_STOP_PRESETS_KEY,    defaults:DEFAULT_STOP,    placeholder:'e.g. T2.8 or 2.8', normalize:v=>/^\d+(\.\d+)?$/.test(v)?'T'+v:v, onSaved:setStopOptions},
     filter2:{title:'Filter 2 (ND) Presets', storageKey:SB_FILTER2_PRESETS_KEY, defaults:DEFAULT_FILTER2, placeholder:'e.g. ND1.2', normalize:v=>/^\d+(\.\d+)?$/.test(v)?'ND'+v:v, onSaved:setFilter2Options},
   };
-  const PRESET_MENU=[{k:'notes',l:'Notes'},{k:'focal',l:'Focal'},{k:'stop',l:'Stop'},{k:'filter2',l:'Filter 2'}];
+  const PRESET_MENU=[{k:'notes',l:'Notes'},{k:'lens',l:'Lens'},{k:'focal',l:'Focal'},{k:'stop',l:'Stop'},{k:'filter2',l:'Filter 2'}];
   const [showPresetMenu,setShowPresetMenu]=React.useState(false);
 
   const [rolls,setRolls]=React.useState([]);     // [{id, roll, cam, mag, date, shootDay, ...takes}]
@@ -1649,6 +1685,7 @@ function CameraReport(){
   const [syncStatus,setSyncStatus]=React.useState('offline');
   const [exporting,setExporting]=React.useState(false);
   const [showAIFill,setShowAIFill]=React.useState(false);
+  const [showIconGuide,setShowIconGuide]=React.useState(false);
   const [filterDay,setFilterDay]=React.useState('all');
   const [selTakeIds,setSelTakeIds]=React.useState([]); // multi-selected clip rows (for moving)
   const [showSearch,setShowSearch]=React.useState(false);
@@ -1900,6 +1937,16 @@ function CameraReport(){
     do{ s=String.fromCharCode(65+(i%26))+s; i=Math.floor(i/26)-1; }while(i>=0);
     return s;
   }
+  // Auto-advancing to the next shot letter skips I and O (industry
+  // convention - too easy to mistake for 1 and 0 on a slate or a callsheet).
+  // This only affects what gets AUTO-SUGGESTED: someone can still type "I"
+  // or "O" into the Shot field by hand, and the next auto-suggestion after
+  // that will simply carry on from wherever they left off.
+  function nextLetterSkippingIO(i){
+    let letter=indexToLetter(i);
+    while(/[IO]$/.test(letter)){ i++; letter=indexToLetter(i); }
+    return letter;
+  }
   // Next shot for a scene: no shots yet -> "/". Currently "/" -> "A". Currently a letter -> next letter.
   function nextShotForScene(sceneId, excludeId){
     if(!roll)return '/';
@@ -1913,7 +1960,7 @@ function CameraReport(){
     });
     if(maxIdx===-2)return '/';
     if(maxIdx===-1)return 'A';
-    return indexToLetter(maxIdx+1);
+    return nextLetterSkippingIO(maxIdx+1);
   }
   // Take number for a given scene+shot = highest existing take for that combo + 1.
   function takeNoFor(sceneId, shot, excludeId){
@@ -1961,7 +2008,7 @@ function CameraReport(){
     });
     if(maxIdx===-2)return '/';
     if(maxIdx===-1)return 'A';
-    return indexToLetter(maxIdx+1);
+    return nextLetterSkippingIO(maxIdx+1);
   }
   function takeNoForIn(rk,sceneId,shot){
     let max=0;
@@ -2446,13 +2493,13 @@ function CameraReport(){
         {(()=>{ const _=histTick; const canU=undoStack.current.length>0, canR=redoStack.current.length>0;
           return(
             <div style={{display:'flex',gap:3}}>
-              <button onClick={undo} disabled={!canU} title="Undo"
+              <button onClick={undo} disabled={!canU} title="Undo" aria-label="Undo"
                 style={{padding:'4px 9px',borderRadius:5,fontSize:12,fontFamily:"'Geist Mono',monospace",
                   background:'transparent',border:`1px solid ${T.border}`,
                   color:canU?T.text:T.textDim,cursor:canU?'pointer':'default',opacity:canU?1:0.4}}>
                 {'\u21B6'}
               </button>
-              <button onClick={redo} disabled={!canR} title="Redo"
+              <button onClick={redo} disabled={!canR} title="Redo" aria-label="Redo"
                 style={{padding:'4px 9px',borderRadius:5,fontSize:12,fontFamily:"'Geist Mono',monospace",
                   background:'transparent',border:`1px solid ${T.border}`,
                   color:canR?T.text:T.textDim,cursor:canR?'pointer':'default',opacity:canR?1:0.4}}>
@@ -2500,6 +2547,11 @@ function CameraReport(){
             </>
           )}
         </div>
+        <button onClick={()=>setShowIconGuide(true)} title="What do these icons mean?"
+          aria-label="Icon guide"
+          style={{width:26,height:26,borderRadius:5,fontSize:12,fontFamily:"'Geist Mono',monospace",
+            background:'transparent',border:`1px solid ${T.border}`,color:T.textDim,cursor:'pointer',
+            display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{'?'}</button>
         {roll&&<button onClick={exportCSV} style={{padding:'4px 10px',borderRadius:5,fontSize:10,fontFamily:"'Geist Mono',monospace",background:'transparent',border:`1px solid ${T.border}`,color:T.textMute,cursor:'pointer'}}>CSV</button>}
         {roll&&<button disabled={exporting} onClick={async()=>{ setExporting(true); try{ await exportReport(); }finally{ setExporting(false); } }} style={{padding:'4px 10px',borderRadius:5,fontSize:10,fontFamily:"'Geist Mono',monospace",background:T.accent+'18',border:`1px solid ${T.accent}44`,color:T.accent,cursor:exporting?'default':'pointer',opacity:exporting?0.6:1}}>{exporting?'Preparing...':<>{'\uD83D\uDDA8'} Print / PDF</>}</button>}
         <button onClick={()=>addRoll(activeCam,'blank')} title="Start a completely fresh roll (blank fields)"
@@ -2798,7 +2850,7 @@ function CameraReport(){
             </div>
             <div style={{gridColumn:'span 2'}}>
               <span style={metaLabel}>DEFAULT LENS</span>
-              <LensFocalPicker value={roll.lens||''} onChange={v=>patchRoll(roll.id,{lens:v})} options={LENS_OPTIONS} inputStyle={metaInput}/>
+              <LensFocalPicker value={roll.lens||''} onChange={v=>patchRoll(roll.id,{lens:v})} options={LENS_OPTIONS} inputStyle={metaInput} noFilter/>
             </div>
           </div>
         </div>
@@ -2889,10 +2941,10 @@ function CameraReport(){
                   <td style={{borderRight:`1px solid ${T.rule}`}}><input value={t.shot||''} placeholder="/" onChange={e=>changeTakeShot(t.id,e.target.value.toUpperCase())} style={{...cellInput,textAlign:'center'}}/></td>
                   <td style={{borderRight:`1px solid ${T.rule}`}}><input value={t.take||''} onChange={e=>patchTake(t.id,{take:e.target.value})} style={{...cellInput,textAlign:'center'}} inputMode="numeric"/></td>
                   <td style={{borderRight:`1px solid ${T.rule}`,textAlign:'center'}}>
-                    <button onClick={()=>patchTake(t.id,{tail:!t.tail})} title="Tail slate" style={{background:'transparent',border:'none',cursor:'pointer',fontSize:14,padding:'2px'}}>{t.tail?'\u2705':'\u2610'}</button>
+                    <button onClick={()=>patchTake(t.id,{tail:!t.tail})} title="Tail slate" aria-label="Toggle tail slate" style={{background:'transparent',border:'none',cursor:'pointer',fontSize:14,padding:'2px'}}>{t.tail?'\u2705':'\u2610'}</button>
                   </td>
                   <td style={{borderRight:`1px solid ${T.rule}`}}><input value={t.clip||''} onChange={e=>patchTake(t.id,{clip:e.target.value})} style={{...cellInput,textAlign:'right'}}/></td>
-                  <td style={{borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.lens||''} onChange={v=>patchTake(t.id,{lens:v})} options={LENS_OPTIONS} inputStyle={cellInput}/></td>
+                  <td style={{borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.lens||''} onChange={v=>patchTake(t.id,{lens:v})} options={LENS_OPTIONS} inputStyle={cellInput} noFilter/></td>
                   <td style={{borderRight:`1px solid ${T.rule}`,...(needFocal?reqStyle:{})}}><LensFocalPicker value={t.focal||''} onChange={v=>patchTake(t.id,{focal:v})} options={FOCAL_OPTIONS} inputStyle={cellInput}/></td>
                   <td style={{borderRight:`1px solid ${T.rule}`,...(needStop?reqStyle:{})}}><LensFocalPicker value={t.stop||''} onChange={v=>patchTake(t.id,{stop:v})} options={STOP_OPTIONS} inputStyle={cellInput}/></td>
                   <td style={{borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.shutter||''} onChange={v=>patchTake(t.id,{shutter:v})} options={SHUTTER_OPTIONS} placeholder={roll.shutter||''} inputStyle={{...cellInput,textAlign:'center'}}/></td>
@@ -2901,7 +2953,17 @@ function CameraReport(){
                   <td style={{borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.filters||''} onChange={v=>patchTake(t.id,{filters:v})} options={FILTER2_OPTIONS} inputStyle={cellInput}/></td>
                   <td style={{borderRight:`1px solid ${T.rule}`}}><input value={t.filters3||''} onChange={e=>patchTake(t.id,{filters3:e.target.value})} style={cellInput}/></td>
                   <td style={{borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.wb||''} onChange={v=>patchTake(t.id,{wb:v})} options={WB_OPTIONS} inputStyle={cellInput}/></td>
-                  <td style={{borderRight:`1px solid ${T.rule}`}}><input value={t.focus||''} placeholder="'" onChange={e=>patchTake(t.id,{focus:e.target.value})} style={{...cellInput,padding:'8px 3px',textAlign:'center'}}/></td>
+                  <td style={{borderRight:`1px solid ${T.rule}`}}>
+                    {/* Underlying value stays a plain number (that's what print/CSV/Sheets
+                        export expect) - the trailing feet mark is just a visual suffix shown
+                        next to the input, so typing "6" reads as 6' without any cursor-jump
+                        weirdness from stuffing the quote mark into the editable text itself. */}
+                    <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:1}}>
+                      <input value={t.focus||''} placeholder="e.g. 6" onChange={e=>patchTake(t.id,{focus:e.target.value})}
+                        style={{...cellInput,padding:'8px 0 8px 3px',textAlign:'right',width:'100%'}}/>
+                      {String(t.focus||'').trim()&&<span style={{fontSize:12,color:T.textDim,flexShrink:0,paddingRight:2}}>{"'"}</span>}
+                    </div>
+                  </td>
                   <td style={{borderRight:`1px solid ${T.rule}`}}><NotesPicker value={t.notes||''} onChange={v=>patchTake(t.id,{notes:v})}/></td>
                   <td style={{borderRight:`1px solid ${T.rule}`,padding:'4px 2px'}}>
                     <TakePhotoCell projId={projId} take={t}
@@ -2911,10 +2973,10 @@ function CameraReport(){
                       }}/>
                   </td>
                   <td style={{textAlign:'center',whiteSpace:'nowrap',padding:'4px 2px'}}>
-                    <button onClick={()=>insertTakeAfter(t.id)} title="Insert row below"
+                    <button onClick={()=>insertTakeAfter(t.id)} title="Insert row below" aria-label="Insert row below"
                       style={{background:T.accent+'14',border:`1px solid ${T.accent}44`,borderRadius:5,
                         color:T.accent,cursor:'pointer',fontSize:16,fontWeight:600,width:26,height:26,lineHeight:1,padding:0,marginRight:4}}>+</button>
-                    <button onClick={()=>deleteTake(t.id)} title="Delete row"
+                    <button onClick={()=>deleteTake(t.id)} title="Delete row" aria-label="Delete row"
                       style={{background:'transparent',border:`1px solid ${T.border}`,borderRadius:5,
                         color:T.textDim,cursor:'pointer',fontSize:14,width:26,height:26,lineHeight:1,padding:0}}>{'\u00D7'}</button>
                   </td>
@@ -2999,6 +3061,47 @@ function CameraReport(){
           onClose={()=>setActivePreset(null)}
           onSaved={PRESET_CONFIGS[activePreset].onSaved}/>
       )}
+      {showIconGuide&&<IconGuideModal onClose={()=>setShowIconGuide(false)}/>}
+    </div>
+  );
+}
+
+/* ===============================================================
+   ICON GUIDE - a handful of controls in the take table are icon-only
+   to keep a dense table usable (no room for text labels per row on a
+   phone screen). Each still has a "title" attribute for anyone using
+   a mouse, but hover tooltips don't exist on touch - so this is the
+   tap-to-see equivalent: one small "?" button that explains every
+   icon at once, instead of needing hover on each one individually.
+================================================================ */
+function IconGuideModal({onClose}){
+  const rows=[
+    {icon:'📷', label:'Reference photos', desc:'Attach or view reference photos for this take (stored on this device only).'},
+    {icon:'+', label:'Insert row', desc:'Add a new blank take row directly below this one.'},
+    {icon:'×', label:'Delete row', desc:'Remove this take row.'},
+    {icon:'☐ / ✅', label:'Tail slate', desc:'Mark whether this take was slated at the tail instead of the head.'},
+    {icon:'↶', label:'Undo', desc:'Step back through recent changes (up to 20 steps).'},
+    {icon:'↷', label:'Redo', desc:'Re-apply a change you just undid.'},
+  ];
+  return(
+    <div style={{position:'fixed',inset:0,zIndex:9999,background:'rgba(0,0,0,0.72)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+      <div style={{background:T.panel,border:`1px solid ${T.border}`,borderRadius:10,width:'100%',maxWidth:380,maxHeight:'80vh',overflow:'auto',boxShadow:'0 16px 48px rgba(0,0,0,0.6)'}}>
+        <div style={{padding:'12px 16px',borderBottom:`1px solid ${T.rule}`,display:'flex',alignItems:'center',gap:8}}>
+          <span style={{fontSize:13,fontWeight:600,color:T.text,flex:1}}>Icon guide</span>
+          <button onClick={onClose} style={{background:'transparent',border:'none',color:T.textDim,fontSize:18,cursor:'pointer',lineHeight:1}}>{'×'}</button>
+        </div>
+        <div style={{padding:'6px 16px'}}>
+          {rows.map((r,i)=>(
+            <div key={i} style={{display:'flex',gap:12,alignItems:'flex-start',padding:'10px 0',borderBottom:i<rows.length-1?`1px solid ${T.rule}`:'none'}}>
+              <div style={{width:34,flexShrink:0,textAlign:'center',fontSize:15,color:T.accent,fontFamily:"'Geist Mono',monospace"}}>{r.icon}</div>
+              <div>
+                <div style={{fontSize:12,fontWeight:600,color:T.text}}>{r.label}</div>
+                <div style={{fontSize:11,color:T.textMute,lineHeight:1.5,marginTop:2}}>{r.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -3012,16 +3115,16 @@ function CameraReport(){
 function SettingsModal({onClose}){
   const {data,updateData}=useStandaloneData();
   const [projectName,setProjectName]=React.useState(data.projectName||'');
-  const [scenesTxt,setScenesTxt]=React.useState(()=>scenesToText(data.scenes));
-  const [daysTxt,setDaysTxt]=React.useState(()=>shootDaysToText(data.shootDays));
   const [clientId,setClientId]=React.useState(data.gsheetsClientId||'');
   const [saved,setSaved]=React.useState(false);
+  const [showScenes,setShowScenes]=React.useState(false);
+  const [showDays,setShowDays]=React.useState(false);
+  const sceneCount=(data.scenes||[]).length;
+  const dayCount=(data.shootDays||[]).length;
 
   function save(){
     updateData({
       projectName: projectName.trim()||'Untitled Production',
-      scenes: parseScenesText(scenesTxt),
-      shootDays: parseShootDaysText(daysTxt),
       gsheetsClientId: clientId.trim()
     });
     setSaved(true);
@@ -3032,6 +3135,9 @@ function SettingsModal({onClose}){
     padding:'8px 10px',fontSize:12,color:T.text,fontFamily:"'Geist Mono',monospace"};
   const lbl={fontSize:10,fontFamily:"'Geist Mono',monospace",letterSpacing:'0.08em',color:T.textDim,marginBottom:4,display:'block'};
   const hint={fontSize:10,color:T.textDim,lineHeight:1.5,marginTop:4};
+  const navBtn={display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%',
+    background:T.surface2,border:`1px solid ${T.border}`,borderRadius:6,padding:'12px 14px',
+    color:T.text,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:'pointer',textAlign:'left'};
 
   return(
     <div style={{position:'fixed',inset:0,zIndex:9999,background:'rgba(0,0,0,0.72)',
@@ -3051,20 +3157,15 @@ function SettingsModal({onClose}){
             <input value={projectName} onChange={e=>setProjectName(e.target.value)} style={inp} placeholder="e.g. FRACTURED MIND"/>
           </div>
 
-          <div>
-            <span style={lbl}>SCENES (optional - one per line: SCENE ID | SLUG)</span>
-            <textarea value={scenesTxt} onChange={e=>setScenesTxt(e.target.value)} rows={5}
-              placeholder={'S01 | INT. APARTMENT - DAY\nS02 | EXT. STREET - NIGHT'}
-              style={{...inp,resize:'vertical',fontFamily:"'Geist Mono',monospace",lineHeight:1.5}}/>
-            <div style={hint}>Leave blank if you don't want a scene list yet - the Scene field on each take still works as free text.</div>
-          </div>
+          <button onClick={()=>setShowScenes(true)} style={navBtn}>
+            <span>{'🎬'} Scene list {sceneCount>0?`(${sceneCount} scene${sceneCount!==1?'s':''})`:'(none yet - optional)'}</span>
+            <span style={{color:T.textDim}}>{'›'}</span>
+          </button>
 
-          <div>
-            <span style={lbl}>SHOOT DAYS (optional - one per line: DAY NUMBER | DATE)</span>
-            <textarea value={daysTxt} onChange={e=>setDaysTxt(e.target.value)} rows={3}
-              placeholder={'1 | 2026-07-10\n2 | 2026-07-11'}
-              style={{...inp,resize:'vertical',fontFamily:"'Geist Mono',monospace",lineHeight:1.5}}/>
-          </div>
+          <button onClick={()=>setShowDays(true)} style={navBtn}>
+            <span>{'📅'} Shoot days {dayCount>0?`(${dayCount} day${dayCount!==1?'s':''})`:'(none yet - optional)'}</span>
+            <span style={{color:T.textDim}}>{'›'}</span>
+          </button>
 
           <div style={{borderTop:`1px solid ${T.rule}`,paddingTop:14}}>
             <span style={lbl}>GOOGLE SHEETS CLIENT ID (optional override - leave blank to use this deployment's default)</span>
@@ -3084,6 +3185,140 @@ function SettingsModal({onClose}){
 
           <div style={{display:'flex',justifyContent:'flex-end',gap:8}}>
             {saved&&<span style={{fontSize:11,color:T.success,alignSelf:'center'}}>{'✓'} Saved</span>}
+            <button onClick={save} style={{padding:'8px 20px',borderRadius:6,background:T.accent,border:'none',color:'#0e0d0b',fontWeight:600,fontSize:12,cursor:'pointer'}}>Save</button>
+          </div>
+        </div>
+      </div>
+      {showScenes&&<ScenesEditorModal onClose={()=>setShowScenes(false)}/>}
+      {showDays&&<ShootDaysEditorModal onClose={()=>setShowDays(false)}/>}
+    </div>
+  );
+}
+
+/* ===============================================================
+   SCENES EDITOR - one row per scene: ID, an INT/EXT/INT-EXT picker,
+   and a plain description. Under the hood this still just reads and
+   writes the same {id, slug} shape as before (see decomposeSlug/
+   composeSlug above) - the picker is a friendlier front end for the
+   same data, so nothing elsewhere (the INT/EXT badge, search, print)
+   needed to change.
+================================================================ */
+function ScenesEditorModal({onClose}){
+  const {data,updateData}=useStandaloneData();
+  const [rows,setRows]=React.useState(()=>(data.scenes||[]).map(s=>({id:s.id,...decomposeSlug(s.slug)})));
+
+  function patchRow(i,patch){ setRows(rs=>rs.map((r,idx)=>idx===i?{...r,...patch}:r)); }
+  function addRow(){ setRows(rs=>[...rs,{id:'',intExt:'',desc:''}]); }
+  function removeRow(i){ setRows(rs=>rs.filter((_,idx)=>idx!==i)); }
+  function save(){
+    const scenes=rows.map(r=>({id:r.id.trim(),slug:composeSlug(r.intExt,r.desc)})).filter(s=>s.id);
+    updateData({scenes});
+    onClose();
+  }
+
+  const inp={background:T.surface2,border:'1px solid '+T.border,borderRadius:6,
+    padding:'7px 9px',fontSize:12,color:T.text,fontFamily:"'Geist Mono',monospace"};
+
+  return(
+    <div style={{position:'fixed',inset:0,zIndex:10000,background:'rgba(0,0,0,0.72)',
+      display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+      <div style={{background:T.panel,border:`1px solid ${T.border}`,borderRadius:12,
+        width:'100%',maxWidth:560,maxHeight:'88vh',overflow:'auto',
+        boxShadow:'0 20px 60px rgba(0,0,0,0.7)',display:'flex',flexDirection:'column'}}>
+        <div style={{padding:'14px 18px',borderBottom:`1px solid ${T.rule}`,display:'flex',alignItems:'center',gap:8}}>
+          <span style={{fontSize:16}}>{'🎬'}</span>
+          <span style={{fontSize:14,fontWeight:600,color:T.text,flex:1}}>Scene list</span>
+          <button onClick={onClose} style={{background:'transparent',border:'none',color:T.textDim,fontSize:18,cursor:'pointer',lineHeight:1}}>{'×'}</button>
+        </div>
+        <div style={{padding:'16px 18px',display:'flex',flexDirection:'column',gap:10}}>
+          <div style={{fontSize:10,color:T.textDim,lineHeight:1.5}}>
+            Optional - leave empty if you don't have a scene breakdown yet. The Scene field on each take
+            still works as free text either way; this list just powers the INT/EXT tag and the scene picker.
+          </div>
+          {rows.length===0&&<div style={{fontSize:11,color:T.textDim,fontStyle:'italic',padding:'8px 0'}}>No scenes yet.</div>}
+          {rows.map((r,i)=>(
+            <div key={i} style={{display:'grid',gridTemplateColumns:'70px 90px 1fr auto',gap:6,alignItems:'center'}}>
+              <input value={r.id} onChange={e=>patchRow(i,{id:e.target.value})} placeholder="S01" style={inp}/>
+              <select value={r.intExt} onChange={e=>patchRow(i,{intExt:e.target.value})} style={{...inp,cursor:'pointer'}}>
+                <option value="">-</option>
+                <option value="INT">INT</option>
+                <option value="EXT">EXT</option>
+                <option value="INT/EXT">INT/EXT</option>
+              </select>
+              <input value={r.desc} onChange={e=>patchRow(i,{desc:e.target.value})} placeholder="APARTMENT - DAY" style={inp}/>
+              <button onClick={()=>removeRow(i)} title="Remove scene" aria-label="Remove scene"
+                style={{background:'transparent',border:`1px solid ${T.danger}44`,borderRadius:5,color:T.danger,fontSize:12,padding:'6px 9px',cursor:'pointer'}}>{'×'}</button>
+            </div>
+          ))}
+          <button onClick={addRow} style={{alignSelf:'flex-start',padding:'7px 14px',borderRadius:6,border:`1px dashed ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:'pointer'}}>+ Add scene</button>
+          <div style={{display:'flex',justifyContent:'flex-end',gap:8,borderTop:`1px solid ${T.rule}`,paddingTop:14,marginTop:6}}>
+            <button onClick={onClose} style={{padding:'8px 16px',borderRadius:6,border:`1px solid ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,cursor:'pointer'}}>Cancel</button>
+            <button onClick={save} style={{padding:'8px 20px',borderRadius:6,background:T.accent,border:'none',color:'#0e0d0b',fontWeight:600,fontSize:12,cursor:'pointer'}}>Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ===============================================================
+   SHOOT DAYS EDITOR - one row per day: day number + a native date
+   picker (calendar UI on every platform, incl. iPad Safari). "+ Add
+   day" is the "smart" part the user asked for: it auto-numbers the
+   next day and defaults its date to one calendar day after the
+   previous row's date, instead of starting blank every time.
+================================================================ */
+function ShootDaysEditorModal({onClose}){
+  const {data,updateData}=useStandaloneData();
+  const [rows,setRows]=React.useState(()=>(data.shootDays||[]).slice().sort((a,b)=>a.day-b.day));
+
+  function patchRow(i,patch){ setRows(rs=>rs.map((r,idx)=>idx===i?{...r,...patch}:r)); }
+  function removeRow(i){ setRows(rs=>rs.filter((_,idx)=>idx!==i)); }
+  function addRow(){
+    setRows(rs=>{
+      const last=rs[rs.length-1];
+      const nextDay=(last?last.day:0)+1;
+      const nextDate=last?addOneDay(last.date):'';
+      return [...rs,{day:nextDay,date:nextDate}];
+    });
+  }
+  function save(){
+    const shootDays=rows.map(r=>({day:parseInt(r.day,10)||0,date:r.date||''})).filter(d=>d.day).sort((a,b)=>a.day-b.day);
+    updateData({shootDays});
+    onClose();
+  }
+
+  const inp={background:T.surface2,border:'1px solid '+T.border,borderRadius:6,
+    padding:'7px 9px',fontSize:12,color:T.text,fontFamily:"'Geist Mono',monospace"};
+
+  return(
+    <div style={{position:'fixed',inset:0,zIndex:10000,background:'rgba(0,0,0,0.72)',
+      display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+      <div style={{background:T.panel,border:`1px solid ${T.border}`,borderRadius:12,
+        width:'100%',maxWidth:440,maxHeight:'88vh',overflow:'auto',
+        boxShadow:'0 20px 60px rgba(0,0,0,0.7)',display:'flex',flexDirection:'column'}}>
+        <div style={{padding:'14px 18px',borderBottom:`1px solid ${T.rule}`,display:'flex',alignItems:'center',gap:8}}>
+          <span style={{fontSize:16}}>{'📅'}</span>
+          <span style={{fontSize:14,fontWeight:600,color:T.text,flex:1}}>Shoot days</span>
+          <button onClick={onClose} style={{background:'transparent',border:'none',color:T.textDim,fontSize:18,cursor:'pointer',lineHeight:1}}>{'×'}</button>
+        </div>
+        <div style={{padding:'16px 18px',display:'flex',flexDirection:'column',gap:10}}>
+          <div style={{fontSize:10,color:T.textDim,lineHeight:1.5}}>
+            Optional - powers the shoot-day dropdown on each roll. Adding a new day auto-fills the next day
+            number and the next calendar date for you; both are still editable.
+          </div>
+          {rows.length===0&&<div style={{fontSize:11,color:T.textDim,fontStyle:'italic',padding:'8px 0'}}>No shoot days yet.</div>}
+          {rows.map((r,i)=>(
+            <div key={i} style={{display:'grid',gridTemplateColumns:'60px 1fr auto',gap:6,alignItems:'center'}}>
+              <input type="number" value={r.day} onChange={e=>patchRow(i,{day:e.target.value})} placeholder="1" style={{...inp,textAlign:'center'}}/>
+              <input type="date" value={r.date||''} onChange={e=>patchRow(i,{date:e.target.value})} style={inp}/>
+              <button onClick={()=>removeRow(i)} title="Remove day" aria-label="Remove day"
+                style={{background:'transparent',border:`1px solid ${T.danger}44`,borderRadius:5,color:T.danger,fontSize:12,padding:'6px 9px',cursor:'pointer'}}>{'×'}</button>
+            </div>
+          ))}
+          <button onClick={addRow} style={{alignSelf:'flex-start',padding:'7px 14px',borderRadius:6,border:`1px dashed ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:'pointer'}}>+ Add day</button>
+          <div style={{display:'flex',justifyContent:'flex-end',gap:8,borderTop:`1px solid ${T.rule}`,paddingTop:14,marginTop:6}}>
+            <button onClick={onClose} style={{padding:'8px 16px',borderRadius:6,border:`1px solid ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,cursor:'pointer'}}>Cancel</button>
             <button onClick={save} style={{padding:'8px 20px',borderRadius:6,background:T.accent,border:'none',color:'#0e0d0b',fontWeight:600,fontSize:12,cursor:'pointer'}}>Save</button>
           </div>
         </div>
