@@ -678,8 +678,15 @@ function shootDaysToText(days){ return (days||[]).map(d=>d.day+' | '+(d.date||''
    never a hardcoded one, since an OAuth client's authorised
    origins are locked to specific hosting URLs.
 ================================================================ */
-const GSHEETS_SCOPE='https://www.googleapis.com/auth/drive.file';
+// Includes identity scopes (openid/email/profile) alongside drive.file so
+// the ONE sign-in at the access gate also covers "Backup to Sheets" later -
+// nobody has to log into Google twice in the same session.
+const GSHEETS_SCOPE='openid email profile https://www.googleapis.com/auth/drive.file';
 let _sheetsToken=null;
+
+function getEffectiveClientId(data){
+  return (data&&data.gsheetsClientId&&data.gsheetsClientId.trim())||DEFAULT_GSHEETS_CLIENT_ID;
+}
 
 function sheetsSignIn(clientId){
   return new Promise((resolve,reject)=>{
@@ -706,6 +713,47 @@ async function ensureSheetsToken(clientId){
 function sheetsSignOut(){
   try{ if(_sheetsToken&&window.google) google.accounts.oauth2.revoke(_sheetsToken,()=>{}); }catch(e){}
   _sheetsToken=null;
+}
+async function fetchGoogleEmail(token){
+  const r=await fetch('https://www.googleapis.com/oauth2/v2/userinfo',{headers:{Authorization:'Bearer '+token}});
+  if(!r.ok) throw new Error('Could not read your Google account email (HTTP '+r.status+').');
+  const d=await r.json();
+  const email=(d.email||'').trim().toLowerCase();
+  if(!email) throw new Error('Your Google account did not return an email address.');
+  return email;
+}
+
+/* ===============================================================
+   ACCESS GATE - the allowlist is a Google Sheet Tim (or whoever runs
+   this deployment) owns and edits directly: one email per row,
+   published to the web as CSV. That published Sheet IS the admin
+   panel - add or remove a row and it takes effect, no code change,
+   no redeploy. Not real security (the URL and the check both live in
+   client-side JS, inspectable by anyone determined enough) - this is
+   meant to keep casual link-sharing out and know who's testing, not
+   to defend against a motivated attacker.
+================================================================ */
+const ALLOWLIST_CSV_URL='https://docs.google.com/spreadsheets/d/e/2PACX-1vSo80v0jtB6i-6imnN10Okhep5fEsckIiSgZ1NTHRlJy6nZOtXivrHvUlVc7ErZBh0z4UqViwSL5cv0/pub?gid=0&single=true&output=csv';
+const SB_GATE_KEY='camrep_gate_v1';
+
+async function fetchAllowlist(){
+  const res=await fetch(ALLOWLIST_CSV_URL,{cache:'no-store'});
+  if(!res.ok) throw new Error('Could not load the access list (HTTP '+res.status+').');
+  const text=await res.text();
+  return text.split(/\r?\n/).slice(1) // drop the "Email" header row
+    .map(line=>line.split(',')[0])
+    .map(e=>(e||'').trim().replace(/^"|"$/g,'').toLowerCase())
+    .filter(Boolean);
+}
+function loadGateAuth(){
+  try{ const v=JSON.parse(localStorage.getItem(SB_GATE_KEY)||'null'); return (v&&v.email)?v:null; }
+  catch(e){ return null; }
+}
+function saveGateAuth(email){
+  try{ localStorage.setItem(SB_GATE_KEY,JSON.stringify({email,ts:Date.now()})); }catch(e){}
+}
+function clearGateAuth(){
+  try{ localStorage.removeItem(SB_GATE_KEY); }catch(e){}
 }
 
 /* Column set mirrors exportCSV() below (ROLL/CAM/DAY/DATE added up front
@@ -3051,7 +3099,7 @@ function BackupModal({onClose}){
   const [errMsg,setErrMsg]=React.useState('');
   // A per-device Settings value always overrides the baked-in shared default -
   // that's what lets a fork on a different hosting URL use its own Client ID.
-  const effectiveClientId=(data.gsheetsClientId&&data.gsheetsClientId.trim())||DEFAULT_GSHEETS_CLIENT_ID;
+  const effectiveClientId=getEffectiveClientId(data);
   const hasClientId=!!(effectiveClientId&&effectiveClientId.trim());
   const hasSpreadsheet=!!(data.gsheetsSpreadsheetId&&data.gsheetsSpreadsheetId.trim());
   const totalTakes=React.useMemo(()=>(data.rolls||[]).reduce((n,r)=>n+((r.takes||[]).length),0),[data.rolls]);
@@ -3197,8 +3245,83 @@ function App(){
   );
 }
 
+/* ===============================================================
+   ACCESS GATE - wraps the whole app. Approved once on a device, it
+   stays approved offline forever after (checking the list needs
+   network, so we never block entry just because you're offline and
+   already trusted). Whenever we ARE online and already trusted, we
+   quietly re-check in the background so removing someone from the
+   Sheet takes effect from their next reload, without needing to
+   block anything mid-session.
+================================================================ */
+function AccessGate({children}){
+  const [state,setState]=React.useState(()=>loadGateAuth()?'allowed':'locked'); // locked | working | denied | allowed | error
+  const [errMsg,setErrMsg]=React.useState('');
+  const checkedOnce=React.useRef(false);
+
+  React.useEffect(()=>{
+    if(checkedOnce.current) return;
+    checkedOnce.current=true;
+    const saved=loadGateAuth();
+    if(!saved||!navigator.onLine) return;
+    fetchAllowlist().then(list=>{
+      if(!list.includes(saved.email)){ clearGateAuth(); setState('locked'); }
+    }).catch(()=>{ /* offline or a flaky fetch - keep today's session as-is */ });
+  },[]);
+
+  async function signIn(){
+    setState('working'); setErrMsg('');
+    try{
+      const data=loadStandaloneData();
+      const clientId=getEffectiveClientId(data);
+      const token=await ensureSheetsToken(clientId);
+      const email=await fetchGoogleEmail(token);
+      const list=await fetchAllowlist();
+      if(list.includes(email)){
+        saveGateAuth(email);
+        setState('allowed');
+      }else{
+        sheetsSignOut();
+        setState('denied');
+      }
+    }catch(e){
+      setErrMsg((e&&e.message)||'Sign-in failed.');
+      setState('error');
+    }
+  }
+
+  if(state==='allowed') return children;
+
+  const wrap={position:'fixed',inset:0,zIndex:9999,background:T.bg,display:'flex',alignItems:'center',justifyContent:'center',padding:20};
+  const card={background:T.panel,border:`1px solid ${T.border}`,borderRadius:12,width:'100%',maxWidth:380,padding:'28px 24px',textAlign:'center'};
+  const btn={padding:'11px 0',width:'100%',borderRadius:7,background:T.accent,border:'none',color:'#0e0d0b',fontWeight:600,fontSize:13,cursor:'pointer',marginTop:16};
+
+  return(
+    <div style={wrap}>
+      <div style={card}>
+        <div style={{fontSize:28,marginBottom:10}}>{'🎥'}</div>
+        <div style={{fontFamily:"'Geist Mono',monospace",fontSize:14,fontWeight:600,color:T.text,marginBottom:6}}>Camera Report</div>
+        <div style={{fontSize:12,color:T.textMute,lineHeight:1.6,marginBottom:6}}>
+          This is a private crew tool. Sign in with the Google account you were invited with.
+        </div>
+        {state==='denied'&&(
+          <div style={{fontSize:11,color:T.danger,background:T.danger+'14',border:`1px solid ${T.danger}44`,borderRadius:6,padding:'9px 10px',marginTop:10,lineHeight:1.5}}>
+            That Google account isn't on the access list for this deployment. Ask whoever set this up to add your email, then try again.
+          </div>
+        )}
+        {state==='error'&&(
+          <div style={{fontSize:11,color:T.danger,lineHeight:1.5,marginTop:10}}>{errMsg}</div>
+        )}
+        <button onClick={signIn} disabled={state==='working'} style={{...btn,opacity:state==='working'?0.7:1}}>
+          {state==='working'?'Checking...':'Sign in with Google'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 const root=ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App/>);
+root.render(<AccessGate><App/></AccessGate>);
 
 </script>
 <script>
