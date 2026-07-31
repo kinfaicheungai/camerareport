@@ -697,6 +697,32 @@ function addOneDay(dateStr){
   return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
 }
 
+// Take-table columns a crew can individually show/hide from Project Settings
+// (different productions slate differently - e.g. some US-style crews fold
+// shot into the scene/slate number and don't want a separate SHOT column).
+// SCENE, TAKE, the select-checkbox and the INSERT ROW action column are NOT
+// in this list - they're structural, not data fields, so always shown.
+// `key` must match the take field name used elsewhere (shot lettering,
+// grouping, search, etc.) - hiding a column only hides its cell, it never
+// stops that field from being read/written/auto-filled in the background.
+const TAKE_COLUMNS=[
+  {key:'shot',    label:'Shot'},
+  {key:'tail',    label:'Tail slate (T/S)'},
+  {key:'clip',    label:'Clip'},
+  {key:'lens',    label:'Lens'},
+  {key:'focal',   label:'Focal'},
+  {key:'stop',    label:'Stop'},
+  {key:'shutter', label:'Shutter'},
+  {key:'ei',      label:'EI'},
+  {key:'intFilters', label:'Filter 1'},
+  {key:'filters', label:'Filter 2'},
+  {key:'filters3',label:'Filter 3'},
+  {key:'wb',      label:'White balance'},
+  {key:'focus',   label:'Focus (ft)'},
+  {key:'notes',   label:'Notes'},
+  {key:'photo',   label:'Reference photo'},
+];
+
 /* ===============================================================
    GOOGLE SHEETS BACKUP (the ONLY feature that ever touches the
    network, and only when the user clicks "Backup Now"). Uses
@@ -1694,12 +1720,18 @@ function CameraReport(){
   // ---- Floating take-table header (JS-driven; replaces unreliable CSS
   // position:sticky-in-a-table, which never worked on real Safari) ----
   // scrollBoxRef = the single scrolling container (roll meta + table).
-  // theadSentinelRef = zero-height marker sitting exactly where the real
-  // header naturally starts; once it scrolls past ~5mm from the top of the
-  // scroll box, we swap in a position:fixed clone of the header ("pinned")
-  // so it looks locked in place, Excel-freeze-panes style. Horizontal
-  // scroll position is mirrored onto the clone on every scroll tick so
-  // columns stay lined up with the real table beneath it.
+  // theadSentinelRef = wraps EVERYTHING above the table (roll-meta panel +
+  // multi-select bar) - not a thin marker - so it always starts overlapping
+  // the visible area at scrollTop 0 (see the long comment at its JSX for why
+  // a zero-height marker there was the actual bug last time: it could start
+  // off-screen below the fold, which made the header pin immediately on
+  // load instead of only once scrolled past). Once this whole block has
+  // scrolled up past ~5mm from the top of the scroll box, we swap in a
+  // position:fixed clone of the header ("pinned"), portaled straight to
+  // document.body so no ancestor's overflow:hidden/flex layout can clip or
+  // mis-contain it - Excel-freeze-panes style. Horizontal scroll position is
+  // mirrored onto the clone on every scroll tick so columns stay lined up
+  // with the real table beneath it.
   const scrollBoxRef=React.useRef(null);
   const theadSentinelRef=React.useRef(null);
   const tableRef=React.useRef(null);
@@ -1709,6 +1741,10 @@ function CameraReport(){
   const STICKY_TOP_PX=19; // ~5mm - matches the old CSS sticky offset
 
   const scenes=proj.scenes||[];
+  const sceneIds=React.useMemo(()=>scenes.map(s=>s.id),[scenes]);
+  // Which take-table columns this production has hidden via Project Settings
+  // > Take table columns (default: none hidden, i.e. unchanged behaviour).
+  const hiddenCols=React.useMemo(()=>new Set(proj.hiddenColumns||[]),[proj.hiddenColumns]);
   // Format a scene string ("S01, S23") into "S01 EXT, S23 INT" using slugs.
   function sceneWithIE(sceneStr){
     const ids=String(sceneStr||'').split(',').map(x=>x.trim()).filter(Boolean);
@@ -2561,14 +2597,23 @@ function CameraReport(){
           onChange={e=>setSelTakeIds(e.target.checked?roll.takes.map(t=>t.id):[])}
           style={{cursor:'pointer'}} title="Select all"/>
       </th>
-      <th style={{...th,minWidth:110}}>SCENE</th><th style={{...th,width:38}}>SHOT</th><th style={{...th,width:46}}>TAKE</th><th style={{...th,width:36}}>T/S</th>
-      <th style={{...th,width:88}}>CLIP</th><th style={{...th,width:72}}>LENS</th><th style={{...th,width:65}}>FOCAL</th>
-      <th style={{...th,width:66}}>STOP</th>
-      <th style={{...th,width:80,whiteSpace:'normal',lineHeight:1.15}}>SHUTTER</th>
-      <th style={{...th,width:50}}>EI</th><th style={{...th,width:64}}>FILTER 1</th>
-      <th style={{...th,width:80}}>FILTER 2</th><th style={{...th,width:70}}>FILTER 3</th><th style={{...th,width:76}}>WB</th>
-      <th style={{...th,width:46,whiteSpace:'normal',lineHeight:1.15,verticalAlign:'middle'}}>FOCUS<br/>(ft)</th>
-      <th style={{...th,minWidth:180}}>NOTES</th><th style={{...th,width:44}}>{'📷'}</th>
+      <th style={{...th,minWidth:110}}>SCENE</th>
+      {!hiddenCols.has('shot')&&<th style={{...th,width:38}}>SHOT</th>}
+      <th style={{...th,width:46}}>TAKE</th>
+      {!hiddenCols.has('tail')&&<th style={{...th,width:36}}>T/S</th>}
+      {!hiddenCols.has('clip')&&<th style={{...th,width:88}}>CLIP</th>}
+      {!hiddenCols.has('lens')&&<th style={{...th,width:72}}>LENS</th>}
+      {!hiddenCols.has('focal')&&<th style={{...th,width:65}}>FOCAL</th>}
+      {!hiddenCols.has('stop')&&<th style={{...th,width:66}}>STOP</th>}
+      {!hiddenCols.has('shutter')&&<th style={{...th,width:80,whiteSpace:'normal',lineHeight:1.15}}>SHUTTER</th>}
+      {!hiddenCols.has('ei')&&<th style={{...th,width:50}}>EI</th>}
+      {!hiddenCols.has('intFilters')&&<th style={{...th,width:64}}>FILTER 1</th>}
+      {!hiddenCols.has('filters')&&<th style={{...th,width:80}}>FILTER 2</th>}
+      {!hiddenCols.has('filters3')&&<th style={{...th,width:70}}>FILTER 3</th>}
+      {!hiddenCols.has('wb')&&<th style={{...th,width:76}}>WB</th>}
+      {!hiddenCols.has('focus')&&<th style={{...th,width:46,whiteSpace:'normal',lineHeight:1.15,verticalAlign:'middle'}}>FOCUS<br/>(ft)</th>}
+      {!hiddenCols.has('notes')&&<th style={{...th,minWidth:180}}>NOTES</th>}
+      {!hiddenCols.has('photo')&&<th style={{...th,width:44}}>{'📷'}</th>}
       <th style={{...th,width:78,whiteSpace:'normal',lineHeight:1.15,textAlign:'center'}}>INSERT<br/>ROW</th>
     </>
   ):null;
@@ -2766,11 +2811,18 @@ function CameraReport(){
               <thead><tr>
                 <th style={{...th,width:80,WebkitPosition:'sticky',position:'sticky',top:STICKY_TOP,left:0,zIndex:6}}>ROLL·DAY</th>
                 <th style={{...th,minWidth:90}}>SCENE</th>
-                <th style={{...th,width:36}}>SHOT</th><th style={{...th,width:42}}>TAKE</th><th style={{...th,width:34}}>T/S</th>
-                <th style={{...th,width:80}}>CLIP</th><th style={{...th,width:60}}>EI</th>
-                <th style={{...th,width:60}}>FOCAL</th><th style={{...th,width:50}}>STOP</th>
-                <th style={{...th,width:55}}>SHUTTER</th><th style={{...th,width:55}}>WB</th>
-                <th style={{...th,width:64}}>FILTER 1</th><th style={{...th,width:64}}>FILTER 2</th><th style={{...th,width:64}}>FILTER 3</th>
+                {!hiddenCols.has('shot')&&<th style={{...th,width:36}}>SHOT</th>}
+                <th style={{...th,width:42}}>TAKE</th>
+                {!hiddenCols.has('tail')&&<th style={{...th,width:34}}>T/S</th>}
+                {!hiddenCols.has('clip')&&<th style={{...th,width:80}}>CLIP</th>}
+                {!hiddenCols.has('ei')&&<th style={{...th,width:60}}>EI</th>}
+                {!hiddenCols.has('focal')&&<th style={{...th,width:60}}>FOCAL</th>}
+                {!hiddenCols.has('stop')&&<th style={{...th,width:50}}>STOP</th>}
+                {!hiddenCols.has('shutter')&&<th style={{...th,width:55}}>SHUTTER</th>}
+                {!hiddenCols.has('wb')&&<th style={{...th,width:55}}>WB</th>}
+                {!hiddenCols.has('intFilters')&&<th style={{...th,width:64}}>FILTER 1</th>}
+                {!hiddenCols.has('filters')&&<th style={{...th,width:64}}>FILTER 2</th>}
+                {!hiddenCols.has('filters3')&&<th style={{...th,width:64}}>FILTER 3</th>}
                 <th style={th}>NOTES</th>
               </tr></thead>
               <tbody>
@@ -2797,42 +2849,42 @@ function CameraReport(){
                       <td style={{borderRight:`1px solid ${T.rule}`,...hl('scene')}}>
                         <input value={t.scene||''} onChange={e=>patch({scene:e.target.value})} style={ci}/>
                       </td>
-                      <td style={{borderRight:`1px solid ${T.rule}`,...hl('shot')}}>
+                      {!hiddenCols.has('shot')&&<td style={{borderRight:`1px solid ${T.rule}`,...hl('shot')}}>
                         <input value={t.shot||''} onChange={e=>patch({shot:e.target.value.toUpperCase()})} style={{...ci,textAlign:'center'}}/>
-                      </td>
+                      </td>}
                       <td style={{borderRight:`1px solid ${T.rule}`}}>
                         <input value={t.take||''} onChange={e=>patch({take:e.target.value})} style={{...ci,textAlign:'center'}} inputMode="numeric"/>
                       </td>
-                      <td style={{borderRight:`1px solid ${T.rule}`,textAlign:'center',padding:'4px 2px'}}>
+                      {!hiddenCols.has('tail')&&<td style={{borderRight:`1px solid ${T.rule}`,textAlign:'center',padding:'4px 2px'}}>
                         <button onClick={()=>patch({tail:!t.tail})} style={{background:'transparent',border:'none',cursor:'pointer',fontSize:13}}>{t.tail?'\u2705':'\u2610'}</button>
-                      </td>
-                      <td style={{borderRight:`1px solid ${T.rule}`,...hl('clip')}}>
+                      </td>}
+                      {!hiddenCols.has('clip')&&<td style={{borderRight:`1px solid ${T.rule}`,...hl('clip')}}>
                         <input value={t.clip||''} onChange={e=>patch({clip:e.target.value})} style={{...ci,textAlign:'right'}}/>
-                      </td>
-                      <td style={{borderRight:`1px solid ${T.rule}`,...hl('ei')}}>
+                      </td>}
+                      {!hiddenCols.has('ei')&&<td style={{borderRight:`1px solid ${T.rule}`,...hl('ei')}}>
                         <input value={t.ei||''} onChange={e=>patch({ei:e.target.value})} style={ci}/>
-                      </td>
-                      <td style={{borderRight:`1px solid ${T.rule}`,...hl('focal')}}>
+                      </td>}
+                      {!hiddenCols.has('focal')&&<td style={{borderRight:`1px solid ${T.rule}`,...hl('focal')}}>
                         <input value={t.focal||''} onChange={e=>patch({focal:e.target.value})} style={ci}/>
-                      </td>
-                      <td style={{borderRight:`1px solid ${T.rule}`,...hl('stop')}}>
+                      </td>}
+                      {!hiddenCols.has('stop')&&<td style={{borderRight:`1px solid ${T.rule}`,...hl('stop')}}>
                         <input value={t.stop||''} onChange={e=>patch({stop:e.target.value})} style={ci}/>
-                      </td>
-                      <td style={{borderRight:`1px solid ${T.rule}`,...hl('shutter')}}>
+                      </td>}
+                      {!hiddenCols.has('shutter')&&<td style={{borderRight:`1px solid ${T.rule}`,...hl('shutter')}}>
                         <input value={t.shutter||''} placeholder={r.shutter||''} onChange={e=>patch({shutter:e.target.value})} style={ci}/>
-                      </td>
-                      <td style={{borderRight:`1px solid ${T.rule}`,...hl('wb')}}>
+                      </td>}
+                      {!hiddenCols.has('wb')&&<td style={{borderRight:`1px solid ${T.rule}`,...hl('wb')}}>
                         <input value={t.wb||''} onChange={e=>patch({wb:e.target.value})} style={ci}/>
-                      </td>
-                      <td style={{borderRight:`1px solid ${T.rule}`,...hl('intFilters')}}>
+                      </td>}
+                      {!hiddenCols.has('intFilters')&&<td style={{borderRight:`1px solid ${T.rule}`,...hl('intFilters')}}>
                         <input value={t.intFilters||''} onChange={e=>patch({intFilters:e.target.value})} style={ci}/>
-                      </td>
-                      <td style={{borderRight:`1px solid ${T.rule}`,...hl('filters')}}>
+                      </td>}
+                      {!hiddenCols.has('filters')&&<td style={{borderRight:`1px solid ${T.rule}`,...hl('filters')}}>
                         <input value={t.filters||''} onChange={e=>patch({filters:e.target.value})} style={ci}/>
-                      </td>
-                      <td style={{borderRight:`1px solid ${T.rule}`,...hl('filters3')}}>
+                      </td>}
+                      {!hiddenCols.has('filters3')&&<td style={{borderRight:`1px solid ${T.rule}`,...hl('filters3')}}>
                         <input value={t.filters3||''} onChange={e=>patch({filters3:e.target.value})} style={ci}/>
-                      </td>
+                      </td>}
                       <td style={{...hl('notes'),padding:0}}>
                         <div style={{display:'flex',alignItems:'center'}}>
                           <input value={t.notes||''} onChange={e=>patch({notes:e.target.value})} style={{...ci,flex:1}}/>
@@ -2860,6 +2912,19 @@ function CameraReport(){
       </div>}
 
       {roll&&!(showSearch&&hasSearch)&&<div ref={scrollBoxRef} style={{flex:1,overflow:'auto',minHeight:0,position:'relative'}}>
+        {/* theadSentinelRef wraps everything ABOVE the table (roll-meta panel +
+            multi-select bar), not just a thin marker right before it. That's
+            the fix for a real bug in the previous version: a zero-height
+            marker placed right before the table can itself start OFF-SCREEN
+            below the fold (this meta panel alone can be taller than one phone
+            screen), so IntersectionObserver's isIntersecting was already
+            false on first paint - before any scrolling - which pinned the
+            floating header immediately instead of only once actually
+            scrolled past. Wrapping the full pre-header block instead
+            guarantees the observed target always starts overlapping the
+            visible area at scrollTop 0, so "not intersecting" can only ever
+            mean "scrolled past", never "not reached yet". */}
+        <div ref={theadSentinelRef}>
         {/* Roll header / meta - compact: one dense grid for everything */}
         <div style={{padding:mob?'6px 8px':'7px 12px',borderBottom:`1px solid ${T.rule}`}}>
           <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6,flexWrap:'wrap'}}>
@@ -2970,6 +3035,9 @@ function CameraReport(){
             </div>
           );
         })()}
+        </div>
+        {/* ^ end theadSentinelRef wrapper - the table below is the first thing
+            OUTSIDE it, i.e. exactly where the header should start pinning. */}
 
         {/* No separate overflowX wrapper here on purpose: the outer scroll
             div above (flex:1, overflow:'auto') already handles both axes.
@@ -2981,13 +3049,6 @@ function CameraReport(){
               table-cell border/paint bug unrelated to the header fix below.
               Cells only ever declare borderRight/borderBottom/borderTop (never
               their mirrors), so this never creates doubled border lines. */}
-          {/* theadSentinelRef marks exactly where the header naturally sits;
-              once it scrolls past the ~5mm threshold the floating clone
-              (rendered below, outside this scrolling box) takes over so the
-              header appears locked in place - see the effect above. Real
-              <thead> below never uses position:sticky - that approach was
-              tried twice and never actually stuck on real Safari. */}
-          <div ref={theadSentinelRef} style={{height:0}}/>
           <table ref={tableRef} style={{borderCollapse:'separate',borderSpacing:0,width:'100%',minWidth:1342}}>
             <thead><tr>{takeHeaderCells}</tr></thead>
             <tbody>
@@ -3018,29 +3079,33 @@ function CameraReport(){
                     <input type="checkbox" checked={isSel} onChange={()=>toggleTakeSel(t.id)} style={{cursor:'pointer'}}/>
                   </td>
                   <td style={{...gb,borderRight:`1px solid ${T.rule}`}}>
-                    <input value={t.scene||''} placeholder="-" onChange={e=>{
-                        const v=e.target.value;
+                    {/* noFilter: same fix as Lens below - without it, a cell that
+                        already holds a scene ID would filter the dropdown down to
+                        just itself, making it impossible to browse/pick a different
+                        one without clearing the field first. */}
+                    <LensFocalPicker value={t.scene||''} placeholder="-" options={sceneIds} inputStyle={cellInput} noFilter
+                      onChange={v=>{
                         const first=v.split(',')[0].trim();
                         const newTake=first?takeNoFor(first,t.shot||'/',t.id):t.take;
                         patchTake(t.id,{scene:v,take:String(newTake)});
-                      }} style={cellInput}/>
+                      }}/>
                   </td>
-                  <td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.shot||''} placeholder="/" onChange={e=>changeTakeShot(t.id,e.target.value.toUpperCase())} style={{...cellInput,textAlign:'center'}}/></td>
+                  {!hiddenCols.has('shot')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.shot||''} placeholder="/" onChange={e=>changeTakeShot(t.id,e.target.value.toUpperCase())} style={{...cellInput,textAlign:'center'}}/></td>}
                   <td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.take||''} onChange={e=>patchTake(t.id,{take:e.target.value})} style={{...cellInput,textAlign:'center'}} inputMode="numeric"/></td>
-                  <td style={{...gb,borderRight:`1px solid ${T.rule}`,textAlign:'center'}}>
+                  {!hiddenCols.has('tail')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,textAlign:'center'}}>
                     <button onClick={()=>patchTake(t.id,{tail:!t.tail})} title="Tail slate" aria-label="Toggle tail slate" style={{background:'transparent',border:'none',cursor:'pointer',fontSize:14,padding:'2px'}}>{t.tail?'\u2705':'\u2610'}</button>
-                  </td>
-                  <td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.clip||''} onChange={e=>patchTake(t.id,{clip:e.target.value})} style={{...cellInput,textAlign:'right'}}/></td>
-                  <td style={{...gb,borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.lens||''} onChange={v=>patchTake(t.id,{lens:v})} options={LENS_OPTIONS} inputStyle={cellInput} noFilter/></td>
-                  <td style={{...gb,borderRight:`1px solid ${T.rule}`,...(needFocal?reqStyle:{})}}><LensFocalPicker value={t.focal||''} onChange={v=>patchTake(t.id,{focal:v})} options={FOCAL_OPTIONS} inputStyle={cellInput}/></td>
-                  <td style={{...gb,borderRight:`1px solid ${T.rule}`,...(needStop?reqStyle:{})}}><LensFocalPicker value={t.stop||''} onChange={v=>patchTake(t.id,{stop:v})} options={STOP_OPTIONS} inputStyle={cellInput}/></td>
-                  <td style={{...gb,borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.shutter||''} onChange={v=>patchTake(t.id,{shutter:v})} options={SHUTTER_OPTIONS} placeholder={roll.shutter||''} inputStyle={{...cellInput,textAlign:'center'}}/></td>
-                  <td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.ei||''} onChange={e=>patchTake(t.id,{ei:e.target.value})} style={cellInput}/></td>
-                  <td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.intFilters||''} onChange={e=>patchTake(t.id,{intFilters:e.target.value})} style={cellInput}/></td>
-                  <td style={{...gb,borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.filters||''} onChange={v=>patchTake(t.id,{filters:v})} options={FILTER2_OPTIONS} inputStyle={cellInput}/></td>
-                  <td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.filters3||''} onChange={e=>patchTake(t.id,{filters3:e.target.value})} style={cellInput}/></td>
-                  <td style={{...gb,borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.wb||''} onChange={v=>patchTake(t.id,{wb:v})} options={WB_OPTIONS} inputStyle={cellInput}/></td>
-                  <td style={{...gb,borderRight:`1px solid ${T.rule}`}}>
+                  </td>}
+                  {!hiddenCols.has('clip')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.clip||''} onChange={e=>patchTake(t.id,{clip:e.target.value})} style={{...cellInput,textAlign:'right'}}/></td>}
+                  {!hiddenCols.has('lens')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.lens||''} onChange={v=>patchTake(t.id,{lens:v})} options={LENS_OPTIONS} inputStyle={cellInput} noFilter/></td>}
+                  {!hiddenCols.has('focal')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,...(needFocal?reqStyle:{})}}><LensFocalPicker value={t.focal||''} onChange={v=>patchTake(t.id,{focal:v})} options={FOCAL_OPTIONS} inputStyle={cellInput}/></td>}
+                  {!hiddenCols.has('stop')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,...(needStop?reqStyle:{})}}><LensFocalPicker value={t.stop||''} onChange={v=>patchTake(t.id,{stop:v})} options={STOP_OPTIONS} inputStyle={cellInput}/></td>}
+                  {!hiddenCols.has('shutter')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.shutter||''} onChange={v=>patchTake(t.id,{shutter:v})} options={SHUTTER_OPTIONS} placeholder={roll.shutter||''} inputStyle={{...cellInput,textAlign:'center'}}/></td>}
+                  {!hiddenCols.has('ei')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.ei||''} onChange={e=>patchTake(t.id,{ei:e.target.value})} style={cellInput}/></td>}
+                  {!hiddenCols.has('intFilters')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.intFilters||''} onChange={e=>patchTake(t.id,{intFilters:e.target.value})} style={cellInput}/></td>}
+                  {!hiddenCols.has('filters')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.filters||''} onChange={v=>patchTake(t.id,{filters:v})} options={FILTER2_OPTIONS} inputStyle={cellInput}/></td>}
+                  {!hiddenCols.has('filters3')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.filters3||''} onChange={e=>patchTake(t.id,{filters3:e.target.value})} style={cellInput}/></td>}
+                  {!hiddenCols.has('wb')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.wb||''} onChange={v=>patchTake(t.id,{wb:v})} options={WB_OPTIONS} inputStyle={cellInput}/></td>}
+                  {!hiddenCols.has('focus')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}>
                     {/* Underlying value stays a plain number (that's what print/CSV/Sheets
                         export expect) - the trailing feet mark is just a visual suffix shown
                         next to the input, so typing "6" reads as 6' without any cursor-jump
@@ -3050,15 +3115,15 @@ function CameraReport(){
                         style={{...cellInput,padding:'8px 0 8px 3px',textAlign:'right',width:'100%'}}/>
                       {String(t.focus||'').trim()&&<span style={{fontSize:12,color:T.text,flexShrink:0,paddingRight:2}}>{"'"}</span>}
                     </div>
-                  </td>
-                  <td style={{...gb,borderRight:`1px solid ${T.rule}`}}><NotesPicker value={t.notes||''} onChange={v=>patchTake(t.id,{notes:v})}/></td>
-                  <td style={{...gb,borderRight:`1px solid ${T.rule}`,padding:'4px 2px'}}>
+                  </td>}
+                  {!hiddenCols.has('notes')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><NotesPicker value={t.notes||''} onChange={v=>patchTake(t.id,{notes:v})}/></td>}
+                  {!hiddenCols.has('photo')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,padding:'4px 2px'}}>
                     <TakePhotoCell projId={projId} take={t}
                       onAddPhoto={imgId=>patchTake(t.id,{photoIds:[...(t.photoIds||[]),imgId]})}
                       onRemovePhoto={imgId=>{
                         patchTake(t.id,{photoIds:(t.photoIds||[]).filter(x=>x!==imgId)});
                       }}/>
-                  </td>
+                  </td>}
                   <td style={{...gb,textAlign:'center',whiteSpace:'nowrap',padding:'4px 2px'}}>
                     <button onClick={()=>insertTakeAfter(t.id)} title="Insert row below" aria-label="Insert row below"
                       style={{background:T.accent+'14',border:`1px solid ${T.accent}44`,borderRadius:5,
@@ -3136,19 +3201,27 @@ function CameraReport(){
       </div>}
 
       {/* Floating header clone - only rendered while "pinned" (scrolled past
-          the ~5mm threshold). Lives outside the scrolling box on purpose:
-          position:fixed is relative to the viewport, and its top/left/width
-          are written imperatively onto floatingWrapRef by positionFloatingHeader()
-          above rather than kept in React state, so dragging to scroll stays
-          smooth instead of triggering a re-render on every pixel. */}
-      {pinned&&roll&&(
-        <div ref={floatingWrapRef} style={{position:'fixed',overflow:'hidden',zIndex:50,pointerEvents:'none',background:CAM.header,boxShadow:'0 2px 6px rgba(0,0,0,0.35)'}}>
+          the ~5mm threshold). Portaled straight to document.body (not just
+          "rendered outside the scrolling box" in React terms) - this app's
+          own layout has an overflow:hidden flex wrapper around everything,
+          and WebKit has a long history of clipping/mis-positioning
+          position:fixed elements that are DOM-nested inside an
+          overflow:hidden/scroll ancestor even though the spec says fixed
+          positioning should escape that entirely. Going straight to <body>
+          removes any such ancestor from the equation - nothing above it can
+          clip or re-contain it. Its top/left/width are written imperatively
+          onto floatingWrapRef by positionFloatingHeader() above rather than
+          kept in React state, so dragging to scroll stays smooth instead of
+          triggering a re-render on every pixel. */}
+      {pinned&&roll&&ReactDOM.createPortal(
+        <div ref={floatingWrapRef} style={{position:'fixed',overflow:'hidden',zIndex:500,pointerEvents:'none',background:CAM.header,boxShadow:'0 2px 6px rgba(0,0,0,0.35)'}}>
           <div ref={floatingInnerRef} style={{willChange:'transform',pointerEvents:'auto'}}>
             <table style={{borderCollapse:'separate',borderSpacing:0,width:'100%',minWidth:1342}}>
               <thead><tr>{takeHeaderCells}</tr></thead>
             </table>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {showAIFill&&roll&&(
@@ -3222,8 +3295,10 @@ function SettingsModal({onClose}){
   const [saved,setSaved]=React.useState(false);
   const [showScenes,setShowScenes]=React.useState(false);
   const [showDays,setShowDays]=React.useState(false);
+  const [showColumns,setShowColumns]=React.useState(false);
   const sceneCount=(data.scenes||[]).length;
   const dayCount=(data.shootDays||[]).length;
+  const hiddenColCount=(data.hiddenColumns||[]).length;
 
   function save(){
     updateData({
@@ -3270,6 +3345,11 @@ function SettingsModal({onClose}){
             <span style={{color:T.textDim}}>{'›'}</span>
           </button>
 
+          <button onClick={()=>setShowColumns(true)} style={navBtn}>
+            <span>{'📋'} Take table columns {hiddenColCount>0?`(${hiddenColCount} hidden)`:'(all shown)'}</span>
+            <span style={{color:T.textDim}}>{'›'}</span>
+          </button>
+
           <div style={{borderTop:`1px solid ${T.rule}`,paddingTop:14}}>
             <span style={lbl}>GOOGLE SHEETS CLIENT ID (optional override - leave blank to use this deployment's default)</span>
             <input value={clientId} onChange={e=>setClientId(e.target.value)} style={inp} placeholder={DEFAULT_GSHEETS_CLIENT_ID}/>
@@ -3294,6 +3374,7 @@ function SettingsModal({onClose}){
       </div>
       {showScenes&&<ScenesEditorModal onClose={()=>setShowScenes(false)}/>}
       {showDays&&<ShootDaysEditorModal onClose={()=>setShowDays(false)}/>}
+      {showColumns&&<ColumnsEditorModal onClose={()=>setShowColumns(false)}/>}
     </div>
   );
 }
@@ -3420,6 +3501,64 @@ function ShootDaysEditorModal({onClose}){
             </div>
           ))}
           <button onClick={addRow} style={{alignSelf:'flex-start',padding:'7px 14px',borderRadius:6,border:`1px dashed ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:'pointer'}}>+ Add day</button>
+          <div style={{display:'flex',justifyContent:'flex-end',gap:8,borderTop:`1px solid ${T.rule}`,paddingTop:14,marginTop:6}}>
+            <button onClick={onClose} style={{padding:'8px 16px',borderRadius:6,border:`1px solid ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,cursor:'pointer'}}>Cancel</button>
+            <button onClick={save} style={{padding:'8px 20px',borderRadius:6,background:T.accent,border:'none',color:'#0e0d0b',fontWeight:600,fontSize:12,cursor:'pointer'}}>Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ===============================================================
+   COLUMNS EDITOR - lets a production hide take-table columns it
+   doesn't use (e.g. a US-style crew that folds shot into the slate
+   and doesn't want a separate SHOT column). Stores an array of
+   HIDDEN column keys (default = none hidden, i.e. everything shown -
+   so productions that never open this see no change in behaviour).
+   Hiding a column only hides its cell; the underlying data field is
+   still read/written/auto-filled normally (see TAKE_COLUMNS above).
+================================================================ */
+function ColumnsEditorModal({onClose}){
+  const {data,updateData}=useStandaloneData();
+  const [hidden,setHidden]=React.useState(()=>new Set(data.hiddenColumns||[]));
+
+  function toggle(key){
+    setHidden(prev=>{
+      const next=new Set(prev);
+      if(next.has(key))next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+  function save(){
+    updateData({hiddenColumns:Array.from(hidden)});
+    onClose();
+  }
+
+  return(
+    <div style={{position:'fixed',inset:0,zIndex:10000,background:'rgba(0,0,0,0.72)',
+      display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+      <div style={{background:T.panel,border:`1px solid ${T.border}`,borderRadius:12,
+        width:'100%',maxWidth:440,maxHeight:'88vh',overflow:'auto',
+        boxShadow:'0 20px 60px rgba(0,0,0,0.7)',display:'flex',flexDirection:'column'}}>
+        <div style={{padding:'14px 18px',borderBottom:`1px solid ${T.rule}`,display:'flex',alignItems:'center',gap:8}}>
+          <span style={{fontSize:16}}>{'📋'}</span>
+          <span style={{fontSize:14,fontWeight:600,color:T.text,flex:1}}>Take table columns</span>
+          <button onClick={onClose} style={{background:'transparent',border:'none',color:T.textDim,fontSize:18,cursor:'pointer',lineHeight:1}}>{'×'}</button>
+        </div>
+        <div style={{padding:'16px 18px',display:'flex',flexDirection:'column',gap:10}}>
+          <div style={{fontSize:10,color:T.textDim,lineHeight:1.5}}>
+            Untick anything your crew doesn't use to declutter the table - Scene, Take and row actions always
+            stay visible. Hiding a column just hides it; nothing you've already logged is deleted, and you can
+            re-tick it any time to see it again.
+          </div>
+          {TAKE_COLUMNS.map(c=>(
+            <label key={c.key} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 2px',cursor:'pointer'}}>
+              <input type="checkbox" checked={!hidden.has(c.key)} onChange={()=>toggle(c.key)} style={{cursor:'pointer',width:16,height:16}}/>
+              <span style={{fontSize:12,color:T.text,fontFamily:"'Geist Mono',monospace"}}>{c.label}</span>
+            </label>
+          ))}
           <div style={{display:'flex',justifyContent:'flex-end',gap:8,borderTop:`1px solid ${T.rule}`,paddingTop:14,marginTop:6}}>
             <button onClick={onClose} style={{padding:'8px 16px',borderRadius:6,border:`1px solid ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,cursor:'pointer'}}>Cancel</button>
             <button onClick={save} style={{padding:'8px 20px',borderRadius:6,background:T.accent,border:'none',color:'#0e0d0b',fontWeight:600,fontSize:12,cursor:'pointer'}}>Save</button>
