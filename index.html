@@ -598,15 +598,95 @@ async function analyseCameraSlate(dataUrlOrArray, existingRoll){
 }
 
 /* ===============================================================
-   STANDALONE DATA MODEL
+   STANDALONE DATA MODEL - multi-project
    Replaces the original app's Firestore-backed useProj()/project
-   context. Everything (project name, optional scenes/shoot-days,
-   and every roll/take of camera-report data) lives in ONE JSON
-   blob in localStorage. There is no server, no account, no sync -
-   just this browser. Take reference PHOTOS themselves still live
-   in IndexedDB (see CAMREP_DB_NAME above) so this blob stays small.
+   context. Each production gets its OWN JSON blob in localStorage
+   (project name, optional scenes/shoot-days, every roll/take, and
+   its own Sheets-backup connection) - switching projects never
+   mixes data between productions. There is no server, no account,
+   no sync between devices - just this browser. Take reference
+   PHOTOS themselves still live in IndexedDB (see CAMREP_DB_NAME
+   above), keyed per-project the same way, so these JSON blobs stay
+   small.
+
+   Storage keys:
+     camrep_projects_v1         -> array of project id strings
+     camrep_current_project_v1  -> the active project's id
+     camrep_proj_<id>           -> that project's full data blob
+
+   camrep_standalone_v1 is the OLD (pre-multi-project) single-blob
+   key. It's never written to anymore, only read once by
+   ensureProjectsSetup() to migrate anyone upgrading from that
+   version - their existing data becomes the project with id
+   'default', the exact id string this app always used internally
+   for its one-and-only project before, so already-stored reference
+   photos in IndexedDB (keyed 'default::<photoId>') keep resolving
+   correctly with no separate photo migration needed.
 ================================================================ */
 const SB_STANDALONE_KEY='camrep_standalone_v1';
+const SB_PROJECTS_KEY='camrep_projects_v1';
+const SB_CURRENT_PROJECT_KEY='camrep_current_project_v1';
+const projDataKey=id=>'camrep_proj_'+id;
+
+function newProjectId(){
+  return 'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+}
+function loadProjectsList(){
+  try{
+    const raw=JSON.parse(localStorage.getItem(SB_PROJECTS_KEY)||'null');
+    if(Array.isArray(raw)&&raw.length)return raw;
+  }catch(e){}
+  return null;
+}
+function saveProjectsList(list){
+  try{ localStorage.setItem(SB_PROJECTS_KEY,JSON.stringify(list)); }catch(e){}
+}
+function loadCurrentProjectId(list){
+  let id='';
+  try{ id=localStorage.getItem(SB_CURRENT_PROJECT_KEY)||''; }catch(e){}
+  if(id&&list.includes(id))return id;
+  return list[0]||'default';
+}
+function saveCurrentProjectId(id){
+  try{ localStorage.setItem(SB_CURRENT_PROJECT_KEY,id); }catch(e){}
+}
+// One-time setup, safe to call on every load: builds the project registry
+// the first time this runs on a device, migrating old single-project data
+// (if any) in place. Returns the (possibly just-created) list of ids.
+function ensureProjectsSetup(){
+  let list=loadProjectsList();
+  if(list)return list;
+  let legacy=null;
+  try{ legacy=JSON.parse(localStorage.getItem(SB_STANDALONE_KEY)||'null'); }catch(e){}
+  if(legacy&&typeof legacy==='object'){
+    saveProjectData('default',legacy);
+  }
+  list=['default'];
+  saveProjectsList(list);
+  saveCurrentProjectId('default');
+  return list;
+}
+function loadProjectData(id){
+  try{
+    const raw=JSON.parse(localStorage.getItem(projDataKey(id))||'null');
+    if(raw&&typeof raw==='object'){
+      return {
+        projectName: typeof raw.projectName==='string'?raw.projectName:'Untitled Production',
+        scenes: Array.isArray(raw.scenes)?raw.scenes:[],
+        shootDays: Array.isArray(raw.shootDays)?raw.shootDays:[],
+        rolls: Array.isArray(raw.rolls)?raw.rolls:[],
+        gsheetsClientId: typeof raw.gsheetsClientId==='string'?raw.gsheetsClientId:'',
+        gsheetsSpreadsheetId: typeof raw.gsheetsSpreadsheetId==='string'?raw.gsheetsSpreadsheetId:'',
+        hiddenColumns: Array.isArray(raw.hiddenColumns)?raw.hiddenColumns:[]
+      };
+    }
+  }catch(e){ console.warn('camrep: could not read project data',e); }
+  return {projectName:'Untitled Production', scenes:[], shootDays:[], rolls:[], gsheetsClientId:'', gsheetsSpreadsheetId:'', hiddenColumns:[]};
+}
+function saveProjectData(id,data){
+  try{ localStorage.setItem(projDataKey(id),JSON.stringify(data)); return true; }
+  catch(e){ console.warn('camrep: local save failed (storage full/blocked?)',e); return false; }
+}
 
 /* This is a public OAuth Client ID, not a secret (Client Secret is the part
    that must stay private - we never use it, this is browser-only GIS auth).
@@ -620,27 +700,6 @@ const SB_STANDALONE_KEY='camrep_standalone_v1';
    paste it into the Settings override field - a per-device Settings value
    always wins over this default. */
 const DEFAULT_GSHEETS_CLIENT_ID='398002070662-oi0fuarrsmec4a1m8a3aie874bn7b0id.apps.googleusercontent.com';
-
-function loadStandaloneData(){
-  try{
-    const raw=JSON.parse(localStorage.getItem(SB_STANDALONE_KEY)||'null');
-    if(raw&&typeof raw==='object'){
-      return {
-        projectName: typeof raw.projectName==='string'?raw.projectName:'Untitled Production',
-        scenes: Array.isArray(raw.scenes)?raw.scenes:[],
-        shootDays: Array.isArray(raw.shootDays)?raw.shootDays:[],
-        rolls: Array.isArray(raw.rolls)?raw.rolls:[],
-        gsheetsClientId: typeof raw.gsheetsClientId==='string'?raw.gsheetsClientId:'',
-        gsheetsSpreadsheetId: typeof raw.gsheetsSpreadsheetId==='string'?raw.gsheetsSpreadsheetId:''
-      };
-    }
-  }catch(e){ console.warn('camrep: could not read local data, starting fresh',e); }
-  return {projectName:'Untitled Production', scenes:[], shootDays:[], rolls:[], gsheetsClientId:'', gsheetsSpreadsheetId:''};
-}
-function saveStandaloneData(data){
-  try{ localStorage.setItem(SB_STANDALONE_KEY,JSON.stringify(data)); return true; }
-  catch(e){ console.warn('camrep: local save failed (storage full/blocked?)',e); return false; }
-}
 
 const DataCtx=createContext(null);
 const useStandaloneData=()=>useContext(DataCtx);
@@ -1667,9 +1726,12 @@ function AIFillModal({roll, projId, scenes, onApply, onClose}){
   );
 }
 function CameraReport(){
-  const {data:proj,updateData}=useStandaloneData();
+  const {data:proj,updateData,projectId}=useStandaloneData();
   const mob=useMobile();
-  const projId='default';
+  // Reference photos in IndexedDB are namespaced by this id (see
+  // camRepPutPhoto/camRepGetForTake) so switching projects never shows one
+  // production's photos on another's takes.
+  const projId=projectId;
 
   // Generic starting defaults (all fields editable inline per roll)
   const DEFAULTS={camera:'ALEXA MINI LF',codec:'5K 1.7:1',fps:'24',shutter:'180',baseEI:'1600',lut:'Rec 709',director:'',dop:'',ac:''};
@@ -1717,28 +1779,19 @@ function CameraReport(){
   const [showSearch,setShowSearch]=React.useState(false);
   const [searchQ,setSearchQ]=React.useState({});  // field -> search string
 
-  // ---- Floating take-table header (JS-driven; replaces unreliable CSS
-  // position:sticky-in-a-table, which never worked on real Safari) ----
-  // scrollBoxRef = the single scrolling container (roll meta + table).
-  // theadSentinelRef = wraps EVERYTHING above the table (roll-meta panel +
-  // multi-select bar) - not a thin marker - so it always starts overlapping
-  // the visible area at scrollTop 0 (see the long comment at its JSX for why
-  // a zero-height marker there was the actual bug last time: it could start
-  // off-screen below the fold, which made the header pin immediately on
-  // load instead of only once scrolled past). Once this whole block has
-  // scrolled up past ~5mm from the top of the scroll box, we swap in a
-  // position:fixed clone of the header ("pinned"), portaled straight to
-  // document.body so no ancestor's overflow:hidden/flex layout can clip or
-  // mis-contain it - Excel-freeze-panes style. Horizontal scroll position is
-  // mirrored onto the clone on every scroll tick so columns stay lined up
-  // with the real table beneath it.
-  const scrollBoxRef=React.useRef(null);
-  const theadSentinelRef=React.useRef(null);
-  const tableRef=React.useRef(null);
-  const floatingWrapRef=React.useRef(null);
-  const floatingInnerRef=React.useRef(null);
-  const [pinned,setPinned]=React.useState(false);
-  const STICKY_TOP_PX=19; // ~5mm - matches the old CSS sticky offset
+  // ---- Take-table header, freeze-panes style ----
+  // Two earlier attempts (CSS position:sticky, then a JS "floating clone"
+  // synced to scroll) both proved unreliable on real Safari - the clone
+  // approach also introduced a stray floating box artifact when scrolling
+  // horizontally. The actual fix turned out to be architectural, not a CSS
+  // or JS trick: the roll-meta panel (13 fields) was sharing ONE scroll
+  // container with the table, so the header had to fight a huge sibling for
+  // scroll position. Now the meta panel + multi-select bar live in the
+  // always-visible fixed area (collapsible via metaCollapsed, to reclaim
+  // space), and the table gets its OWN dedicated scroll container below
+  // them - with nothing else competing for that scroll, a plain CSS
+  // position:sticky header (see `th` below) just works, no JS needed.
+  const [metaCollapsed,setMetaCollapsed]=React.useState(false);
 
   const scenes=proj.scenes||[];
   const sceneIds=React.useMemo(()=>scenes.map(s=>s.id),[scenes]);
@@ -2526,69 +2579,14 @@ function CameraReport(){
   const metaInput={background:T.surface2,border:'1px solid '+T.border,borderRadius:4,padding:'3px 5px',fontSize:10,color:T.text,fontFamily:"'Geist Mono',monospace",width:'100%'};
   const metaLabel={fontSize:7,fontFamily:"'Geist Mono',monospace",letterSpacing:'0.06em',color:T.textDim,marginBottom:1,display:'block'};
   const cellInput={background:'transparent',border:'none',padding:'8px 6px',fontSize:12,color:T.text,width:'100%',fontFamily:"'Geist Mono',monospace"};
-  // Take-table header positioning is now handled entirely by the JS
-  // floating-header effect below (position:sticky on <th> inside a table
-  // never reliably locked in place on real Safari, even after the
-  // border-collapse fix) - so this style is just the plain, non-positioned
-  // look shared by both the real <thead> and its floating clone.
-  const th={padding:'6px 5px',background:CAM.header,color:'#fff',fontSize:9,fontFamily:"'Geist Mono',monospace",letterSpacing:'0.05em',textAlign:'left',whiteSpace:'nowrap'};
-  // Kept only for the smaller search-results table below, which still uses
-  // plain CSS sticky (lower-traffic view; not worth the JS treatment yet).
-  const STICKY_TOP='5mm';
+  // Plain CSS sticky header - reliable now that the table has its own
+  // dedicated scroll container (see metaCollapsed comment above) with
+  // nothing else sharing that scroll to push it around. top:0 because this
+  // container starts right below the always-visible toolbar/meta area, not
+  // at the screen edge, so there's no notch/status-bar to clear here.
+  const th={padding:'6px 5px',background:CAM.header,color:'#fff',fontSize:9,fontFamily:"'Geist Mono',monospace",letterSpacing:'0.05em',textAlign:'left',whiteSpace:'nowrap',WebkitPosition:'sticky',position:'sticky',top:0,zIndex:5};
+  const STICKY_TOP='0px';
 
-  // Re-measure and re-position the fixed floating header clone so it sits
-  // exactly over where the real header would be (viewport top + ~5mm),
-  // spans the same left/width as the scroll box, and mirrors the scroll
-  // box's current horizontal scroll offset via a transform (imperative DOM
-  // writes here, not React state, so this stays smooth during a scroll
-  // gesture instead of forcing a re-render on every tick).
-  const positionFloatingHeader=React.useCallback(()=>{
-    const box=scrollBoxRef.current, wrap=floatingWrapRef.current;
-    if(!box||!wrap)return;
-    const r=box.getBoundingClientRect();
-    wrap.style.top=(r.top+STICKY_TOP_PX)+'px';
-    wrap.style.left=r.left+'px';
-    wrap.style.width=r.width+'px';
-    if(floatingInnerRef.current){
-      // Match the clone's width to the real table's actual rendered width
-      // (it can be wider than its own minWidth on a big screen, since the
-      // real table is width:'100%') so the translateX below keeps every
-      // column lined up with the real table beneath, at any viewport size.
-      if(tableRef.current)floatingInnerRef.current.style.width=tableRef.current.offsetWidth+'px';
-      floatingInnerRef.current.style.transform='translateX(-'+box.scrollLeft+'px)';
-    }
-  },[STICKY_TOP_PX]);
-
-  React.useEffect(()=>{
-    if(pinned)positionFloatingHeader();
-  },[pinned,positionFloatingHeader]);
-
-  React.useEffect(()=>{
-    const box=scrollBoxRef.current, sentinel=theadSentinelRef.current;
-    if(!box||!sentinel)return;
-    const obs=new IntersectionObserver((entries)=>{
-      setPinned(!entries[0].isIntersecting);
-    },{root:box,rootMargin:`-${STICKY_TOP_PX}px 0px 0px 0px`,threshold:0});
-    obs.observe(sentinel);
-    const onScroll=()=>positionFloatingHeader();
-    const onResize=()=>positionFloatingHeader();
-    box.addEventListener('scroll',onScroll,{passive:true});
-    window.addEventListener('resize',onResize);
-    window.addEventListener('orientationchange',onResize);
-    return ()=>{
-      obs.disconnect();
-      box.removeEventListener('scroll',onScroll);
-      window.removeEventListener('resize',onResize);
-      window.removeEventListener('orientationchange',onResize);
-      setPinned(false); // don't leave a stale floating clone up if this section unmounts
-    };
-    // Re-attach whenever the take-table section (un)mounts - it's wrapped in
-    // {roll && !(showSearch&&hasSearch) && ...}, so scrollBoxRef/theadSentinelRef
-    // go from null to real nodes (or back) whenever those flip.
-  },[roll&&roll.id,showSearch,hasSearch,positionFloatingHeader]);
-
-  // Header cells shared verbatim by the real <thead> and the floating clone
-  // below, so they never drift out of sync with each other.
   const takeHeaderCells=roll?(
     <>
       <th style={{...th,width:30,textAlign:'center'}}>
@@ -2911,105 +2909,116 @@ function CameraReport(){
         <button onClick={()=>addRoll(activeCam,'blank')} style={{padding:'8px 18px',borderRadius:6,background:T.accent,border:'none',color:'#0e0d0b',fontWeight:600,fontSize:12,cursor:'pointer'}}>+ Start a roll</button>
       </div>}
 
-      {roll&&!(showSearch&&hasSearch)&&<div ref={scrollBoxRef} style={{flex:1,overflow:'auto',minHeight:0,position:'relative'}}>
-        {/* theadSentinelRef wraps everything ABOVE the table (roll-meta panel +
-            multi-select bar), not just a thin marker right before it. That's
-            the fix for a real bug in the previous version: a zero-height
-            marker placed right before the table can itself start OFF-SCREEN
-            below the fold (this meta panel alone can be taller than one phone
-            screen), so IntersectionObserver's isIntersecting was already
-            false on first paint - before any scrolling - which pinned the
-            floating header immediately instead of only once actually
-            scrolled past. Wrapping the full pre-header block instead
-            guarantees the observed target always starts overlapping the
-            visible area at scrollTop 0, so "not intersecting" can only ever
-            mean "scrolled past", never "not reached yet". */}
-        <div ref={theadSentinelRef}>
-        {/* Roll header / meta - compact: one dense grid for everything */}
-        <div style={{padding:mob?'6px 8px':'7px 12px',borderBottom:`1px solid ${T.rule}`}}>
-          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6,flexWrap:'wrap'}}>
-            <div>
-              <span style={metaLabel}>ROLL #</span>
-              <input value={roll.roll||''} onChange={e=>patchRoll(roll.id,{roll:e.target.value})} style={{...metaInput,width:74,fontSize:13,color:CAM.accent,fontWeight:600,padding:'4px 6px'}}/>
+      {roll&&!(showSearch&&hasSearch)&&(<>
+        {/* Roll header / meta - collapsible. This used to share ONE scroll
+            container with the table below it, which is what made a reliable
+            sticky/frozen header impossible (the header had to fight this
+            whole block for scroll position). Now it's a fixed, non-scrolling
+            block above the table, and the collapse toggle lets it get out of
+            the way entirely on a small phone screen. */}
+        <div style={{flexShrink:0,borderBottom:`1px solid ${T.rule}`}}>
+          <div style={{padding:mob?'6px 8px':'7px 12px',paddingBottom:metaCollapsed?(mob?6:7):(mob?6:7)}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:metaCollapsed?0:6,flexWrap:'wrap'}}>
+              <div>
+                <span style={metaLabel}>ROLL #</span>
+                <input value={roll.roll||''} onChange={e=>patchRoll(roll.id,{roll:e.target.value})} style={{...metaInput,width:74,fontSize:13,color:CAM.accent,fontWeight:600,padding:'4px 6px'}}/>
+              </div>
+              <div>
+                <span style={metaLabel}>MAG #</span>
+                <input value={roll.mag||''} onChange={e=>patchRoll(roll.id,{mag:e.target.value})} style={{...metaInput,width:60}}/>
+              </div>
+              <div>
+                <span style={metaLabel}>CAM</span>
+                <select value={camOf(roll)} onChange={e=>moveRollToCam(roll.id,e.target.value)}
+                  title="Move this whole roll to another camera"
+                  style={{...metaInput,width:56,fontSize:13,fontWeight:700,color:CAM.accent,cursor:'pointer',padding:'4px 6px'}}>
+                  {CAM_ORDER.map(c=><option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              {metaCollapsed&&roll.shootDay&&<span style={{fontSize:10,color:T.textDim,fontFamily:"'Geist Mono',monospace"}}>Day {roll.shootDay}{roll.date?' · '+fmtDayDate(roll.date):''}</span>}
+              <div style={{flex:1}}/>
+              <button onClick={()=>setMetaCollapsed(v=>!v)} title={metaCollapsed?'Show roll info':'Hide roll info to make more room for the table'}
+                style={{padding:'3px 9px',borderRadius:5,fontSize:9,fontFamily:"'Geist Mono',monospace",background:'transparent',border:`1px solid ${T.border}`,color:T.textDim,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
+                {metaCollapsed?'▸':'▾'} {metaCollapsed?'Show info':'Hide info'}
+              </button>
+              <button onClick={()=>deleteRoll(roll.id)} style={{padding:'3px 9px',borderRadius:5,fontSize:9,fontFamily:"'Geist Mono',monospace",background:'transparent',border:`1px solid ${T.danger}55`,color:T.danger,cursor:'pointer'}}>Delete roll</button>
             </div>
-            <div>
-              <span style={metaLabel}>MAG #</span>
-              <input value={roll.mag||''} onChange={e=>patchRoll(roll.id,{mag:e.target.value})} style={{...metaInput,width:60}}/>
-            </div>
-            <div>
-              <span style={metaLabel}>CAM</span>
-              <select value={camOf(roll)} onChange={e=>moveRollToCam(roll.id,e.target.value)}
-                title="Move this whole roll to another camera"
-                style={{...metaInput,width:56,fontSize:13,fontWeight:700,color:CAM.accent,cursor:'pointer',padding:'4px 6px'}}>
-                {CAM_ORDER.map(c=><option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            <div style={{flex:1}}/>
-            <button onClick={()=>deleteRoll(roll.id)} style={{padding:'3px 9px',borderRadius:5,fontSize:9,fontFamily:"'Geist Mono',monospace",background:'transparent',border:`1px solid ${T.danger}55`,color:T.danger,cursor:'pointer'}}>Delete roll</button>
-          </div>
 
-          <div style={{display:'grid',gridTemplateColumns:mob?'repeat(3,1fr)':'repeat(7,1fr)',gap:'5px 7px'}}>
-            <div>
-              <span style={metaLabel}>SHOOT DAY</span>
-              <select value={roll.shootDay||''} onChange={e=>{
-                const d=parseInt(e.target.value,10);
-                const dd=shootDays.find(x=>x.day===d);
-                patchRoll(roll.id,{shootDay:d, date:(dd&&dd.date)||roll.date});
-              }} style={metaInput}>
-                <option value="">-</option>
-                {shootDays.map(d=><option key={d.day} value={d.day}>Day {d.day}</option>)}
-              </select>
-            </div>
-            <div>
-              <span style={metaLabel}>DATE</span>
-              <input type="date" value={roll.date||''} onChange={e=>patchRoll(roll.id,{date:e.target.value})} style={metaInput}/>
-              {roll.date&&<div style={{fontSize:9,color:T.accent,fontFamily:"'Geist Mono',monospace",marginTop:2}}>{fmtDayDate(roll.date)}</div>}
-            </div>
-            <div>
-              <span style={metaLabel}>DIRECTOR</span>
-              <input value={roll.director||''} onChange={e=>patchRoll(roll.id,{director:e.target.value})} style={metaInput}/>
-            </div>
-            <div>
-              <span style={metaLabel}>DOP</span>
-              <input value={roll.dop||''} onChange={e=>patchRoll(roll.id,{dop:e.target.value})} style={metaInput}/>
-            </div>
-            <div>
-              <span style={metaLabel}>1ST AC</span>
-              <input value={roll.ac||''} onChange={e=>patchRoll(roll.id,{ac:e.target.value})} style={metaInput}/>
-            </div>
-            <div>
-              <span style={metaLabel}>CAMERA</span>
-              <input value={roll.camera||''} onChange={e=>patchRoll(roll.id,{camera:e.target.value})} style={metaInput}/>
-            </div>
-            <div>
-              <span style={metaLabel}>CODEC</span>
-              <input value={roll.codec||''} onChange={e=>patchRoll(roll.id,{codec:e.target.value})} style={metaInput}/>
-            </div>
-            <div>
-              <span style={metaLabel}>FPS</span>
-              <input value={roll.fps||''} onChange={e=>patchRoll(roll.id,{fps:e.target.value})} style={metaInput}/>
-            </div>
-            <div>
-              <span style={metaLabel}>BASE EI</span>
-              <input value={roll.baseEI||''} onChange={e=>patchRoll(roll.id,{baseEI:e.target.value})} style={metaInput}/>
-            </div>
-            <div>
-              <span style={metaLabel}>LUT</span>
-              <input value={roll.lut||''} onChange={e=>patchRoll(roll.id,{lut:e.target.value})} style={metaInput}/>
-            </div>
-            <div style={{gridColumn:mob?'span 2':'span 2'}}>
-              <span style={metaLabel}>LOCATION</span>
-              <input value={roll.location||''} onChange={e=>patchRoll(roll.id,{location:e.target.value})} style={metaInput}/>
-            </div>
-            <div style={{gridColumn:'span 2'}}>
-              <span style={metaLabel}>DEFAULT LENS</span>
-              <LensFocalPicker value={roll.lens||''} onChange={v=>patchRoll(roll.id,{lens:v})} options={LENS_OPTIONS} inputStyle={metaInput} noFilter/>
-            </div>
+            {!metaCollapsed&&<div style={{display:'grid',gridTemplateColumns:mob?'repeat(3,1fr)':'repeat(7,1fr)',gap:'5px 7px'}}>
+              <div>
+                <span style={metaLabel}>SHOOT DAY</span>
+                <select value={roll.shootDay||''} onChange={e=>{
+                  const v=e.target.value;
+                  if(v==='__add__'){
+                    const nums=shootDays.map(d=>d.day);
+                    const nextDay=(nums.length?Math.max(...nums):0)+1;
+                    const lastDay=shootDays[shootDays.length-1];
+                    const nextDate=lastDay?addOneDay(lastDay.date):'';
+                    updateData({shootDays:[...shootDays,{day:nextDay,date:nextDate}]});
+                    patchRoll(roll.id,{shootDay:nextDay, date:nextDate||roll.date});
+                    return;
+                  }
+                  const d=parseInt(v,10);
+                  const dd=shootDays.find(x=>x.day===d);
+                  patchRoll(roll.id,{shootDay:d, date:(dd&&dd.date)||roll.date});
+                }} style={metaInput}>
+                  <option value="">-</option>
+                  {shootDays.map(d=><option key={d.day} value={d.day}>Day {d.day}{d.date?' · '+fmtDayDate(d.date):''}</option>)}
+                  <option value="__add__">{'+ Add new day'}</option>
+                </select>
+              </div>
+              <div>
+                <span style={metaLabel}>DATE</span>
+                <input type="date" value={roll.date||''} onChange={e=>patchRoll(roll.id,{date:e.target.value})} style={metaInput}/>
+                {roll.date&&<div style={{fontSize:9,color:T.accent,fontFamily:"'Geist Mono',monospace",marginTop:2}}>{fmtDayDate(roll.date)}</div>}
+              </div>
+              <div>
+                <span style={metaLabel}>DIRECTOR</span>
+                <input value={roll.director||''} onChange={e=>patchRoll(roll.id,{director:e.target.value})} style={metaInput}/>
+              </div>
+              <div>
+                <span style={metaLabel}>DOP</span>
+                <input value={roll.dop||''} onChange={e=>patchRoll(roll.id,{dop:e.target.value})} style={metaInput}/>
+              </div>
+              <div>
+                <span style={metaLabel}>1ST AC</span>
+                <input value={roll.ac||''} onChange={e=>patchRoll(roll.id,{ac:e.target.value})} style={metaInput}/>
+              </div>
+              <div>
+                <span style={metaLabel}>CAMERA</span>
+                <input value={roll.camera||''} onChange={e=>patchRoll(roll.id,{camera:e.target.value})} style={metaInput}/>
+              </div>
+              <div>
+                <span style={metaLabel}>CODEC</span>
+                <input value={roll.codec||''} onChange={e=>patchRoll(roll.id,{codec:e.target.value})} style={metaInput}/>
+              </div>
+              <div>
+                <span style={metaLabel}>FPS</span>
+                <input value={roll.fps||''} onChange={e=>patchRoll(roll.id,{fps:e.target.value})} style={metaInput}/>
+              </div>
+              <div>
+                <span style={metaLabel}>BASE EI</span>
+                <input value={roll.baseEI||''} onChange={e=>patchRoll(roll.id,{baseEI:e.target.value})} style={metaInput}/>
+              </div>
+              <div>
+                <span style={metaLabel}>LUT</span>
+                <input value={roll.lut||''} onChange={e=>patchRoll(roll.id,{lut:e.target.value})} style={metaInput}/>
+              </div>
+              <div style={{gridColumn:mob?'span 2':'span 2'}}>
+                <span style={metaLabel}>LOCATION</span>
+                <input value={roll.location||''} onChange={e=>patchRoll(roll.id,{location:e.target.value})} style={metaInput}/>
+              </div>
+              <div style={{gridColumn:'span 2'}}>
+                <span style={metaLabel}>DEFAULT LENS</span>
+                <LensFocalPicker value={roll.lens||''} onChange={v=>patchRoll(roll.id,{lens:v})} options={LENS_OPTIONS} inputStyle={metaInput} noFilter/>
+              </div>
+            </div>}
           </div>
         </div>
 
-        {/* Take table */}
-        {/* Multi-select action bar  -  shown when clips are ticked */}
+        {/* Multi-select action bar  -  shown when clips are ticked. Also
+            outside the table's scroll container, so it stays visible
+            without needing to scroll back up to reach it. */}
         {selTakeIds.length>0&&(()=>{
           const sameCamRolls=rolls.filter(r=>camOf(r)===activeCam&&r.id!==roll.id);
           return(
@@ -3035,21 +3044,16 @@ function CameraReport(){
             </div>
           );
         })()}
-        </div>
-        {/* ^ end theadSentinelRef wrapper - the table below is the first thing
-            OUTSIDE it, i.e. exactly where the header should start pinning. */}
 
-        {/* No separate overflowX wrapper here on purpose: the outer scroll
-            div above (flex:1, overflow:'auto') already handles both axes.
-            Nesting a second overflow-x:auto div here used to create a
-            second, ambiguous "nearest scrolling ancestor", which is also
-            why the floating header clone measures THIS box for its
-            position/size rather than anything nested inside it. */}
+        {/* Take table - its OWN dedicated scroll container, with nothing
+            else sharing it, which is what makes the plain CSS sticky header
+            (see `th` above) actually reliable this time. */}
+        <div style={{flex:1,overflow:'auto',minHeight:0,position:'relative'}}>
           {/* border-collapse:'separate' (not 'collapse') avoids a WebKit/Safari
-              table-cell border/paint bug unrelated to the header fix below.
-              Cells only ever declare borderRight/borderBottom/borderTop (never
-              their mirrors), so this never creates doubled border lines. */}
-          <table ref={tableRef} style={{borderCollapse:'separate',borderSpacing:0,width:'100%',minWidth:1342}}>
+              table-cell border/paint bug unrelated to the header. Cells only
+              ever declare borderRight/borderBottom/borderTop (never their
+              mirrors), so this never creates doubled border lines. */}
+          <table style={{borderCollapse:'separate',borderSpacing:0,width:'100%',minWidth:1342}}>
             <thead><tr>{takeHeaderCells}</tr></thead>
             <tbody>
               {roll.takes.map((t,i)=>{
@@ -3198,31 +3202,8 @@ function CameraReport(){
             {'\u21B3'} Resequence clips
           </button>
         </div>
-      </div>}
-
-      {/* Floating header clone - only rendered while "pinned" (scrolled past
-          the ~5mm threshold). Portaled straight to document.body (not just
-          "rendered outside the scrolling box" in React terms) - this app's
-          own layout has an overflow:hidden flex wrapper around everything,
-          and WebKit has a long history of clipping/mis-positioning
-          position:fixed elements that are DOM-nested inside an
-          overflow:hidden/scroll ancestor even though the spec says fixed
-          positioning should escape that entirely. Going straight to <body>
-          removes any such ancestor from the equation - nothing above it can
-          clip or re-contain it. Its top/left/width are written imperatively
-          onto floatingWrapRef by positionFloatingHeader() above rather than
-          kept in React state, so dragging to scroll stays smooth instead of
-          triggering a re-render on every pixel. */}
-      {pinned&&roll&&ReactDOM.createPortal(
-        <div ref={floatingWrapRef} style={{position:'fixed',overflow:'hidden',zIndex:500,pointerEvents:'none',background:CAM.header,boxShadow:'0 2px 6px rgba(0,0,0,0.35)'}}>
-          <div ref={floatingInnerRef} style={{willChange:'transform',pointerEvents:'auto'}}>
-            <table style={{borderCollapse:'separate',borderSpacing:0,width:'100%',minWidth:1342}}>
-              <thead><tr>{takeHeaderCells}</tr></thead>
-            </table>
-          </div>
-        </div>,
-        document.body
-      )}
+        </div>
+      </>)}
 
       {showAIFill&&roll&&(
         <AIFillModal
@@ -3492,14 +3473,19 @@ function ShootDaysEditorModal({onClose}){
             number and the next calendar date for you; both are still editable.
           </div>
           {rows.length===0&&<div style={{fontSize:11,color:T.textDim,fontStyle:'italic',padding:'8px 0'}}>No shoot days yet.</div>}
-          {rows.map((r,i)=>(
-            <div key={i} style={{display:'grid',gridTemplateColumns:'60px 1fr auto',gap:6,alignItems:'center'}}>
-              <input type="number" value={r.day} onChange={e=>patchRow(i,{day:e.target.value})} placeholder="1" style={{...inp,textAlign:'center'}}/>
-              <input type="date" value={r.date||''} onChange={e=>patchRow(i,{date:e.target.value})} style={inp}/>
-              <button onClick={()=>removeRow(i)} title="Remove day" aria-label="Remove day"
-                style={{background:'transparent',border:`1px solid ${T.danger}44`,borderRadius:5,color:T.danger,fontSize:12,padding:'6px 9px',cursor:'pointer'}}>{'×'}</button>
-            </div>
-          ))}
+          {/* Fixed-height scroll region so a long list of days doesn't push
+              the Add/Save/Cancel controls off-screen - only this middle
+              section scrolls, everything around it stays reachable. */}
+          <div style={{display:'flex',flexDirection:'column',gap:10,maxHeight:'38vh',overflow:'auto',paddingRight:2}}>
+            {rows.map((r,i)=>(
+              <div key={i} style={{display:'grid',gridTemplateColumns:'60px 1fr auto',gap:6,alignItems:'center'}}>
+                <input type="number" value={r.day} onChange={e=>patchRow(i,{day:e.target.value})} placeholder="1" style={{...inp,textAlign:'center'}}/>
+                <input type="date" value={r.date||''} onChange={e=>patchRow(i,{date:e.target.value})} style={inp}/>
+                <button onClick={()=>removeRow(i)} title="Remove day" aria-label="Remove day"
+                  style={{background:'transparent',border:`1px solid ${T.danger}44`,borderRadius:5,color:T.danger,fontSize:12,padding:'6px 9px',cursor:'pointer'}}>{'×'}</button>
+              </div>
+            ))}
+          </div>
           <button onClick={addRow} style={{alignSelf:'flex-start',padding:'7px 14px',borderRadius:6,border:`1px dashed ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:'pointer'}}>+ Add day</button>
           <div style={{display:'flex',justifyContent:'flex-end',gap:8,borderTop:`1px solid ${T.rule}`,paddingTop:14,marginTop:6}}>
             <button onClick={onClose} style={{padding:'8px 16px',borderRadius:6,border:`1px solid ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,cursor:'pointer'}}>Cancel</button>
@@ -3683,26 +3669,54 @@ function BackupModal({onClose}){
    Backup entry points.
 ================================================================ */
 function App(){
-  const [data,setData]=React.useState(loadStandaloneData);
+  const [projectIds,setProjectIds]=React.useState(ensureProjectsSetup);
+  const [projectId,setProjectId]=React.useState(()=>loadCurrentProjectId(projectIds));
+  const [data,setData]=React.useState(()=>loadProjectData(projectId));
   const [showSettings,setShowSettings]=React.useState(false);
   const [showBackup,setShowBackup]=React.useState(false);
+  const [showProjects,setShowProjects]=React.useState(false);
 
   function updateData(partial){
     setData(prev=>{
       const next={...prev,...partial};
-      saveStandaloneData(next);
+      saveProjectData(projectId,next);
       return next;
     });
   }
+  function switchProject(id){
+    if(id===projectId)return;
+    setProjectId(id);
+    setData(loadProjectData(id));
+    saveCurrentProjectId(id);
+  }
+  function createProject(name){
+    const id=newProjectId();
+    saveProjectData(id,{projectName:(name||'').trim()||'Untitled Production', scenes:[], shootDays:[], rolls:[], gsheetsClientId:'', gsheetsSpreadsheetId:'', hiddenColumns:[]});
+    setProjectIds(prev=>{ const next=[...prev,id]; saveProjectsList(next); return next; });
+    switchProject(id);
+  }
+  function deleteProject(id){
+    if(projectIds.length<=1)return; // never delete the last project
+    const next=projectIds.filter(p=>p!==id);
+    saveProjectsList(next);
+    setProjectIds(next);
+    if(id===projectId)switchProject(next[0]);
+    try{ localStorage.removeItem(projDataKey(id)); }catch(e){}
+  }
 
   return(
-    <DataCtx.Provider value={{data,updateData}}>
+    <DataCtx.Provider value={{data,updateData,projectId,projectIds,switchProject,createProject,deleteProject}}>
       <div style={{minHeight:'100%',display:'flex',flexDirection:'column',background:T.bg}}>
         <div style={{padding:'10px 16px',paddingTop:'calc(10px + env(safe-area-inset-top, 0px))',borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
           <span style={{fontSize:15}}>{'🎥'}</span>
           <div>
             <div style={{fontFamily:"'Geist Mono',monospace",fontSize:13,fontWeight:600,color:T.text}}>Camera Report - Standalone</div>
-            <div style={{fontSize:10,color:T.textDim}}>{data.projectName||'Untitled Production'}</div>
+            <button onClick={()=>setShowProjects(true)} title="Switch or manage projects"
+              style={{background:'transparent',border:'none',padding:0,cursor:'pointer',display:'flex',alignItems:'center',gap:3}}>
+              <span style={{fontSize:10,color:T.textDim}}>{data.projectName||'Untitled Production'}</span>
+              {projectIds.length>1&&<span style={{fontSize:9,color:T.textDim,background:T.chip,borderRadius:99,padding:'1px 6px'}}>{projectIds.length}</span>}
+              <span style={{fontSize:8,color:T.textDim}}>{'▾'}</span>
+            </button>
           </div>
           <div style={{flex:1}}/>
           <button onClick={()=>setShowBackup(true)}
@@ -3719,12 +3733,116 @@ function App(){
           </button>
         </div>
         <div style={{flex:1,display:'flex',flexDirection:'column',minHeight:0,padding:12}}>
-          <CameraReport/>
+          {/* key={projectId}: CameraReport loads rolls/activeRoll/etc into its
+              OWN state once on mount (there's no server to subscribe to, so
+              nothing else re-syncs it) - keying on the project id forces a
+              full remount on every switch, so it always starts fresh from
+              the newly-selected project's own data instead of showing
+              whichever project happened to be loaded first. */}
+          <CameraReport key={projectId}/>
         </div>
         {showSettings&&<SettingsModal onClose={()=>setShowSettings(false)}/>}
         {showBackup&&<BackupModal onClose={()=>setShowBackup(false)}/>}
+        {showProjects&&<ProjectSwitcherModal onClose={()=>setShowProjects(false)}/>}
       </div>
     </DataCtx.Provider>
+  );
+}
+
+/* ===============================================================
+   PROJECT SWITCHER - everything is stored per-device, per-project
+   (see the storage-layer comment above), so this is the only place
+   that ever lists every project's name at once. It re-reads each
+   non-active project's own saved blob fresh whenever it opens
+   rather than keeping a separate "display name" cache anywhere
+   else, so there's exactly one source of truth for a project's name
+   (its own data.projectName - the same field Project Settings edits)
+   and nothing can drift out of sync with it.
+================================================================ */
+function ProjectSwitcherModal({onClose}){
+  const {data,updateData,projectId,projectIds,switchProject,createProject,deleteProject}=useStandaloneData();
+  const [names,setNames]=React.useState(()=>{
+    const m={};
+    projectIds.forEach(id=>{ m[id]=id===projectId?data.projectName:loadProjectData(id).projectName; });
+    return m;
+  });
+  const [editingId,setEditingId]=React.useState(null);
+  const [editName,setEditName]=React.useState('');
+  const [newName,setNewName]=React.useState('');
+
+  function startEdit(id){ setEditingId(id); setEditName(names[id]||''); }
+  function saveEdit(){
+    const name=editName.trim();
+    if(name){
+      if(editingId===projectId) updateData({projectName:name});
+      else saveProjectData(editingId,{...loadProjectData(editingId),projectName:name});
+      setNames(prev=>({...prev,[editingId]:name}));
+    }
+    setEditingId(null);
+  }
+  function addProject(){
+    const name=newName.trim();
+    if(!name)return;
+    createProject(name);
+    onClose();
+  }
+  function removeProject(id){
+    if(projectIds.length<=1)return;
+    if(!confirm(`Delete "${names[id]}"? This removes all its rolls, takes and reference photos from this device.`))return;
+    deleteProject(id);
+  }
+
+  const rowStyle=(active)=>({display:'flex',alignItems:'center',gap:8,padding:'10px 12px',borderRadius:8,
+    border:`1.5px solid ${active?T.accent:T.border}`,background:active?T.accent+'14':'transparent'});
+  const inp={background:T.surface2,border:'1px solid '+T.border,borderRadius:6,
+    padding:'8px 10px',fontSize:12,color:T.text,fontFamily:"'Geist Mono',monospace"};
+
+  return(
+    <div style={{position:'fixed',inset:0,zIndex:9999,background:'rgba(0,0,0,0.72)',
+      display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+      <div style={{background:T.panel,border:`1px solid ${T.border}`,borderRadius:12,
+        width:'100%',maxWidth:440,maxHeight:'88vh',overflow:'auto',
+        boxShadow:'0 20px 60px rgba(0,0,0,0.7)',display:'flex',flexDirection:'column'}}>
+        <div style={{padding:'14px 18px',borderBottom:`1px solid ${T.rule}`,display:'flex',alignItems:'center',gap:8}}>
+          <span style={{fontSize:16}}>{'🎬'}</span>
+          <span style={{fontSize:14,fontWeight:600,color:T.text,flex:1}}>Projects</span>
+          <button onClick={onClose} style={{background:'transparent',border:'none',color:T.textDim,fontSize:18,cursor:'pointer',lineHeight:1}}>{'×'}</button>
+        </div>
+        <div style={{padding:'16px 18px',display:'flex',flexDirection:'column',gap:8}}>
+          <div style={{fontSize:10,color:T.textDim,lineHeight:1.5}}>
+            Everything is stored on this device only, one blob per project - switching never mixes rolls,
+            takes or reference photos between productions.
+          </div>
+          {projectIds.map(id=>(
+            <div key={id} style={rowStyle(id===projectId)}>
+              {editingId===id
+                ? <input value={editName} onChange={e=>setEditName(e.target.value)}
+                    onKeyDown={e=>e.key==='Enter'&&saveEdit()} autoFocus
+                    style={{...inp,flex:1,padding:'6px 8px'}}/>
+                : <button onClick={()=>switchProject(id)}
+                    style={{flex:1,textAlign:'left',background:'transparent',border:'none',cursor:'pointer',
+                      color:id===projectId?T.accent:T.text,fontSize:13,fontWeight:id===projectId?600:400,
+                      fontFamily:"'Geist Mono',monospace"}}>
+                    {names[id]||'Untitled Production'}{id===projectId?'  ✓':''}
+                  </button>
+              }
+              {editingId===id
+                ? <button onClick={saveEdit} style={{background:'transparent',border:'none',color:T.accent,cursor:'pointer',fontSize:11,fontFamily:"'Geist Mono',monospace"}}>Save</button>
+                : <button onClick={()=>startEdit(id)} title="Rename" aria-label="Rename project"
+                    style={{background:'transparent',border:'none',color:T.textDim,cursor:'pointer',fontSize:13}}>{'✎'}</button>
+              }
+              {projectIds.length>1&&<button onClick={()=>removeProject(id)} title="Delete project" aria-label="Delete project"
+                style={{background:'transparent',border:'none',color:T.danger,cursor:'pointer',fontSize:14}}>{'×'}</button>}
+            </div>
+          ))}
+          <div style={{display:'flex',gap:6,marginTop:6,borderTop:`1px solid ${T.rule}`,paddingTop:14}}>
+            <input value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addProject()}
+              placeholder="New project name" style={{...inp,flex:1}}/>
+            <button onClick={addProject} style={{padding:'8px 16px',borderRadius:6,background:T.accent,border:'none',color:'#0e0d0b',fontWeight:600,fontSize:12,cursor:'pointer'}}>+ Add</button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
