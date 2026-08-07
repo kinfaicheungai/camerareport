@@ -3174,9 +3174,14 @@ function CameraReport(){
       {showActions&&roll&&(
         <>
           <div onClick={()=>setShowActions(false)} style={{position:'fixed',inset:0,zIndex:700,background:'rgba(0,0,0,0.45)'}}/>
-          <div style={{position:'fixed',top:0,right:0,bottom:0,width:'min(240px,78vw)',zIndex:701,
-            background:T.panel,borderLeft:`1px solid ${T.border}`,boxShadow:'-6px 0 28px rgba(0,0,0,0.55)',
-            display:'flex',flexDirection:'column',padding:'16px 14px',gap:10,overflowY:'auto'}}>
+          {/* Sized to its content (only ~4 buttons), not a fixed 240px panel:
+              top:'auto' anchored to bottom-right as a compact card rather
+              than a full-height edge-to-edge drawer, with maxHeight+auto
+              scroll as a safety net if "Sync cams" expands it. */}
+          <div style={{position:'fixed',right:0,bottom:0,width:'min(190px,62vw)',maxHeight:'70vh',zIndex:701,
+            background:T.panel,borderLeft:`1px solid ${T.border}`,borderTop:`1px solid ${T.border}`,
+            borderRadius:'10px 0 0 0',boxShadow:'-6px -2px 24px rgba(0,0,0,0.5)',
+            display:'flex',flexDirection:'column',padding:'12px 10px',gap:8,overflowY:'auto'}}>
             <div style={{display:'flex',alignItems:'center',marginBottom:4}}>
               <span style={{fontSize:12,fontWeight:600,color:T.text,flex:1,fontFamily:"'Geist Mono',monospace"}}>ROLL ACTIONS</span>
               <button onClick={()=>setShowActions(false)} style={{background:'transparent',border:'none',color:T.textDim,fontSize:18,cursor:'pointer',lineHeight:1}}>{'\u00D7'}</button>
@@ -3234,10 +3239,9 @@ function CameraReport(){
                 </div>
               );
             })()}
-            <div style={{flex:1}}/>
             <button onClick={resequenceClips} title="Renumber all clip names in sequence from the first one"
               style={{padding:'9px 12px',borderRadius:6,border:`1px solid ${T.border}`,background:'transparent',
-                color:T.textDim,fontSize:10,fontFamily:"'Geist Mono',monospace",cursor:'pointer',textAlign:'left'}}>
+                color:T.textDim,fontSize:10,fontFamily:"'Geist Mono',monospace",cursor:'pointer',textAlign:'left',marginTop:2}}>
               {'\u21B3'} Resequence clips
             </button>
           </div>
@@ -3746,7 +3750,18 @@ function App(){
 
   return(
     <DataCtx.Provider value={{data,updateData,projectId,projectIds,switchProject,createProject,deleteProject}}>
-      <div style={{minHeight:'100%',display:'flex',flexDirection:'column',background:T.bg}}>
+      {/* height:'100%' (not minHeight) + overflow:'hidden' is the real fix for
+          the "header won't stay frozen" bug: html/body/#root are height:100%
+          (see <style> above), but this was the ONE link in the chain that
+          used minHeight instead of height. minHeight lets this div (and the
+          whole page) grow taller than the viewport when content is long, so
+          the BROWSER's own page scroll takes over instead of the inner
+          overflow:auto table region - which means position:sticky on the
+          table header has nothing meaningful to stick against. Capping this
+          div at exactly 100% + hiding overflow forces every child flex:1
+          region below (including CameraReport's own table scroller) to
+          actually do its own internal scrolling, which is what sticky needs. */}
+      <div style={{height:'100%',display:'flex',flexDirection:'column',background:T.bg,overflow:'hidden'}}>
         <div style={{padding:'10px 16px',paddingTop:'calc(10px + env(safe-area-inset-top, 0px))',borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
           <span style={{fontSize:15}}>{'🎥'}</span>
           <div>
