@@ -1727,6 +1727,7 @@ function AIFillModal({roll, projId, scenes, onApply, onClose}){
 }
 function CameraReport(){
   const {data:proj,updateData,projectId}=useStandaloneData();
+  const {unlocked,requireUnlock}=useAuth();
   const mob=useMobile();
   // Reference photos in IndexedDB are namespaced by this id (see
   // camRepPutPhoto/camRepGetForTake) so switching projects never shows one
@@ -1769,6 +1770,7 @@ function CameraReport(){
   const [activeCam,setActiveCam]=React.useState('A');   // which camera's rolls are shown
   const [syncCams,setSyncCams]=React.useState([]);   // array of cam letters to sync together, e.g. ['A','B']
   const [showSyncMenu,setShowSyncMenu]=React.useState(false);
+  const [showActions,setShowActions]=React.useState(false); // roll-actions side drawer (Add take/New shot/etc.)
   const [camActiveRoll,setCamActiveRoll]=React.useState({}); // cam -> last selected roll id
   const [syncStatus,setSyncStatus]=React.useState('offline');
   const [exporting,setExporting]=React.useState(false);
@@ -1937,6 +1939,7 @@ function CameraReport(){
 
   // Add the next camera (B, then C, then D) with an initial empty roll.
   function addCamera(){
+    if(existingCams.length>=TRIAL_LIMITS.cams&&!requireUnlock(`Free preview is limited to ${TRIAL_LIMITS.cams} camera. Sign in to add more.`))return;
     const next=CAM_ORDER.find(c=>!existingCams.includes(c));
     if(!next){ alert('All cameras (A-D) already exist.'); return; }
     addRoll(next); // creates e.g. B001 and switches to it
@@ -2180,6 +2183,7 @@ function CameraReport(){
   // The active/primary roll determines the shared scene/shot/take.
   function doAdd(mode){
     if(!roll)return;
+    if(roll.takes.length>=TRIAL_LIMITS.takesPerRoll&&!requireUnlock(`Free preview is limited to ${TRIAL_LIMITS.takesPerRoll} clips per roll. Sign in to log more.`))return;
     const syncing=syncCams.includes(activeCam)&&syncCams.length>1;
     if(syncing){
       const primaryTake=buildTake(roll,mode,null);
@@ -2335,6 +2339,7 @@ function CameraReport(){
   // B05→B06 etc.) so the sequence stays contiguous.
   function insertTakeAfter(anchorId){
     if(!roll)return;
+    if(roll.takes.length>=TRIAL_LIMITS.takesPerRoll&&!requireUnlock(`Free preview is limited to ${TRIAL_LIMITS.takesPerRoll} clips per roll. Sign in to log more.`))return;
     const anchor=roll.takes.find(t=>t.id===anchorId);
     const anchorIdx=roll.takes.findIndex(t=>t.id===anchorId);
     const scene=anchor?.scene||'';
@@ -2422,6 +2427,7 @@ function CameraReport(){
   // (thumbnail only, embedded directly in the print HTML  -  never sent to CSV).
   async function exportReport(){
     if(!roll)return;
+    if(!requireUnlock('PDF export needs the full version. Sign in to unlock.'))return;
     // CRITICAL for Safari/iPad: window.open() must be called synchronously,
     // in the same tick as the click, before any `await`. Once we cross an
     // await boundary, Safari no longer considers the call "user-initiated"
@@ -2616,8 +2622,15 @@ function CameraReport(){
     </>
   ):null;
 
+  /* minHeight:0 below is load-bearing, not decorative: without it, a flex
+     item with flex:1 refuses to shrink below its CONTENT's natural height
+     (the classic flexbox-scroll gotcha), so the take table's own
+     overflow:auto region never actually gets clipped to the available
+     space - the whole PAGE grows and scrolls instead, which is why the
+     sticky header never looked "stuck" in every earlier attempt. This was
+     the real bug the whole time, not border-collapse or sticky itself. */
   return(
-    <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden',border:`1px solid ${T.border}`,borderTop:'none',background:T.panel}}>
+    <div style={{flex:1,display:'flex',flexDirection:'column',minHeight:0,overflow:'hidden',border:`1px solid ${T.border}`,borderTop:'none',background:T.panel}}>
       {/* Toolbar */}
       <div style={{padding:mob?'8px 10px':'10px 16px',borderBottom:`1px solid ${T.rule}`,display:'flex',alignItems:'center',gap:8,flexShrink:0,flexWrap:'wrap'}}>
         <div style={{display:'flex',alignItems:'center',gap:4,padding:'2px 8px',borderRadius:99,background:syncStatus==='error'?T.danger+'18':T.success+'18',border:`1px solid ${syncStatus==='error'?T.danger+'44':T.success+'44'}`}}>
@@ -2688,7 +2701,7 @@ function CameraReport(){
             background:'transparent',border:`1px solid ${T.border}`,color:T.textDim,cursor:'pointer',
             display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{'?'}</button>
         {roll&&<button onClick={exportCSV} style={{padding:'4px 10px',borderRadius:5,fontSize:10,fontFamily:"'Geist Mono',monospace",background:'transparent',border:`1px solid ${T.border}`,color:T.textMute,cursor:'pointer'}}>CSV</button>}
-        {roll&&<button disabled={exporting} onClick={async()=>{ setExporting(true); try{ await exportReport(); }finally{ setExporting(false); } }} style={{padding:'4px 10px',borderRadius:5,fontSize:10,fontFamily:"'Geist Mono',monospace",background:T.accent+'18',border:`1px solid ${T.accent}44`,color:T.accent,cursor:exporting?'default':'pointer',opacity:exporting?0.6:1}}>{exporting?'Preparing...':<>{'\uD83D\uDDA8'} Print / PDF</>}</button>}
+        {roll&&<button disabled={exporting} onClick={async()=>{ setExporting(true); try{ await exportReport(); }finally{ setExporting(false); } }} style={{padding:'4px 10px',borderRadius:5,fontSize:10,fontFamily:"'Geist Mono',monospace",background:T.accent+'18',border:`1px solid ${T.accent}44`,color:T.accent,cursor:exporting?'default':'pointer',opacity:exporting?0.6:1}}>{exporting?'Preparing...':<>{unlocked?'\uD83D\uDDA8':'\uD83D\uDD12'} Print / PDF</>}</button>}
         <button onClick={()=>addRoll(activeCam,'blank')} title="Start a completely fresh roll (blank fields)"
           style={{padding:'4px 12px',borderRadius:5,fontSize:11,fontFamily:"'Geist Mono',monospace",background:CAM.accent,border:'none',color:'#0e0d0b',fontWeight:600,cursor:'pointer'}}>+ New Roll</button>
       </div>
@@ -2909,7 +2922,7 @@ function CameraReport(){
         <button onClick={()=>addRoll(activeCam,'blank')} style={{padding:'8px 18px',borderRadius:6,background:T.accent,border:'none',color:'#0e0d0b',fontWeight:600,fontSize:12,cursor:'pointer'}}>+ Start a roll</button>
       </div>}
 
-      {roll&&!(showSearch&&hasSearch)&&(<>
+      {roll&&!(showSearch&&hasSearch)&&<div style={{flex:1,display:'flex',flexDirection:'column',minHeight:0,overflow:'hidden'}}>
         {/* Roll header / meta - collapsible. This used to share ONE scroll
             container with the table below it, which is what made a reliable
             sticky/frozen header impossible (the header had to fight this
@@ -3022,7 +3035,7 @@ function CameraReport(){
         {selTakeIds.length>0&&(()=>{
           const sameCamRolls=rolls.filter(r=>camOf(r)===activeCam&&r.id!==roll.id);
           return(
-            <div style={{padding:'8px 16px',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',
+            <div style={{padding:'8px 16px',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',flexShrink:0,
               background:CAM.tint,borderBottom:`1px solid ${CAM.accent}44`}}>
               <span style={{fontSize:11,fontFamily:"'Geist Mono',monospace",color:CAM.accent,fontWeight:600}}>
                 {selTakeIds.length} clip{selTakeIds.length!==1?'s':''} selected
@@ -3140,31 +3153,58 @@ function CameraReport(){
                 );})}
             </tbody>
           </table>
-        <div style={{padding:'10px 16px',display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
-          <button onClick={addTake} style={{padding:'7px 16px',borderRadius:6,border:`1px dashed ${CAM.accent}66`,background:CAM.tint,color:CAM.accent,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:'pointer'}}>+ Add take</button>
-          <button onClick={addShot} style={{padding:'7px 16px',borderRadius:6,border:`1px dashed ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:'pointer'}}>+ New shot</button>
-          <button onClick={addNewScene} style={{padding:'7px 16px',borderRadius:6,border:`1px dashed ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:'pointer'}}>+ New scene</button>
-          {existingCams.length>1&&(()=>{
-            const active=syncCams.includes(activeCam)&&syncCams.length>1;
-            const label=syncCams.length>1?syncCams.join('+'):'off';
-            return(
-              <div style={{position:'relative'}}>
-                <button onClick={()=>setShowSyncMenu(v=>!v)}
-                  title="Choose which cameras add takes together (e.g. just A+B, or A+B+C)"
-                  style={{display:'flex',alignItems:'center',gap:6,padding:'7px 12px',borderRadius:6,cursor:'pointer',
-                    border:`1.5px solid ${active?CAM.accent:T.border}`,
-                    background:active?CAM.tint:'transparent',
-                    color:active?CAM.accent:T.textDim,fontSize:11,fontFamily:"'Geist Mono',monospace"}}>
-                  <span style={{width:15,height:15,borderRadius:3,display:'grid',placeItems:'center',fontSize:10,fontWeight:700,
-                    background:active?CAM.accent:'transparent',color:active?'#0e0d0b':T.textDim,
-                    border:`1px solid ${active?CAM.accent:T.border}`}}>{active?'\u2713':''}</span>
-                  Sync cams ({label}) {'\u25BE'}
-                </button>
-                {showSyncMenu&&(
-                  <>
-                    <div onClick={()=>setShowSyncMenu(false)} style={{position:'fixed',inset:0,zIndex:400}}/>
-                    <div style={{position:'absolute',bottom:'100%',left:0,marginBottom:4,zIndex:401,minWidth:160,
-                      background:T.panel,border:`1px solid ${T.border}`,borderRadius:7,boxShadow:'0 8px 24px rgba(0,0,0,0.5)',overflow:'hidden'}}>
+        </div>
+      </div>}
+
+      {/* Roll-actions side drawer (Add take/New shot/New scene/Sync cams/
+          Resequence) - used to sit as a button row under the table, which
+          ate into the table's own limited vertical space on a phone. Now a
+          small fixed tab on the right edge opens it as a slide-in panel
+          instead, so that space goes back to the table. */}
+      {roll&&!(showSearch&&hasSearch)&&!showActions&&(
+        <button onClick={()=>setShowActions(true)} title="Roll actions" aria-label="Open roll actions"
+          style={{position:'fixed',right:0,top:'50%',transform:'translateY(-50%)',zIndex:600,
+            background:CAM.accent,color:'#0e0d0b',border:'none',borderRadius:'8px 0 0 8px',
+            padding:'14px 6px',fontSize:11,fontWeight:600,fontFamily:"'Geist Mono',monospace",
+            cursor:'pointer',writingMode:'vertical-rl',textOrientation:'mixed',
+            boxShadow:'-2px 2px 10px rgba(0,0,0,0.35)'}}>
+          {'\u25C2'} Actions
+        </button>
+      )}
+      {showActions&&roll&&(
+        <>
+          <div onClick={()=>setShowActions(false)} style={{position:'fixed',inset:0,zIndex:700,background:'rgba(0,0,0,0.45)'}}/>
+          <div style={{position:'fixed',top:0,right:0,bottom:0,width:'min(240px,78vw)',zIndex:701,
+            background:T.panel,borderLeft:`1px solid ${T.border}`,boxShadow:'-6px 0 28px rgba(0,0,0,0.55)',
+            display:'flex',flexDirection:'column',padding:'16px 14px',gap:10,overflowY:'auto'}}>
+            <div style={{display:'flex',alignItems:'center',marginBottom:4}}>
+              <span style={{fontSize:12,fontWeight:600,color:T.text,flex:1,fontFamily:"'Geist Mono',monospace"}}>ROLL ACTIONS</span>
+              <button onClick={()=>setShowActions(false)} style={{background:'transparent',border:'none',color:T.textDim,fontSize:18,cursor:'pointer',lineHeight:1}}>{'\u00D7'}</button>
+            </div>
+            {!unlocked&&<span style={{fontSize:9,fontFamily:"'Geist Mono',monospace",color:roll.takes.length>=TRIAL_LIMITS.takesPerRoll?T.danger:T.textDim}}>
+              {roll.takes.length}/{TRIAL_LIMITS.takesPerRoll} clips (free preview)
+            </span>}
+            <button onClick={addTake} style={{padding:'9px 14px',borderRadius:6,border:`1px dashed ${CAM.accent}66`,background:CAM.tint,color:CAM.accent,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:'pointer',textAlign:'left'}}>+ Add take</button>
+            <button onClick={addShot} style={{padding:'9px 14px',borderRadius:6,border:`1px dashed ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:'pointer',textAlign:'left'}}>+ New shot</button>
+            <button onClick={addNewScene} style={{padding:'9px 14px',borderRadius:6,border:`1px dashed ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:'pointer',textAlign:'left'}}>+ New scene</button>
+            {existingCams.length>1&&(()=>{
+              const active=syncCams.includes(activeCam)&&syncCams.length>1;
+              const label=syncCams.length>1?syncCams.join('+'):'off';
+              return(
+                <div style={{borderTop:`1px solid ${T.rule}`,paddingTop:10,marginTop:2}}>
+                  <button onClick={()=>setShowSyncMenu(v=>!v)}
+                    title="Choose which cameras add takes together (e.g. just A+B, or A+B+C)"
+                    style={{display:'flex',alignItems:'center',gap:6,width:'100%',padding:'9px 12px',borderRadius:6,cursor:'pointer',
+                      border:`1.5px solid ${active?CAM.accent:T.border}`,
+                      background:active?CAM.tint:'transparent',
+                      color:active?CAM.accent:T.textDim,fontSize:11,fontFamily:"'Geist Mono',monospace"}}>
+                    <span style={{width:15,height:15,borderRadius:3,display:'grid',placeItems:'center',fontSize:10,fontWeight:700,
+                      background:active?CAM.accent:'transparent',color:active?'#0e0d0b':T.textDim,
+                      border:`1px solid ${active?CAM.accent:T.border}`}}>{active?'\u2713':''}</span>
+                    Sync cams ({label}) {'\u25BE'}
+                  </button>
+                  {showSyncMenu&&(
+                    <div style={{marginTop:6,background:T.surface2,border:`1px solid ${T.border}`,borderRadius:7,overflow:'hidden'}}>
                       <div style={{padding:'6px 12px 4px',fontSize:8,fontFamily:"'Geist Mono',monospace",color:T.textDim,letterSpacing:'0.08em'}}>SYNC TOGETHER</div>
                       {existingCams.map(c=>{
                         const cfg=CAM_CONFIG[c];
@@ -3190,20 +3230,19 @@ function CameraReport(){
                         </button>
                       )}
                     </div>
-                  </>
-                )}
-              </div>
-            );
-          })()}
-          <div style={{flex:1}}/>
-          <button onClick={resequenceClips} title="Renumber all clip names in sequence from the first one"
-            style={{padding:'6px 12px',borderRadius:6,border:`1px solid ${T.border}`,background:'transparent',
-              color:T.textDim,fontSize:10,fontFamily:"'Geist Mono',monospace",cursor:'pointer'}}>
-            {'\u21B3'} Resequence clips
-          </button>
-        </div>
-        </div>
-      </>)}
+                  )}
+                </div>
+              );
+            })()}
+            <div style={{flex:1}}/>
+            <button onClick={resequenceClips} title="Renumber all clip names in sequence from the first one"
+              style={{padding:'9px 12px',borderRadius:6,border:`1px solid ${T.border}`,background:'transparent',
+                color:T.textDim,fontSize:10,fontFamily:"'Geist Mono',monospace",cursor:'pointer',textAlign:'left'}}>
+              {'\u21B3'} Resequence clips
+            </button>
+          </div>
+        </>
+      )}
 
       {showAIFill&&roll&&(
         <AIFillModal
@@ -3669,6 +3708,7 @@ function BackupModal({onClose}){
    Backup entry points.
 ================================================================ */
 function App(){
+  const {unlocked,requireUnlock}=useAuth();
   const [projectIds,setProjectIds]=React.useState(ensureProjectsSetup);
   const [projectId,setProjectId]=React.useState(()=>loadCurrentProjectId(projectIds));
   const [data,setData]=React.useState(()=>loadProjectData(projectId));
@@ -3719,6 +3759,13 @@ function App(){
             </button>
           </div>
           <div style={{flex:1}}/>
+          {!unlocked&&<button onClick={()=>requireUnlock('')}
+            title="Free preview: 1 camera, 6 clips per roll, no PDF export"
+            style={{padding:'6px 14px',borderRadius:6,fontSize:11,fontFamily:"'Geist Mono',monospace",
+              background:T.accent+'18',border:`1px solid ${T.accent}44`,color:T.accent,cursor:'pointer',
+              display:'flex',alignItems:'center',gap:6}}>
+            {'🔓'} Unlock full version
+          </button>}
           <button onClick={()=>setShowBackup(true)}
             style={{padding:'6px 14px',borderRadius:6,fontSize:11,fontFamily:"'Geist Mono',monospace",
               background:'transparent',border:`1px solid ${T.border}`,color:T.textMute,cursor:'pointer',
@@ -3847,17 +3894,29 @@ function ProjectSwitcherModal({onClose}){
 }
 
 /* ===============================================================
-   ACCESS GATE - wraps the whole app. Approved once on a device, it
-   stays approved offline forever after (checking the list needs
-   network, so we never block entry just because you're offline and
-   already trusted). Whenever we ARE online and already trusted, we
-   quietly re-check in the background so removing someone from the
-   Sheet takes effect from their next reload, without needing to
-   block anything mid-session.
+   ACCESS GATE - now a free-preview wall, not a login wall. Anyone
+   can open the link and use a limited trial straight away (see
+   TRIAL_LIMITS below, enforced inside CameraReport via useAuth()) -
+   no pre-approval needed just to try it. Signing in with a Google
+   account that IS on the allowlist unlocks the full app on this
+   device; approved once, it stays unlocked offline forever after
+   (checking the list needs network, so we never re-lock someone
+   just because they're offline). Whenever we ARE online and already
+   unlocked, we quietly re-check in the background so removing
+   someone from the Sheet takes effect from their next reload,
+   without ever blocking anything mid-session.
 ================================================================ */
+const AuthCtx=createContext(null);
+const useAuth=()=>useContext(AuthCtx);
+// Trial caps for anyone who hasn't signed in (or isn't on the allowlist yet).
+// Purely a soft nudge, not real security - all data is local anyway.
+const TRIAL_LIMITS={cams:1, takesPerRoll:6};
+
 function AccessGate({children}){
-  const [state,setState]=React.useState(()=>loadGateAuth()?'allowed':'locked'); // locked | working | denied | allowed | error
+  const [state,setState]=React.useState(()=>loadGateAuth()?'allowed':'trial'); // trial | working | denied | allowed | error
   const [errMsg,setErrMsg]=React.useState('');
+  const [showUnlock,setShowUnlock]=React.useState(false);
+  const [unlockReason,setUnlockReason]=React.useState('');
   const checkedOnce=React.useRef(false);
 
   React.useEffect(()=>{
@@ -3866,14 +3925,19 @@ function AccessGate({children}){
     const saved=loadGateAuth();
     if(!saved||!navigator.onLine) return;
     fetchAllowlist().then(list=>{
-      if(!list.includes(saved.email)){ clearGateAuth(); setState('locked'); }
+      if(!list.includes(saved.email)){ clearGateAuth(); setState('trial'); }
     }).catch(()=>{ /* offline or a flaky fetch - keep today's session as-is */ });
   },[]);
 
   async function signIn(){
     setState('working'); setErrMsg('');
     try{
-      const data=loadStandaloneData();
+      // The Client ID override (Settings) is per-project, but the gate runs
+      // before any project is even selected - 'default' is the one project
+      // every device has always had (see the multi-project storage
+      // migration above), so it's the sensible place to look for an
+      // override if this deployment was forked to a different hosting URL.
+      const data=loadProjectData('default');
       const clientId=getEffectiveClientId(data);
       const token=await ensureSheetsToken(clientId);
       const email=await fetchGoogleEmail(token);
@@ -3881,6 +3945,7 @@ function AccessGate({children}){
       if(list.includes(email)){
         saveGateAuth(email);
         setState('allowed');
+        setShowUnlock(false);
       }else{
         sheetsSignOut();
         setState('denied');
@@ -3891,33 +3956,52 @@ function AccessGate({children}){
     }
   }
 
-  if(state==='allowed') return children;
+  const unlocked=state==='allowed';
+  // Call from anywhere a trial limit is hit: returns true if already
+  // unlocked (caller proceeds normally), or false + opens the "sign in to
+  // unlock" prompt with an explanation of what the caller was trying to do.
+  function requireUnlock(reason){
+    if(unlocked)return true;
+    setUnlockReason(reason||'');
+    setShowUnlock(true);
+    return false;
+  }
 
-  const wrap={position:'fixed',inset:0,zIndex:9999,background:T.bg,display:'flex',alignItems:'center',justifyContent:'center',padding:20};
-  const card={background:T.panel,border:`1px solid ${T.border}`,borderRadius:12,width:'100%',maxWidth:380,padding:'28px 24px',textAlign:'center'};
   const btn={padding:'11px 0',width:'100%',borderRadius:7,background:T.accent,border:'none',color:'#0e0d0b',fontWeight:600,fontSize:13,cursor:'pointer',marginTop:16};
 
   return(
-    <div style={wrap}>
-      <div style={card}>
-        <div style={{fontSize:28,marginBottom:10}}>{'🎥'}</div>
-        <div style={{fontFamily:"'Geist Mono',monospace",fontSize:14,fontWeight:600,color:T.text,marginBottom:6}}>Camera Report</div>
-        <div style={{fontSize:12,color:T.textMute,lineHeight:1.6,marginBottom:6}}>
-          This is a private crew tool. Sign in with the Google account you were invited with.
-        </div>
-        {state==='denied'&&(
-          <div style={{fontSize:11,color:T.danger,background:T.danger+'14',border:`1px solid ${T.danger}44`,borderRadius:6,padding:'9px 10px',marginTop:10,lineHeight:1.5}}>
-            That Google account isn't on the access list for this deployment. Ask whoever set this up to add your email, then try again.
+    <AuthCtx.Provider value={{unlocked,requireUnlock}}>
+      {children}
+      {showUnlock&&(
+        <div style={{position:'fixed',inset:0,zIndex:9999,background:'rgba(0,0,0,0.72)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+          <div style={{background:T.panel,border:`1px solid ${T.border}`,borderRadius:12,width:'100%',maxWidth:380,padding:'28px 24px',textAlign:'center'}}>
+            <div style={{fontSize:28,marginBottom:10}}>{'🔒'}</div>
+            <div style={{fontFamily:"'Geist Mono',monospace",fontSize:14,fontWeight:600,color:T.text,marginBottom:6}}>Sign in to unlock</div>
+            {unlockReason&&<div style={{fontSize:12,color:T.text,lineHeight:1.6,marginBottom:6}}>{unlockReason}</div>}
+            <div style={{fontSize:11,color:T.textDim,lineHeight:1.6,marginBottom:6}}>
+              You're using the free preview ({TRIAL_LIMITS.cams} camera, {TRIAL_LIMITS.takesPerRoll} clips per roll,
+              no PDF export). Sign in with the Google account you were invited with to unlock the full app.
+            </div>
+            {state==='denied'&&(
+              <div style={{fontSize:11,color:T.danger,background:T.danger+'14',border:`1px solid ${T.danger}44`,borderRadius:6,padding:'9px 10px',marginTop:10,lineHeight:1.5}}>
+                That Google account isn't on the access list yet. Ask whoever set this up to add your email, then
+                try again - you can keep using the free preview meanwhile.
+              </div>
+            )}
+            {state==='error'&&(
+              <div style={{fontSize:11,color:T.danger,lineHeight:1.5,marginTop:10}}>{errMsg}</div>
+            )}
+            <button onClick={signIn} disabled={state==='working'} style={{...btn,opacity:state==='working'?0.7:1}}>
+              {state==='working'?'Checking...':'Sign in with Google'}
+            </button>
+            <button onClick={()=>setShowUnlock(false)}
+              style={{padding:'9px 0',width:'100%',borderRadius:7,background:'transparent',border:`1px solid ${T.border}`,color:T.textDim,fontSize:12,cursor:'pointer',marginTop:8}}>
+              Keep using free preview
+            </button>
           </div>
-        )}
-        {state==='error'&&(
-          <div style={{fontSize:11,color:T.danger,lineHeight:1.5,marginTop:10}}>{errMsg}</div>
-        )}
-        <button onClick={signIn} disabled={state==='working'} style={{...btn,opacity:state==='working'?0.7:1}}>
-          {state==='working'?'Checking...':'Sign in with Google'}
-        </button>
-      </div>
-    </div>
+        </div>
+      )}
+    </AuthCtx.Provider>
   );
 }
 
