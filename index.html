@@ -1771,6 +1771,7 @@ function CameraReport(){
   const [syncCams,setSyncCams]=React.useState([]);   // array of cam letters to sync together, e.g. ['A','B']
   const [showSyncMenu,setShowSyncMenu]=React.useState(false);
   const [showActions,setShowActions]=React.useState(false); // roll-actions side drawer (Add take/New shot/etc.)
+  const [showToolbar,setShowToolbar]=React.useState(false); // collapses undo/search/AIFill/presets/CSV/PDF/day-filter row
   const [camActiveRoll,setCamActiveRoll]=React.useState({}); // cam -> last selected roll id
   const [syncStatus,setSyncStatus]=React.useState('offline');
   const [exporting,setExporting]=React.useState(false);
@@ -2631,87 +2632,105 @@ function CameraReport(){
      the real bug the whole time, not border-collapse or sticky itself. */
   return(
     <div style={{flex:1,display:'flex',flexDirection:'column',minHeight:0,overflow:'hidden',border:`1px solid ${T.border}`,borderTop:'none',background:T.panel}}>
-      {/* Toolbar */}
-      <div style={{padding:mob?'8px 10px':'10px 16px',borderBottom:`1px solid ${T.rule}`,display:'flex',alignItems:'center',gap:8,flexShrink:0,flexWrap:'wrap'}}>
+      {/* Toolbar - collapsed by default. Only a sync-status dot and a single
+          "Tools" toggle stay visible; tapping it reveals undo/redo, search,
+          AI Fill, presets, icon guide, CSV/PDF export, New Roll, and the Day
+          filter row - the block Tim circled as taking up too much vertical
+          space above the table on a phone screen. */}
+      <div style={{padding:mob?'8px 10px':'10px 16px',borderBottom:`1px solid ${T.rule}`,display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
         <div style={{display:'flex',alignItems:'center',gap:4,padding:'2px 8px',borderRadius:99,background:syncStatus==='error'?T.danger+'18':T.success+'18',border:`1px solid ${syncStatus==='error'?T.danger+'44':T.success+'44'}`}}>
           <div style={{width:5,height:5,borderRadius:'50%',background:syncStatus==='error'?T.danger:T.success}}/>
           <span style={{fontFamily:"'Geist Mono',monospace",fontSize:8,color:syncStatus==='error'?T.danger:T.success}}>{syncStatus==='saving'?'SAVING...':syncStatus==='error'?'SAVE ERROR':'SAVED LOCALLY'}</span>
         </div>
         <div style={{flex:1}}/>
-        {(()=>{ const _=histTick; const canU=undoStack.current.length>0, canR=redoStack.current.length>0;
-          return(
-            <div style={{display:'flex',gap:3}}>
-              <button onClick={undo} disabled={!canU} title="Undo" aria-label="Undo"
-                style={{padding:'4px 9px',borderRadius:5,fontSize:12,fontFamily:"'Geist Mono',monospace",
-                  background:'transparent',border:`1px solid ${T.border}`,
-                  color:canU?T.text:T.textDim,cursor:canU?'pointer':'default',opacity:canU?1:0.4}}>
-                {'\u21B6'}
-              </button>
-              <button onClick={redo} disabled={!canR} title="Redo" aria-label="Redo"
-                style={{padding:'4px 9px',borderRadius:5,fontSize:12,fontFamily:"'Geist Mono',monospace",
-                  background:'transparent',border:`1px solid ${T.border}`,
-                  color:canR?T.text:T.textDim,cursor:canR?'pointer':'default',opacity:canR?1:0.4}}>
-                {'\u21B7'}
-              </button>
-            </div>
-          );
-        })()}
-        <button onClick={()=>setShowSearch(s=>!s)}
+        <button onClick={()=>setShowToolbar(v=>!v)} title="Tools: undo/redo, search, AI Fill, presets, CSV/PDF export, day filter"
+          aria-label="Toggle tools"
           style={{padding:'4px 12px',borderRadius:5,fontSize:10,fontFamily:"'Geist Mono',monospace",
-            background:showSearch?T.chip:'transparent',
+            background:showToolbar?T.chip:'transparent',
             border:`1px solid ${hasSearch?T.accent:T.border}`,
             color:hasSearch?T.accent:T.textMute,cursor:'pointer',
-            display:'flex',alignItems:'center',gap:4}}>
-          {'\uD83D\uDD0D'}{hasSearch?` (${searchResults?.length??0})`:' Search'}
+            display:'flex',alignItems:'center',gap:5}}>
+          {'\u2699\uFE0F'} Tools{hasSearch?` (${searchResults?.length??0})`:''} {showToolbar?'\u25B4':'\u25BE'}
         </button>
-        {roll&&<button onClick={()=>setShowAIFill(true)}
-          style={{padding:'4px 12px',borderRadius:5,fontSize:10,fontFamily:"'Geist Mono',monospace",
-            background:T.accent+'18',border:`1px solid ${T.accent}44`,color:T.accent,
-            cursor:'pointer',display:'flex',alignItems:'center',gap:5}}>
-          {'\uD83E\uDD16'} AI Fill
-        </button>}
-        <div style={{position:'relative'}}>
-          <button onClick={()=>setShowPresetMenu(v=>!v)} title="Manage dropdown option lists"
-            style={{padding:'4px 10px',borderRadius:5,fontSize:10,fontFamily:"'Geist Mono',monospace",
-              background:showPresetMenu?T.chip:'transparent',border:`1px solid ${T.border}`,color:T.textDim,cursor:'pointer',
-              display:'flex',alignItems:'center',gap:4}}>
-            {'\u2699\uFE0F'} Presets {'\u25BE'}
-          </button>
-          {showPresetMenu&&(
-            <>
-              <div onClick={()=>setShowPresetMenu(false)} style={{position:'fixed',inset:0,zIndex:400}}/>
-              <div style={{position:'absolute',top:'100%',right:0,marginTop:4,zIndex:401,minWidth:140,
-                background:T.panel,border:`1px solid ${T.border}`,borderRadius:7,boxShadow:'0 8px 24px rgba(0,0,0,0.5)',overflow:'hidden'}}>
-                <div style={{padding:'6px 12px 4px',fontSize:8,fontFamily:"'Geist Mono',monospace",color:T.textDim,letterSpacing:'0.08em'}}>EDIT OPTION LISTS</div>
-                {PRESET_MENU.map(({k,l})=>(
-                  <button key={k} onClick={()=>{setActivePreset(k);setShowPresetMenu(false);}}
-                    style={{display:'block',width:'100%',textAlign:'left',padding:'9px 13px',
-                      background:'transparent',border:'none',borderTop:`1px solid ${T.rule}`,
-                      color:T.text,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:'pointer'}}>
-                    {'\u2699\uFE0F'} {l}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-        <button onClick={()=>setShowIconGuide(true)} title="What do these icons mean?"
-          aria-label="Icon guide"
-          style={{width:26,height:26,borderRadius:5,fontSize:12,fontFamily:"'Geist Mono',monospace",
-            background:'transparent',border:`1px solid ${T.border}`,color:T.textDim,cursor:'pointer',
-            display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{'?'}</button>
-        {roll&&<button onClick={exportCSV} style={{padding:'4px 10px',borderRadius:5,fontSize:10,fontFamily:"'Geist Mono',monospace",background:'transparent',border:`1px solid ${T.border}`,color:T.textMute,cursor:'pointer'}}>CSV</button>}
-        {roll&&<button disabled={exporting} onClick={async()=>{ setExporting(true); try{ await exportReport(); }finally{ setExporting(false); } }} style={{padding:'4px 10px',borderRadius:5,fontSize:10,fontFamily:"'Geist Mono',monospace",background:T.accent+'18',border:`1px solid ${T.accent}44`,color:T.accent,cursor:exporting?'default':'pointer',opacity:exporting?0.6:1}}>{exporting?'Preparing...':<>{unlocked?'\uD83D\uDDA8':'\uD83D\uDD12'} Print / PDF</>}</button>}
-        <button onClick={()=>addRoll(activeCam,'blank')} title="Start a completely fresh roll (blank fields)"
-          style={{padding:'4px 12px',borderRadius:5,fontSize:11,fontFamily:"'Geist Mono',monospace",background:CAM.accent,border:'none',color:'#0e0d0b',fontWeight:600,cursor:'pointer'}}>+ New Roll</button>
       </div>
 
+      {showToolbar&&(
+        <div style={{padding:mob?'8px 10px':'10px 16px',borderBottom:`1px solid ${T.rule}`,display:'flex',alignItems:'center',gap:8,flexShrink:0,flexWrap:'wrap'}}>
+          {(()=>{ const _=histTick; const canU=undoStack.current.length>0, canR=redoStack.current.length>0;
+            return(
+              <div style={{display:'flex',gap:3}}>
+                <button onClick={undo} disabled={!canU} title="Undo" aria-label="Undo"
+                  style={{padding:'4px 9px',borderRadius:5,fontSize:12,fontFamily:"'Geist Mono',monospace",
+                    background:'transparent',border:`1px solid ${T.border}`,
+                    color:canU?T.text:T.textDim,cursor:canU?'pointer':'default',opacity:canU?1:0.4}}>
+                  {'\u21B6'}
+                </button>
+                <button onClick={redo} disabled={!canR} title="Redo" aria-label="Redo"
+                  style={{padding:'4px 9px',borderRadius:5,fontSize:12,fontFamily:"'Geist Mono',monospace",
+                    background:'transparent',border:`1px solid ${T.border}`,
+                    color:canR?T.text:T.textDim,cursor:canR?'pointer':'default',opacity:canR?1:0.4}}>
+                  {'\u21B7'}
+                </button>
+              </div>
+            );
+          })()}
+          <button onClick={()=>setShowSearch(s=>!s)}
+            style={{padding:'4px 12px',borderRadius:5,fontSize:10,fontFamily:"'Geist Mono',monospace",
+              background:showSearch?T.chip:'transparent',
+              border:`1px solid ${hasSearch?T.accent:T.border}`,
+              color:hasSearch?T.accent:T.textMute,cursor:'pointer',
+              display:'flex',alignItems:'center',gap:4}}>
+            {'\uD83D\uDD0D'}{hasSearch?` (${searchResults?.length??0})`:' Search'}
+          </button>
+          {roll&&<button onClick={()=>setShowAIFill(true)}
+            style={{padding:'4px 12px',borderRadius:5,fontSize:10,fontFamily:"'Geist Mono',monospace",
+              background:T.accent+'18',border:`1px solid ${T.accent}44`,color:T.accent,
+              cursor:'pointer',display:'flex',alignItems:'center',gap:5}}>
+            {'\uD83E\uDD16'} AI Fill
+          </button>}
+          <div style={{position:'relative'}}>
+            <button onClick={()=>setShowPresetMenu(v=>!v)} title="Manage dropdown option lists"
+              style={{padding:'4px 10px',borderRadius:5,fontSize:10,fontFamily:"'Geist Mono',monospace",
+                background:showPresetMenu?T.chip:'transparent',border:`1px solid ${T.border}`,color:T.textDim,cursor:'pointer',
+                display:'flex',alignItems:'center',gap:4}}>
+              {'\u2699\uFE0F'} Presets {'\u25BE'}
+            </button>
+            {showPresetMenu&&(
+              <>
+                <div onClick={()=>setShowPresetMenu(false)} style={{position:'fixed',inset:0,zIndex:400}}/>
+                <div style={{position:'absolute',top:'100%',right:0,marginTop:4,zIndex:401,minWidth:140,
+                  background:T.panel,border:`1px solid ${T.border}`,borderRadius:7,boxShadow:'0 8px 24px rgba(0,0,0,0.5)',overflow:'hidden'}}>
+                  <div style={{padding:'6px 12px 4px',fontSize:8,fontFamily:"'Geist Mono',monospace",color:T.textDim,letterSpacing:'0.08em'}}>EDIT OPTION LISTS</div>
+                  {PRESET_MENU.map(({k,l})=>(
+                    <button key={k} onClick={()=>{setActivePreset(k);setShowPresetMenu(false);}}
+                      style={{display:'block',width:'100%',textAlign:'left',padding:'9px 13px',
+                        background:'transparent',border:'none',borderTop:`1px solid ${T.rule}`,
+                        color:T.text,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:'pointer'}}>
+                      {'\u2699\uFE0F'} {l}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+          <button onClick={()=>setShowIconGuide(true)} title="What do these icons mean?"
+            aria-label="Icon guide"
+            style={{width:26,height:26,borderRadius:5,fontSize:12,fontFamily:"'Geist Mono',monospace",
+              background:'transparent',border:`1px solid ${T.border}`,color:T.textDim,cursor:'pointer',
+              display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{'?'}</button>
+          {roll&&<button onClick={exportCSV} style={{padding:'4px 10px',borderRadius:5,fontSize:10,fontFamily:"'Geist Mono',monospace",background:'transparent',border:`1px solid ${T.border}`,color:T.textMute,cursor:'pointer'}}>CSV</button>}
+          {roll&&<button disabled={exporting} onClick={async()=>{ setExporting(true); try{ await exportReport(); }finally{ setExporting(false); } }} style={{padding:'4px 10px',borderRadius:5,fontSize:10,fontFamily:"'Geist Mono',monospace",background:T.accent+'18',border:`1px solid ${T.accent}44`,color:T.accent,cursor:exporting?'default':'pointer',opacity:exporting?0.6:1}}>{exporting?'Preparing...':<>{unlocked?'\uD83D\uDDA8':'\uD83D\uDD12'} Print / PDF</>}</button>}
+          <button onClick={()=>addRoll(activeCam,'blank')} title="Start a completely fresh roll: today's date, blank location/lens/shutter - NOT the same as +Roll, which carries over the previous roll's date/crew/camera settings"
+            style={{padding:'4px 12px',borderRadius:5,fontSize:11,fontFamily:"'Geist Mono',monospace",background:CAM.accent,border:'none',color:'#0e0d0b',fontWeight:600,cursor:'pointer'}}>+ New Roll (blank)</button>
+        </div>
+      )}
+
       {/* Shoot Day filter  -  shows all unique shoot days across rolls */}
-      {rolls.length>0&&(()=>{
+      {showToolbar&&rolls.length>0&&(()=>{
         const dayNums=[...new Set(rolls.map(r=>r.shootDay).filter(Boolean))].sort((a,b)=>a-b);
         if(dayNums.length<2)return null; // only show selector if there are multiple days
         return(
-          <div style={{padding:'6px 16px 0',display:'flex',gap:6,flexShrink:0,alignItems:'center',flexWrap:'wrap'}}>
+          <div style={{padding:'6px 16px',borderBottom:`1px solid ${T.rule}`,display:'flex',gap:6,flexShrink:0,alignItems:'center',flexWrap:'wrap'}}>
             <span style={{fontSize:9,fontFamily:"'Geist Mono',monospace",color:T.textDim,letterSpacing:'0.08em'}}>DAY</span>
             {[{label:'ALL',val:'all'},...dayNums.map(d=>({label:'Day '+d,val:d}))].map(({label,val})=>(
               <button key={val} onClick={()=>{
