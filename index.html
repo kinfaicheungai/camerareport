@@ -494,6 +494,30 @@ async function camRepDeletePhoto(projId,imgId){
     tx.onerror=()=>reject(tx.error);
   });
 }
+/* Bulk cleanup. Deleting a take already removed its photos one by one, but
+   deleting a whole ROLL or a whole PROJECT used to leave every one of their
+   photos stranded in IndexedDB with nothing left referencing them - invisible,
+   unreachable, and impossible to clear from inside the app. Photos are by far
+   the biggest thing this app stores, so that leak was the one most likely to
+   eventually fill a phone. Walks the store once and drops every record whose
+   projId matches (optionally narrowed to a set of take ids). */
+async function camRepDeleteMany(projId,takeIds){
+  const db=await openCamRepDB();
+  const wanted=takeIds?new Set(takeIds.map(id=>projId+'::'+id)):null;
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction(CAMREP_STORE,'readwrite');
+    const req=tx.objectStore(CAMREP_STORE).openCursor();
+    req.onsuccess=()=>{
+      const cur=req.result;
+      if(!cur){ return; } // cursor exhausted; tx.oncomplete resolves
+      const v=cur.value;
+      if(v&&v.projId===projId&&(!wanted||wanted.has(v.projTake))) cur.delete();
+      cur.continue();
+    };
+    tx.oncomplete=()=>resolve();
+    tx.onerror=()=>reject(tx.error);
+  });
+}
 const SB_ANTHRO_KEY='sb_anthropic_key';
 function getAnthropicKey(){
   let k=(localStorage.getItem(SB_ANTHRO_KEY)||'').trim();
@@ -1139,7 +1163,7 @@ function NotesPicker({value,onChange}){
           {presets.map((p,i)=>{
             const sel=selectedTokens.includes(p);
             return(
-              <button key={i} type="button" onMouseDown={e=>{e.preventDefault();togglePreset(p);}}
+              <button key={p} type="button" onMouseDown={e=>{e.preventDefault();togglePreset(p);}}
                 style={{display:'flex',alignItems:'center',gap:8,width:'100%',textAlign:'left',padding:'9px 13px',
                   background:sel?T.accent+'18':'transparent',border:'none',borderBottom:`1px solid ${T.rule}`,
                   color:sel?T.accent:T.text,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:'pointer'}}>
@@ -1192,8 +1216,12 @@ function PresetsModal({config,onClose,onSaved}){
               border:'none',color:'#0e0d0b',fontWeight:600,fontSize:12,cursor:'pointer'}}>Add</button>
           </div>
           {items.length===0&&<div style={{fontSize:11,color:T.textDim,fontStyle:'italic'}}>No options yet.</div>}
+          {/* keyed by the value, not the index - this list supports remove and
+              move-up, and index keys make React reuse the wrong row's DOM when
+              the order changes. add() already rejects duplicates, so the value
+              is unique and safe to key on. */}
           {items.map((p,i)=>(
-            <div key={i} style={{display:'flex',alignItems:'center',gap:6,padding:'6px 0',borderBottom:`1px solid ${T.rule}`}}>
+            <div key={p} style={{display:'flex',alignItems:'center',gap:6,padding:'6px 0',borderBottom:`1px solid ${T.rule}`}}>
               <span style={{flex:1,fontSize:12,color:T.text,fontFamily:"'Geist Mono',monospace"}}>{p}</span>
               {i>0&&<button onClick={()=>moveUp(i)} style={{background:'transparent',border:`1px solid ${T.border}`,borderRadius:4,color:T.textDim,fontSize:11,padding:'2px 7px',cursor:'pointer'}}>{'\u2191'}</button>}
               <button onClick={()=>remove(i)} style={{background:'transparent',border:`1px solid ${T.danger}44`,borderRadius:4,color:T.danger,fontSize:11,padding:'2px 7px',cursor:'pointer'}}>del</button>
@@ -1724,7 +1752,7 @@ function AIFillModal({roll, projId, scenes, onApply, onClose}){
   );
 }
 function CameraReport(){
-  const {data:proj,updateData,projectId}=useStandaloneData();
+  const {data:proj,updateData,projectId,storageFailed}=useStandaloneData();
   const {unlocked,requireUnlock}=useAuth();
   const mob=useMobile();
   // Reference photos in IndexedDB are namespaced by this id (see
@@ -1932,6 +1960,7 @@ function CameraReport(){
   //   over shoot day / date / crew / camera settings from this camera's most
   //   recent roll, for starting a fresh mag on the same day).
   function addRoll(cam,mode){
+    if(rolls.length>=TRIAL_LIMITS.rolls&&!requireUnlock(`Free preview is limited to ${TRIAL_LIMITS.rolls} rolls. Sign in to add more.`))return;
     const c=cam||activeCam||'A';
     const m=mode||'blank';
     const id='roll'+Date.now();
@@ -2027,10 +2056,18 @@ function CameraReport(){
 
   function deleteRoll(id){
     if(!confirm('Delete this entire roll and all its takes?'))return;
+    const target=rolls.find(r=>r.id===id);
     const updated=rolls.filter(r=>r.id!==id);
     setRolls(updated);
     if(activeRoll===id)setActiveRoll(updated[0]?.id||null);
     saveRolls(updated);
+    // Drop this roll's reference photos too - nothing points at them anymore.
+    // Fire-and-forget: the roll is already gone from the UI either way, and a
+    // failed cleanup should never block or undo the delete the user asked for.
+    if(target){
+      const takeIds=(target.takes||[]).filter(t=>(t.photoIds||[]).length).map(t=>t.id);
+      if(takeIds.length) camRepDeleteMany(projId,takeIds).catch(e=>console.warn('camrep: roll photo cleanup failed',e));
+    }
   }
 
   // Which cameras actually have rolls (always include A). Ordered A,B,C,D.
@@ -2480,6 +2517,14 @@ function CameraReport(){
     // Light tint of the camera accent for the corner roll tag.
     const camRollTag={A:'#f3b0b0',B:'#b0c8f3',C:'#b0f3c8',D:'#f3d4b0'}[camOf(roll)]||'#f3b0b0';
     const fcm=(v)=>{v=(v==null?'':String(v)).trim();if(!v)return '';return /^[\d.]+$/.test(v)?v+"'":v;};
+    // EVERY user-entered value below goes through esc() before it is
+    // interpolated into the report HTML. Without this, an ampersand or a
+    // quote in a lens name / location / note silently mangles the printed
+    // layout, and anything script-shaped typed into a field would actually
+    // run in the report tab. Notes used to get a half-measure (< only).
+    const esc=(v)=>String(v==null?'':v)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
     const hasAnyPhoto=roll.takes.some(t=>(t.photoIds||[]).length>0);
     let photoMap={};
@@ -2497,14 +2542,14 @@ function CameraReport(){
     }
 
     const rows=roll.takes.map(t=>`<tr>
-      <td>${sceneWithIE(t.scene)}</td><td style="text-align:center">${t.shot||''}</td><td style="text-align:center">${t.take||''}</td>
-      <td style="text-align:center">${t.tail?'\u2705':''}</td><td>${t.clip||''}</td>
-      <td>${t.lens||''}</td><td>${t.focal||''}</td><td>${t.stop||''}</td><td>${t.shutter||roll.shutter||''}</td><td>${t.ei||''}</td>
-      <td>${t.intFilters||''}</td><td>${t.filters||''}</td><td>${t.filters3||''}</td><td>${t.wb||''}</td><td>${fcm(t.focus)}</td>
-      <td>${(t.notes||'').replace(/</g,'&lt;')}</td>
-      ${hasAnyPhoto?`<td>${photoMap[t.id]?`<img src="${photoMap[t.id]}" style="width:46px;height:34px;object-fit:cover;border-radius:2px;border:1px solid #999;">`:''}</td>`:''}
+      <td>${esc(sceneWithIE(t.scene))}</td><td style="text-align:center">${esc(t.shot)}</td><td style="text-align:center">${esc(t.take)}</td>
+      <td style="text-align:center">${t.tail?'\u2705':''}</td><td>${esc(t.clip)}</td>
+      <td>${esc(t.lens)}</td><td>${esc(t.focal)}</td><td>${esc(t.stop)}</td><td>${esc(t.shutter||roll.shutter)}</td><td>${esc(t.ei)}</td>
+      <td>${esc(t.intFilters)}</td><td>${esc(t.filters)}</td><td>${esc(t.filters3)}</td><td>${esc(t.wb)}</td><td>${esc(fcm(t.focus))}</td>
+      <td>${esc(t.notes)}</td>
+      ${hasAnyPhoto?`<td>${photoMap[t.id]?`<img src="${esc(photoMap[t.id])}" style="width:46px;height:34px;object-fit:cover;border-radius:2px;border:1px solid #999;">`:''}</td>`:''}
       </tr>`).join('');
-    const html=`<!doctype html><html><head><meta charset="utf-8"><title>${proj.projectName||'Camera Report'} ${roll.roll}</title>
+    const html=`<!doctype html><html><head><meta charset="utf-8"><title>${esc(proj.projectName||'Camera Report')} ${esc(roll.roll)}</title>
     <style>
       body{font-family:Arial,Helvetica,sans-serif;margin:18px;color:#111;}
       .hdr{background:#1a1a1a;color:#fff;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;}
@@ -2527,20 +2572,20 @@ function CameraReport(){
       @media print{ .toolbar{display:none!important;} .content{margin-top:0;} }
     </style></head><body>
     <div class="toolbar">
-      <span class="spacer-note">${roll.roll||''} camera report &middot; use Print to save as PDF</span>
+      <span class="spacer-note">${esc(roll.roll)} camera report &middot; use Print to save as PDF</span>
       <button class="close" onclick="window.close()">&times; Close</button>
       <button class="print" onclick="window.print()">&#128424; Print / Save PDF</button>
     </div>
     <div class="content">
     <div class="hdr">
-      <div class="crew">DIRECTOR: ${roll.director||DEFAULTS.director}<br>DOP: ${roll.dop||DEFAULTS.dop}<br>1ST AC: ${roll.ac||DEFAULTS.ac}</div>
-      <div class="title">${(proj.projectName||'CAMERA REPORT').toUpperCase()}</div>
-      <div><div class="roll">${roll.roll||''}</div><div style="color:#fff;font-size:10px;margin-top:4px">MAG # ${roll.mag||''}</div></div>
+      <div class="crew">DIRECTOR: ${esc(roll.director||DEFAULTS.director)}<br>DOP: ${esc(roll.dop||DEFAULTS.dop)}<br>1ST AC: ${esc(roll.ac||DEFAULTS.ac)}</div>
+      <div class="title">${esc((proj.projectName||'CAMERA REPORT').toUpperCase())}</div>
+      <div><div class="roll">${esc(roll.roll)}</div><div style="color:#fff;font-size:10px;margin-top:4px">MAG # ${esc(roll.mag)}</div></div>
     </div>
     <div class="meta">
-      <div><b>DATE:</b> ${dateStr}</div><div><b>SHOOT DAY:</b> ${roll.shootDay||''}</div>
-      <div><b>CODEC:</b> ${roll.codec||''}</div><div><b>CAMERA:</b> ${roll.camera||''}</div><div><b>LUT:</b> ${roll.lut||''}</div>
-      <div><b>FPS:</b> ${roll.fps||''}</div><div><b>LOCATION:</b> ${roll.location||''}</div>
+      <div><b>DATE:</b> ${esc(dateStr)}</div><div><b>SHOOT DAY:</b> ${esc(roll.shootDay)}</div>
+      <div><b>CODEC:</b> ${esc(roll.codec)}</div><div><b>CAMERA:</b> ${esc(roll.camera)}</div><div><b>LUT:</b> ${esc(roll.lut)}</div>
+      <div><b>FPS:</b> ${esc(roll.fps)}</div><div><b>LOCATION:</b> ${esc(roll.location)}</div>
     </div>
     <table>
     <colgroup>
@@ -2667,10 +2712,18 @@ function CameraReport(){
           filter row - the block Tim circled as taking up too much vertical
           space above the table on a phone screen. */}
       <div style={{padding:mob?'8px 10px':'10px 16px',borderBottom:`1px solid ${T.rule}`,display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
-        <div style={{display:'flex',alignItems:'center',gap:4,padding:'2px 8px',borderRadius:99,background:syncStatus==='error'?T.danger+'18':T.success+'18',border:`1px solid ${syncStatus==='error'?T.danger+'44':T.success+'44'}`}}>
-          <div style={{width:5,height:5,borderRadius:'50%',background:syncStatus==='error'?T.danger:T.success}}/>
-          <span style={{fontFamily:"'Geist Mono',monospace",fontSize:8,color:syncStatus==='error'?T.danger:T.success}}>{syncStatus==='saving'?'SAVING...':syncStatus==='error'?'SAVE ERROR':'SAVED LOCALLY'}</span>
-        </div>
+        {(()=>{
+          // storageFailed reflects a REAL failed localStorage write, so it
+          // outranks the optimistic syncStatus - never show "SAVED LOCALLY"
+          // when the last write didn't land.
+          const bad=storageFailed||syncStatus==='error';
+          return(
+            <div style={{display:'flex',alignItems:'center',gap:4,padding:'2px 8px',borderRadius:99,background:bad?T.danger+'18':T.success+'18',border:`1px solid ${bad?T.danger+'44':T.success+'44'}`}}>
+              <div style={{width:5,height:5,borderRadius:'50%',background:bad?T.danger:T.success}}/>
+              <span style={{fontFamily:"'Geist Mono',monospace",fontSize:8,color:bad?T.danger:T.success}}>{bad?'NOT SAVED':syncStatus==='saving'?'SAVING...':'SAVED LOCALLY'}</span>
+            </div>
+          );
+        })()}
         <div style={{flex:1}}/>
         <button onClick={()=>setShowToolbar(v=>!v)} title="Tools: undo/redo, search, AI Fill, presets, CSV/PDF export, day filter"
           aria-label="Toggle tools"
@@ -2682,6 +2735,28 @@ function CameraReport(){
           {'\u2699\uFE0F'} Tools{hasSearch?` (${searchResults?.length??0})`:''} {showToolbar?'\u25B4':'\u25BE'}
         </button>
       </div>
+
+      {/* Storage failure is a data-loss event, not a status detail - the small
+          pill above is too easy to miss mid-shoot, so say it loudly and tell
+          the user what to actually do about it (export before they lose it). */}
+      {storageFailed&&(
+        <div style={{padding:'10px 14px',flexShrink:0,background:T.danger+'1e',borderBottom:`1px solid ${T.danger}55`,
+          display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+          <span style={{fontSize:15}}>{'⚠️'}</span>
+          <div style={{flex:1,minWidth:180}}>
+            <div style={{fontSize:11,fontWeight:600,color:T.danger,fontFamily:"'Geist Mono',monospace"}}>CHANGES ARE NOT BEING SAVED</div>
+            <div style={{fontSize:10,color:T.textMute,lineHeight:1.45,marginTop:2}}>
+              This device's local storage is full or blocked (private browsing can do this).
+              Export a CSV or back up to Sheets now - anything you type from here may be lost when you close the app.
+            </div>
+          </div>
+          {roll&&<button onClick={exportCSV}
+            style={{padding:'6px 13px',borderRadius:6,fontSize:11,fontFamily:"'Geist Mono',monospace",
+              background:T.danger,border:'none',color:'#fff',fontWeight:600,cursor:'pointer',flexShrink:0}}>
+            Export CSV now
+          </button>}
+        </div>
+      )}
 
       {showToolbar&&(
         <div style={{padding:mob?'8px 10px':'10px 16px',borderBottom:`1px solid ${T.rule}`,display:'flex',alignItems:'center',gap:8,flexShrink:0,flexWrap:'wrap'}}>
@@ -3461,10 +3536,17 @@ function SettingsModal({onClose}){
 ================================================================ */
 function ScenesEditorModal({onClose}){
   const {data,updateData}=useStandaloneData();
-  const [rows,setRows]=React.useState(()=>(data.scenes||[]).map(s=>({id:s.id,...decomposeSlug(s.slug)})));
+  /* _k is a throwaway render key, never saved. Rows used to be keyed by array
+     index, which lies to React whenever the list shifts: delete row 2 of 5 and
+     React reuses row 2's existing <input> DOM nodes for what is now a
+     different scene, so the text you see can end up attached to the wrong row
+     (and a focused field jumps to another scene mid-edit). A key that sticks
+     to the row itself makes deletes and reorders behave. */
+  const keySeq=React.useRef(0);
+  const [rows,setRows]=React.useState(()=>(data.scenes||[]).map(s=>({_k:keySeq.current++,id:s.id,...decomposeSlug(s.slug)})));
 
   function patchRow(i,patch){ setRows(rs=>rs.map((r,idx)=>idx===i?{...r,...patch}:r)); }
-  function addRow(){ setRows(rs=>[...rs,{id:'',intExt:'',desc:''}]); }
+  function addRow(){ setRows(rs=>[...rs,{_k:keySeq.current++,id:'',intExt:'',desc:''}]); }
   function removeRow(i){ setRows(rs=>rs.filter((_,idx)=>idx!==i)); }
   function save(){
     const scenes=rows.map(r=>({id:r.id.trim(),slug:composeSlug(r.intExt,r.desc)})).filter(s=>s.id);
@@ -3493,7 +3575,7 @@ function ScenesEditorModal({onClose}){
           </div>
           {rows.length===0&&<div style={{fontSize:11,color:T.textDim,fontStyle:'italic',padding:'8px 0'}}>No scenes yet.</div>}
           {rows.map((r,i)=>(
-            <div key={i} style={{display:'grid',gridTemplateColumns:'70px 90px 1fr auto',gap:6,alignItems:'center'}}>
+            <div key={r._k} style={{display:'grid',gridTemplateColumns:'70px 90px 1fr auto',gap:6,alignItems:'center'}}>
               <input value={r.id} onChange={e=>patchRow(i,{id:e.target.value})} placeholder="S01" style={inp}/>
               <select value={r.intExt} onChange={e=>patchRow(i,{intExt:e.target.value})} style={{...inp,cursor:'pointer'}}>
                 <option value="">-</option>
@@ -3526,7 +3608,10 @@ function ScenesEditorModal({onClose}){
 ================================================================ */
 function ShootDaysEditorModal({onClose}){
   const {data,updateData}=useStandaloneData();
-  const [rows,setRows]=React.useState(()=>(data.shootDays||[]).slice().sort((a,b)=>a.day-b.day));
+  // _k: stable per-row render key, never persisted - see the ScenesEditorModal
+  // note above for why array indices are the wrong key for an editable list.
+  const keySeq=React.useRef(0);
+  const [rows,setRows]=React.useState(()=>(data.shootDays||[]).slice().sort((a,b)=>a.day-b.day).map(d=>({...d,_k:keySeq.current++})));
 
   function patchRow(i,patch){ setRows(rs=>rs.map((r,idx)=>idx===i?{...r,...patch}:r)); }
   function removeRow(i){ setRows(rs=>rs.filter((_,idx)=>idx!==i)); }
@@ -3535,7 +3620,7 @@ function ShootDaysEditorModal({onClose}){
       const last=rs[rs.length-1];
       const nextDay=(last?last.day:0)+1;
       const nextDate=last?addOneDay(last.date):'';
-      return [...rs,{day:nextDay,date:nextDate}];
+      return [...rs,{day:nextDay,date:nextDate,_k:keySeq.current++}];
     });
   }
   function save(){
@@ -3569,7 +3654,7 @@ function ShootDaysEditorModal({onClose}){
               section scrolls, everything around it stays reachable. */}
           <div style={{display:'flex',flexDirection:'column',gap:10,maxHeight:'38vh',overflow:'auto',paddingRight:2}}>
             {rows.map((r,i)=>(
-              <div key={i} style={{display:'grid',gridTemplateColumns:'60px 1fr auto',gap:6,alignItems:'center'}}>
+              <div key={r._k} style={{display:'grid',gridTemplateColumns:'60px 1fr auto',gap:6,alignItems:'center'}}>
                 <input type="number" value={r.day} onChange={e=>patchRow(i,{day:e.target.value})} placeholder="1" style={{...inp,textAlign:'center'}}/>
                 <input type="date" value={r.date||''} onChange={e=>patchRow(i,{date:e.target.value})} style={inp}/>
                 <button onClick={()=>removeRow(i)} title="Remove day" aria-label="Remove day"
@@ -3767,14 +3852,35 @@ function App(){
   const [showSettings,setShowSettings]=React.useState(false);
   const [showBackup,setShowBackup]=React.useState(false);
   const [showProjects,setShowProjects]=React.useState(false);
+  // True once a localStorage write has actually FAILED (quota full, private
+  // browsing, storage blocked). Previously saveProjectData's false return was
+  // discarded here, so the status pill kept saying "SAVED LOCALLY" while
+  // nothing was being written - the worst possible failure mode for a camera
+  // report you're relying on mid-shoot.
+  const [storageFailed,setStorageFailed]=React.useState(false);
 
+  // Pure state update - no side effects. It stays a functional updater because
+  // two updateData calls can land in the same tick (e.g. adding a shoot day,
+  // then patching the roll that uses it) and a stale-closure version would
+  // silently drop the first one.
   function updateData(partial){
-    setData(prev=>{
-      const next={...prev,...partial};
-      saveProjectData(projectId,next);
-      return next;
-    });
+    setData(prev=>({...prev,...partial}));
   }
+
+  /* Persistence lives here rather than inside the setData updater above.
+     Writing to localStorage from inside an updater is a render-phase side
+     effect: React may call an updater more than once for a single logical
+     change (it does exactly that under StrictMode), so the old version could
+     fire two writes per edit. As a commit-phase effect it runs once per
+     committed change instead, and batching means several updateData calls in
+     one tick collapse into a single write of the final merged state.
+     The ref skips the very first run so we don't immediately rewrite the blob
+     we just finished reading on mount. */
+  const loadedOnce=React.useRef(false);
+  React.useEffect(()=>{
+    if(!loadedOnce.current){ loadedOnce.current=true; return; }
+    setStorageFailed(!saveProjectData(projectId,data));
+  },[data,projectId]);
   function switchProject(id){
     if(id===projectId)return;
     setProjectId(id);
@@ -3794,10 +3900,13 @@ function App(){
     setProjectIds(next);
     if(id===projectId)switchProject(next[0]);
     try{ localStorage.removeItem(projDataKey(id)); }catch(e){}
+    // Every reference photo in this project is now unreachable - clear them
+    // out of IndexedDB rather than leaving them stranded there forever.
+    camRepDeleteMany(id).catch(e=>console.warn('camrep: project photo cleanup failed',e));
   }
 
   return(
-    <DataCtx.Provider value={{data,updateData,projectId,projectIds,switchProject,createProject,deleteProject}}>
+    <DataCtx.Provider value={{data,updateData,projectId,projectIds,switchProject,createProject,deleteProject,storageFailed}}>
       {/* height:'100%' (not minHeight) + overflow:'hidden' is the real fix for
           the "header won't stay frozen" bug: html/body/#root are height:100%
           (see <style> above), but this was the ONE link in the chain that
@@ -3823,7 +3932,7 @@ function App(){
           </div>
           <div style={{flex:1}}/>
           {!unlocked&&<button onClick={()=>requireUnlock('')}
-            title="Free preview: 1 camera, 6 clips per roll, no PDF export"
+            title={`Free preview: ${TRIAL_LIMITS.cams} camera, ${TRIAL_LIMITS.rolls} rolls, ${TRIAL_LIMITS.takesPerRoll} clips per roll, no PDF export`}
             style={{padding:'6px 14px',borderRadius:6,fontSize:11,fontFamily:"'Geist Mono',monospace",
               background:T.accent+'18',border:`1px solid ${T.accent}44`,color:T.accent,cursor:'pointer',
               display:'flex',alignItems:'center',gap:6}}>
@@ -3973,7 +4082,10 @@ const AuthCtx=createContext(null);
 const useAuth=()=>useContext(AuthCtx);
 // Trial caps for anyone who hasn't signed in (or isn't on the allowlist yet).
 // Purely a soft nudge, not real security - all data is local anyway.
-const TRIAL_LIMITS={cams:1, takesPerRoll:6};
+// `rolls` matters as much as takesPerRoll: capping only takes-per-roll left an
+// obvious way around the whole trial, since nothing stopped a preview user
+// from opening roll after roll and logging 6 clips in each.
+const TRIAL_LIMITS={cams:1, rolls:2, takesPerRoll:6};
 
 function AccessGate({children}){
   const [state,setState]=React.useState(()=>loadGateAuth()?'allowed':'trial'); // trial | working | denied | allowed | error
@@ -4042,8 +4154,9 @@ function AccessGate({children}){
             <div style={{fontFamily:"'Geist Mono',monospace",fontSize:14,fontWeight:600,color:T.text,marginBottom:6}}>Sign in to unlock</div>
             {unlockReason&&<div style={{fontSize:12,color:T.text,lineHeight:1.6,marginBottom:6}}>{unlockReason}</div>}
             <div style={{fontSize:11,color:T.textDim,lineHeight:1.6,marginBottom:6}}>
-              You're using the free preview ({TRIAL_LIMITS.cams} camera, {TRIAL_LIMITS.takesPerRoll} clips per roll,
-              no PDF export). Sign in with the Google account you were invited with to unlock the full app.
+              You're using the free preview ({TRIAL_LIMITS.cams} camera, {TRIAL_LIMITS.rolls} rolls,
+              {' '}{TRIAL_LIMITS.takesPerRoll} clips per roll, no PDF export).
+              Sign in with the Google account you were invited with to unlock the full app.
             </div>
             {state==='denied'&&(
               <div style={{fontSize:11,color:T.danger,background:T.danger+'14',border:`1px solid ${T.danger}44`,borderRadius:6,padding:'9px 10px',marginTop:10,lineHeight:1.5}}>
