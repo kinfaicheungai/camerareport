@@ -1827,6 +1827,37 @@ function CameraReport(){
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
+  // Keep each roll's DATE in sync with its SHOOT DAY's calendar date when
+  // that day's date is edited later in Project Settings (e.g. Day 1 was
+  // 10 Aug, user corrects it to 17 Aug - every roll tagged Day 1 should
+  // follow). Picking/adding a shoot day on the roll itself already fills
+  // the date (see the SHOOT DAY <select> below); this effect covers the
+  // other direction. A per-roll DATE field edit still works as a flexible
+  // override afterwards - this only re-fires when the shoot day's OWN date
+  // value actually changes, never on plain mount/render, so it won't fight
+  // a manual override unless the day's date is edited again.
+  const prevShootDaysJSON=React.useRef(JSON.stringify(shootDays));
+  React.useEffect(()=>{
+    const curJSON=JSON.stringify(shootDays);
+    if(curJSON===prevShootDaysJSON.current)return; // unchanged (incl. first run)
+    let prevList=[];
+    try{ prevList=JSON.parse(prevShootDaysJSON.current)||[]; }catch(e){}
+    const prevMap={}; prevList.forEach(d=>{ prevMap[d.day]=d.date; });
+    prevShootDaysJSON.current=curJSON;
+    let changed=false;
+    const updated=rolls.map(r=>{
+      if(!r.shootDay)return r;
+      const dd=shootDays.find(d=>d.day===r.shootDay);
+      if(dd&&dd.date&&prevMap[r.shootDay]!==undefined&&prevMap[r.shootDay]!==dd.date&&r.date!==dd.date){
+        changed=true;
+        return {...r,date:dd.date};
+      }
+      return r;
+    });
+    if(changed){ setRolls(updated); saveRolls(updated); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[JSON.stringify(shootDays)]);
+
   // ── Undo / Redo ─────────────────────────────────────────────
   // History of past rolls-states. We snapshot the PREVIOUS state each time a
   // mutation persists, so undo can restore it. Redo stack holds undone states.
@@ -3182,11 +3213,11 @@ function CameraReport(){
           instead, so that space goes back to the table. */}
       {roll&&!(showSearch&&hasSearch)&&!showActions&&(
         <button onClick={()=>setShowActions(true)} title="Roll actions" aria-label="Open roll actions"
-          style={{position:'fixed',right:0,top:'50%',transform:'translateY(-50%)',zIndex:600,
-            background:CAM.accent,color:'#0e0d0b',border:'none',borderRadius:'8px 0 0 8px',
-            padding:'14px 6px',fontSize:11,fontWeight:600,fontFamily:"'Geist Mono',monospace",
+          style={{position:'fixed',right:10,bottom:'14vh',zIndex:600,
+            background:CAM.accent,color:'#0e0d0b',border:'none',borderRadius:10,
+            padding:'12px 8px',fontSize:11,fontWeight:600,fontFamily:"'Geist Mono',monospace",
             cursor:'pointer',writingMode:'vertical-rl',textOrientation:'mixed',
-            boxShadow:'-2px 2px 10px rgba(0,0,0,0.35)'}}>
+            boxShadow:'0 4px 14px rgba(0,0,0,0.4)'}}>
           {'\u25C2'} Actions
         </button>
       )}
