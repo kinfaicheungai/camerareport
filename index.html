@@ -1260,17 +1260,15 @@ function LensFocalPicker({value,onChange,options,placeholder,inputStyle,align,no
   const listRef=React.useRef(null);
   const selectedRef=React.useRef(null);
 
-  // Typeahead: once the user starts typing, narrow the option list to values
-  // that CONTAIN what they typed (e.g. "56" -> 5600, 5650, 3200...no just
-  // ones containing "56"), instead of always showing the full list.
-  // Lens passes noFilter - there, the field already holding a value used to
-  // filter the list down to just itself, making it impossible to open the
-  // dropdown and pick a DIFFERENT lens without clearing the field first.
-  const q=noFilter?'':(value||'').trim().toLowerCase();
-  const filteredOptions=React.useMemo(()=>{
-    if(!q)return options;
-    return options.filter(o=>o.toLowerCase().includes(q));
-  },[options,q]);
+  // No typeahead filtering: the list always shows every option, regardless
+  // of what's already typed in the field. Filtering used to narrow the list
+  // down to just the current value (e.g. Shutter already "180" would hide
+  // "172.8" since it doesn't contain "180"), which made it impossible to
+  // open the dropdown and see/pick a DIFFERENT nearby option without first
+  // clearing the field. The field itself is still freeform - you can always
+  // type any value directly - this only affects what the dropdown lists.
+  const q='';
+  const filteredOptions=options;
 
   // Use position:fixed + getBoundingClientRect so the dropdown is NEVER
   // clipped by overflow:auto/hidden on any ancestor (e.g. the table wrapper).
