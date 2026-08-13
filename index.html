@@ -351,6 +351,7 @@ input,textarea,select{font:inherit;color:inherit;background:none;border:none;out
    Edit index.src.html and re-run: python3 build.py */
 "use strict";
 
+function _createForOfIteratorHelper(r, e) { var t = "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (!t) { if (Array.isArray(r) || (t = _unsupportedIterableToArray(r)) || e && r && "number" == typeof r.length) { t && (r = t); var _n = 0, F = function F() {}; return { s: F, n: function n() { return _n >= r.length ? { done: !0 } : { done: !1, value: r[_n++] }; }, e: function e(r) { throw r; }, f: F }; } throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); } var o, a = !0, u = !1; return { s: function s() { t = t.call(r); }, n: function n() { var r = t.next(); return a = r.done, r; }, e: function e(r) { u = !0, o = r; }, f: function f() { try { a || null == t["return"] || t["return"](); } finally { if (u) throw o; } } }; }
 function _regeneratorRuntime() { "use strict"; /*! regenerator-runtime -- Copyright (c) 2014-present, Facebook, Inc. -- license (MIT): https://github.com/facebook/regenerator/blob/main/LICENSE */ _regeneratorRuntime = function _regeneratorRuntime() { return e; }; var t, e = {}, r = Object.prototype, n = r.hasOwnProperty, o = Object.defineProperty || function (t, e, r) { t[e] = r.value; }, i = "function" == typeof Symbol ? Symbol : {}, a = i.iterator || "@@iterator", c = i.asyncIterator || "@@asyncIterator", u = i.toStringTag || "@@toStringTag"; function define(t, e, r) { return Object.defineProperty(t, e, { value: r, enumerable: !0, configurable: !0, writable: !0 }), t[e]; } try { define({}, ""); } catch (t) { define = function define(t, e, r) { return t[e] = r; }; } function wrap(t, e, r, n) { var i = e && e.prototype instanceof Generator ? e : Generator, a = Object.create(i.prototype), c = new Context(n || []); return o(a, "_invoke", { value: makeInvokeMethod(t, r, c) }), a; } function tryCatch(t, e, r) { try { return { type: "normal", arg: t.call(e, r) }; } catch (t) { return { type: "throw", arg: t }; } } e.wrap = wrap; var h = "suspendedStart", l = "suspendedYield", f = "executing", s = "completed", y = {}; function Generator() {} function GeneratorFunction() {} function GeneratorFunctionPrototype() {} var p = {}; define(p, a, function () { return this; }); var d = Object.getPrototypeOf, v = d && d(d(values([]))); v && v !== r && n.call(v, a) && (p = v); var g = GeneratorFunctionPrototype.prototype = Generator.prototype = Object.create(p); function defineIteratorMethods(t) { ["next", "throw", "return"].forEach(function (e) { define(t, e, function (t) { return this._invoke(e, t); }); }); } function AsyncIterator(t, e) { function invoke(r, o, i, a) { var c = tryCatch(t[r], t, o); if ("throw" !== c.type) { var u = c.arg, h = u.value; return h && "object" == _typeof(h) && n.call(h, "__await") ? e.resolve(h.__await).then(function (t) { invoke("next", t, i, a); }, function (t) { invoke("throw", t, i, a); }) : e.resolve(h).then(function (t) { u.value = t, i(u); }, function (t) { return invoke("throw", t, i, a); }); } a(c.arg); } var r; o(this, "_invoke", { value: function value(t, n) { function callInvokeWithMethodAndArg() { return new e(function (e, r) { invoke(t, n, e, r); }); } return r = r ? r.then(callInvokeWithMethodAndArg, callInvokeWithMethodAndArg) : callInvokeWithMethodAndArg(); } }); } function makeInvokeMethod(e, r, n) { var o = h; return function (i, a) { if (o === f) throw Error("Generator is already running"); if (o === s) { if ("throw" === i) throw a; return { value: t, done: !0 }; } for (n.method = i, n.arg = a;;) { var c = n.delegate; if (c) { var u = maybeInvokeDelegate(c, n); if (u) { if (u === y) continue; return u; } } if ("next" === n.method) n.sent = n._sent = n.arg;else if ("throw" === n.method) { if (o === h) throw o = s, n.arg; n.dispatchException(n.arg); } else "return" === n.method && n.abrupt("return", n.arg); o = f; var p = tryCatch(e, r, n); if ("normal" === p.type) { if (o = n.done ? s : l, p.arg === y) continue; return { value: p.arg, done: n.done }; } "throw" === p.type && (o = s, n.method = "throw", n.arg = p.arg); } }; } function maybeInvokeDelegate(e, r) { var n = r.method, o = e.iterator[n]; if (o === t) return r.delegate = null, "throw" === n && e.iterator["return"] && (r.method = "return", r.arg = t, maybeInvokeDelegate(e, r), "throw" === r.method) || "return" !== n && (r.method = "throw", r.arg = new TypeError("The iterator does not provide a '" + n + "' method")), y; var i = tryCatch(o, e.iterator, r.arg); if ("throw" === i.type) return r.method = "throw", r.arg = i.arg, r.delegate = null, y; var a = i.arg; return a ? a.done ? (r[e.resultName] = a.value, r.next = e.nextLoc, "return" !== r.method && (r.method = "next", r.arg = t), r.delegate = null, y) : a : (r.method = "throw", r.arg = new TypeError("iterator result is not an object"), r.delegate = null, y); } function pushTryEntry(t) { var e = { tryLoc: t[0] }; 1 in t && (e.catchLoc = t[1]), 2 in t && (e.finallyLoc = t[2], e.afterLoc = t[3]), this.tryEntries.push(e); } function resetTryEntry(t) { var e = t.completion || {}; e.type = "normal", delete e.arg, t.completion = e; } function Context(t) { this.tryEntries = [{ tryLoc: "root" }], t.forEach(pushTryEntry, this), this.reset(!0); } function values(e) { if (e || "" === e) { var r = e[a]; if (r) return r.call(e); if ("function" == typeof e.next) return e; if (!isNaN(e.length)) { var o = -1, i = function next() { for (; ++o < e.length;) if (n.call(e, o)) return next.value = e[o], next.done = !1, next; return next.value = t, next.done = !0, next; }; return i.next = i; } } throw new TypeError(_typeof(e) + " is not iterable"); } return GeneratorFunction.prototype = GeneratorFunctionPrototype, o(g, "constructor", { value: GeneratorFunctionPrototype, configurable: !0 }), o(GeneratorFunctionPrototype, "constructor", { value: GeneratorFunction, configurable: !0 }), GeneratorFunction.displayName = define(GeneratorFunctionPrototype, u, "GeneratorFunction"), e.isGeneratorFunction = function (t) { var e = "function" == typeof t && t.constructor; return !!e && (e === GeneratorFunction || "GeneratorFunction" === (e.displayName || e.name)); }, e.mark = function (t) { return Object.setPrototypeOf ? Object.setPrototypeOf(t, GeneratorFunctionPrototype) : (t.__proto__ = GeneratorFunctionPrototype, define(t, u, "GeneratorFunction")), t.prototype = Object.create(g), t; }, e.awrap = function (t) { return { __await: t }; }, defineIteratorMethods(AsyncIterator.prototype), define(AsyncIterator.prototype, c, function () { return this; }), e.AsyncIterator = AsyncIterator, e.async = function (t, r, n, o, i) { void 0 === i && (i = Promise); var a = new AsyncIterator(wrap(t, r, n, o), i); return e.isGeneratorFunction(r) ? a : a.next().then(function (t) { return t.done ? t.value : a.next(); }); }, defineIteratorMethods(g), define(g, u, "Generator"), define(g, a, function () { return this; }), define(g, "toString", function () { return "[object Generator]"; }), e.keys = function (t) { var e = Object(t), r = []; for (var n in e) r.push(n); return r.reverse(), function next() { for (; r.length;) { var t = r.pop(); if (t in e) return next.value = t, next.done = !1, next; } return next.done = !0, next; }; }, e.values = values, Context.prototype = { constructor: Context, reset: function reset(e) { if (this.prev = 0, this.next = 0, this.sent = this._sent = t, this.done = !1, this.delegate = null, this.method = "next", this.arg = t, this.tryEntries.forEach(resetTryEntry), !e) for (var r in this) "t" === r.charAt(0) && n.call(this, r) && !isNaN(+r.slice(1)) && (this[r] = t); }, stop: function stop() { this.done = !0; var t = this.tryEntries[0].completion; if ("throw" === t.type) throw t.arg; return this.rval; }, dispatchException: function dispatchException(e) { if (this.done) throw e; var r = this; function handle(n, o) { return a.type = "throw", a.arg = e, r.next = n, o && (r.method = "next", r.arg = t), !!o; } for (var o = this.tryEntries.length - 1; o >= 0; --o) { var i = this.tryEntries[o], a = i.completion; if ("root" === i.tryLoc) return handle("end"); if (i.tryLoc <= this.prev) { var c = n.call(i, "catchLoc"), u = n.call(i, "finallyLoc"); if (c && u) { if (this.prev < i.catchLoc) return handle(i.catchLoc, !0); if (this.prev < i.finallyLoc) return handle(i.finallyLoc); } else if (c) { if (this.prev < i.catchLoc) return handle(i.catchLoc, !0); } else { if (!u) throw Error("try statement without catch or finally"); if (this.prev < i.finallyLoc) return handle(i.finallyLoc); } } } }, abrupt: function abrupt(t, e) { for (var r = this.tryEntries.length - 1; r >= 0; --r) { var o = this.tryEntries[r]; if (o.tryLoc <= this.prev && n.call(o, "finallyLoc") && this.prev < o.finallyLoc) { var i = o; break; } } i && ("break" === t || "continue" === t) && i.tryLoc <= e && e <= i.finallyLoc && (i = null); var a = i ? i.completion : {}; return a.type = t, a.arg = e, i ? (this.method = "next", this.next = i.finallyLoc, y) : this.complete(a); }, complete: function complete(t, e) { if ("throw" === t.type) throw t.arg; return "break" === t.type || "continue" === t.type ? this.next = t.arg : "return" === t.type ? (this.rval = this.arg = t.arg, this.method = "return", this.next = "end") : "normal" === t.type && e && (this.next = e), y; }, finish: function finish(t) { for (var e = this.tryEntries.length - 1; e >= 0; --e) { var r = this.tryEntries[e]; if (r.finallyLoc === t) return this.complete(r.completion, r.afterLoc), resetTryEntry(r), y; } }, "catch": function _catch(t) { for (var e = this.tryEntries.length - 1; e >= 0; --e) { var r = this.tryEntries[e]; if (r.tryLoc === t) { var n = r.completion; if ("throw" === n.type) { var o = n.arg; resetTryEntry(r); } return o; } } throw Error("illegal catch attempt"); }, delegateYield: function delegateYield(e, r, n) { return this.delegate = { iterator: values(e), resultName: r, nextLoc: n }, "next" === this.method && (this.arg = t), y; } }, e; }
 function _toConsumableArray(r) { return _arrayWithoutHoles(r) || _iterableToArray(r) || _unsupportedIterableToArray(r) || _nonIterableSpread(); }
 function _nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
@@ -1776,7 +1777,9 @@ function _loadProjectFromSheet() {
 var SB_NOTE_PRESETS_KEY = 'sb_camrep_note_presets';
 var SB_FOCAL_PRESETS_KEY = 'sb_camrep_focal_presets';
 var SB_STOP_PRESETS_KEY = 'sb_camrep_stop_presets';
+var SB_FILTER1_PRESETS_KEY = 'sb_camrep_filter1_presets';
 var SB_FILTER2_PRESETS_KEY = 'sb_camrep_filter2_presets';
+var SB_FILTER3_PRESETS_KEY = 'sb_camrep_filter3_presets';
 var SB_LENS_PRESETS_KEY = 'sb_camrep_lens_presets';
 
 /* Multi-camera config: each camera letter has a distinct header colour so
@@ -1786,7 +1789,7 @@ var SB_LENS_PRESETS_KEY = 'sb_camrep_lens_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-var APP_VERSION = 'v2.0';
+var APP_VERSION = 'v2.2';
 var CAM_CONFIG = {
   A: {
     label: 'A',
@@ -3777,6 +3780,11 @@ function CameraReport() {
   var DEFAULT_FOCAL = ['21mm', '27mm', '32mm', '40mm', '50mm', '65mm', '75mm', '85mm', '100mm', '110mm'];
   var DEFAULT_STOP = ['T1.4', 'T2', 'T2.2', 'T2.5', 'T2.8', 'T3.2', 'T3.5', 'T4', 'T4.5', 'T5.6', 'T6.3', 'T7.1', 'T8', 'T9', 'T11', 'T13', 'T16', 'T22'];
   var DEFAULT_FILTER2 = ['ND0.6', 'ND1.2', 'ND1.8', 'ND2.4', 'ND3.0'];
+  // Filter 1 is the in-camera / internal slot (usually an IRND or a clear),
+  // Filter 3 the second matte-box tray (diffusion, polariser, effects) - both
+  // used to be plain free-text boxes with no list to pick from.
+  var DEFAULT_FILTER1 = ['Clear', 'IRND 0.3', 'IRND 0.6', 'IRND 0.9', 'IRND 1.2', 'IRND 1.5', 'IRND 1.8', 'IRND 2.1'];
+  var DEFAULT_FILTER3 = ['Clear', 'Polariser', 'Black Pro-Mist 1/8', 'Black Pro-Mist 1/4', 'Black Pro-Mist 1/2', 'Black Pro-Mist 1', 'Glimmerglass 1', 'Hollywood Black Magic 1/8', 'Low Contrast 1/4', 'Soft FX 1/2'];
   var loadOpts = function loadOpts(key, def) {
     try {
       var v = JSON.parse(localStorage.getItem(key) || 'null');
@@ -3804,20 +3812,34 @@ function CameraReport() {
     stopOptions = _React$useState52[0],
     setStopOptions = _React$useState52[1];
   var _React$useState53 = React.useState(function () {
-      return loadOpts(SB_FILTER2_PRESETS_KEY, DEFAULT_FILTER2);
+      return loadOpts(SB_FILTER1_PRESETS_KEY, DEFAULT_FILTER1);
     }),
     _React$useState54 = _slicedToArray(_React$useState53, 2),
-    filter2Options = _React$useState54[0],
-    setFilter2Options = _React$useState54[1];
+    filter1Options = _React$useState54[0],
+    setFilter1Options = _React$useState54[1];
+  var _React$useState55 = React.useState(function () {
+      return loadOpts(SB_FILTER2_PRESETS_KEY, DEFAULT_FILTER2);
+    }),
+    _React$useState56 = _slicedToArray(_React$useState55, 2),
+    filter2Options = _React$useState56[0],
+    setFilter2Options = _React$useState56[1];
+  var _React$useState57 = React.useState(function () {
+      return loadOpts(SB_FILTER3_PRESETS_KEY, DEFAULT_FILTER3);
+    }),
+    _React$useState58 = _slicedToArray(_React$useState57, 2),
+    filter3Options = _React$useState58[0],
+    setFilter3Options = _React$useState58[1];
   var LENS_OPTIONS = lensOptions;
   var FOCAL_OPTIONS = focalOptions;
   var STOP_OPTIONS = stopOptions;
+  var FILTER1_OPTIONS = filter1Options;
   var FILTER2_OPTIONS = filter2Options;
+  var FILTER3_OPTIONS = filter3Options;
   // Single active-preset editor (null = closed). Value is a config key.
-  var _React$useState55 = React.useState(null),
-    _React$useState56 = _slicedToArray(_React$useState55, 2),
-    activePreset = _React$useState56[0],
-    setActivePreset = _React$useState56[1];
+  var _React$useState59 = React.useState(null),
+    _React$useState60 = _slicedToArray(_React$useState59, 2),
+    activePreset = _React$useState60[0],
+    setActivePreset = _React$useState60[1];
   // Registry of all editable dropdown-option lists  -  add future fields here.
   var PRESET_CONFIGS = {
     notes: {
@@ -3854,6 +3876,13 @@ function CameraReport() {
       },
       onSaved: setStopOptions
     },
+    filter1: {
+      title: 'Filter 1 (internal) Presets',
+      storageKey: SB_FILTER1_PRESETS_KEY,
+      defaults: DEFAULT_FILTER1,
+      placeholder: 'e.g. IRND 0.9',
+      onSaved: setFilter1Options
+    },
     filter2: {
       title: 'Filter 2 (ND) Presets',
       storageKey: SB_FILTER2_PRESETS_KEY,
@@ -3863,6 +3892,13 @@ function CameraReport() {
         return /^\d+(\.\d+)?$/.test(v) ? 'ND' + v : v;
       },
       onSaved: setFilter2Options
+    },
+    filter3: {
+      title: 'Filter 3 (diffusion/effects) Presets',
+      storageKey: SB_FILTER3_PRESETS_KEY,
+      defaults: DEFAULT_FILTER3,
+      placeholder: 'e.g. Black Pro-Mist 1/4',
+      onSaved: setFilter3Options
     }
   };
   var PRESET_MENU = [{
@@ -3878,85 +3914,91 @@ function CameraReport() {
     k: 'stop',
     l: 'Stop'
   }, {
+    k: 'filter1',
+    l: 'Filter 1'
+  }, {
     k: 'filter2',
     l: 'Filter 2'
+  }, {
+    k: 'filter3',
+    l: 'Filter 3'
   }];
-  var _React$useState57 = React.useState(false),
-    _React$useState58 = _slicedToArray(_React$useState57, 2),
-    showPresetMenu = _React$useState58[0],
-    setShowPresetMenu = _React$useState58[1];
-  var _React$useState59 = React.useState([]),
-    _React$useState60 = _slicedToArray(_React$useState59, 2),
-    rolls = _React$useState60[0],
-    setRolls = _React$useState60[1]; // [{id, roll, cam, mag, date, shootDay, ...takes}]
-  var _React$useState61 = React.useState(null),
+  var _React$useState61 = React.useState(false),
     _React$useState62 = _slicedToArray(_React$useState61, 2),
-    activeRoll = _React$useState62[0],
-    setActiveRoll = _React$useState62[1];
-  var _React$useState63 = React.useState('A'),
+    showPresetMenu = _React$useState62[0],
+    setShowPresetMenu = _React$useState62[1];
+  var _React$useState63 = React.useState([]),
     _React$useState64 = _slicedToArray(_React$useState63, 2),
-    activeCam = _React$useState64[0],
-    setActiveCam = _React$useState64[1]; // which camera's rolls are shown
-  var _React$useState65 = React.useState([]),
+    rolls = _React$useState64[0],
+    setRolls = _React$useState64[1]; // [{id, roll, cam, mag, date, shootDay, ...takes}]
+  var _React$useState65 = React.useState(null),
     _React$useState66 = _slicedToArray(_React$useState65, 2),
-    syncCams = _React$useState66[0],
-    setSyncCams = _React$useState66[1]; // array of cam letters to sync together, e.g. ['A','B']
-  var _React$useState67 = React.useState(false),
+    activeRoll = _React$useState66[0],
+    setActiveRoll = _React$useState66[1];
+  var _React$useState67 = React.useState('A'),
     _React$useState68 = _slicedToArray(_React$useState67, 2),
-    showSyncMenu = _React$useState68[0],
-    setShowSyncMenu = _React$useState68[1];
-  var _React$useState69 = React.useState(false),
+    activeCam = _React$useState68[0],
+    setActiveCam = _React$useState68[1]; // which camera's rolls are shown
+  var _React$useState69 = React.useState([]),
     _React$useState70 = _slicedToArray(_React$useState69, 2),
-    showActions = _React$useState70[0],
-    setShowActions = _React$useState70[1]; // roll-actions side drawer (Add take/New shot/etc.)
+    syncCams = _React$useState70[0],
+    setSyncCams = _React$useState70[1]; // array of cam letters to sync together, e.g. ['A','B']
   var _React$useState71 = React.useState(false),
     _React$useState72 = _slicedToArray(_React$useState71, 2),
-    showToolbar = _React$useState72[0],
-    setShowToolbar = _React$useState72[1]; // collapses undo/search/AIFill/presets/CSV/PDF/day-filter row
-  var _React$useState73 = React.useState({}),
+    showSyncMenu = _React$useState72[0],
+    setShowSyncMenu = _React$useState72[1];
+  var _React$useState73 = React.useState(false),
     _React$useState74 = _slicedToArray(_React$useState73, 2),
-    camActiveRoll = _React$useState74[0],
-    setCamActiveRoll = _React$useState74[1]; // cam -> last selected roll id
-  var _React$useState75 = React.useState('offline'),
+    showActions = _React$useState74[0],
+    setShowActions = _React$useState74[1]; // roll-actions side drawer (Add take/New shot/etc.)
+  var _React$useState75 = React.useState(false),
     _React$useState76 = _slicedToArray(_React$useState75, 2),
-    syncStatus = _React$useState76[0],
-    setSyncStatus = _React$useState76[1];
-  var _React$useState77 = React.useState(false),
+    showToolbar = _React$useState76[0],
+    setShowToolbar = _React$useState76[1]; // collapses undo/search/AIFill/presets/CSV/PDF/day-filter row
+  var _React$useState77 = React.useState({}),
     _React$useState78 = _slicedToArray(_React$useState77, 2),
-    exporting = _React$useState78[0],
-    setExporting = _React$useState78[1];
-  var _React$useState79 = React.useState(false),
+    camActiveRoll = _React$useState78[0],
+    setCamActiveRoll = _React$useState78[1]; // cam -> last selected roll id
+  var _React$useState79 = React.useState('offline'),
     _React$useState80 = _slicedToArray(_React$useState79, 2),
-    showAIFill = _React$useState80[0],
-    setShowAIFill = _React$useState80[1];
+    syncStatus = _React$useState80[0],
+    setSyncStatus = _React$useState80[1];
   var _React$useState81 = React.useState(false),
     _React$useState82 = _slicedToArray(_React$useState81, 2),
-    showIconGuide = _React$useState82[0],
-    setShowIconGuide = _React$useState82[1];
-  var _React$useState83 = React.useState('all'),
+    exporting = _React$useState82[0],
+    setExporting = _React$useState82[1];
+  var _React$useState83 = React.useState(false),
     _React$useState84 = _slicedToArray(_React$useState83, 2),
-    filterDay = _React$useState84[0],
-    setFilterDay = _React$useState84[1];
+    showAIFill = _React$useState84[0],
+    setShowAIFill = _React$useState84[1];
   var _React$useState85 = React.useState(false),
     _React$useState86 = _slicedToArray(_React$useState85, 2),
-    showDayMenu = _React$useState86[0],
-    setShowDayMenu = _React$useState86[1]; // day dropdown
-  var _React$useState87 = React.useState(false),
+    showIconGuide = _React$useState86[0],
+    setShowIconGuide = _React$useState86[1];
+  var _React$useState87 = React.useState('all'),
     _React$useState88 = _slicedToArray(_React$useState87, 2),
-    showAddCam = _React$useState88[0],
-    setShowAddCam = _React$useState88[1]; // "add camera to this day" picker
-  var _React$useState89 = React.useState([]),
+    filterDay = _React$useState88[0],
+    setFilterDay = _React$useState88[1];
+  var _React$useState89 = React.useState(false),
     _React$useState90 = _slicedToArray(_React$useState89, 2),
-    selTakeIds = _React$useState90[0],
-    setSelTakeIds = _React$useState90[1]; // multi-selected clip rows (for moving)
+    showDayMenu = _React$useState90[0],
+    setShowDayMenu = _React$useState90[1]; // day dropdown
   var _React$useState91 = React.useState(false),
     _React$useState92 = _slicedToArray(_React$useState91, 2),
-    showSearch = _React$useState92[0],
-    setShowSearch = _React$useState92[1];
-  var _React$useState93 = React.useState({}),
+    showAddCam = _React$useState92[0],
+    setShowAddCam = _React$useState92[1]; // "add camera to this day" picker
+  var _React$useState93 = React.useState([]),
     _React$useState94 = _slicedToArray(_React$useState93, 2),
-    searchQ = _React$useState94[0],
-    setSearchQ = _React$useState94[1]; // field -> search string
+    selTakeIds = _React$useState94[0],
+    setSelTakeIds = _React$useState94[1]; // multi-selected clip rows (for moving)
+  var _React$useState95 = React.useState(false),
+    _React$useState96 = _slicedToArray(_React$useState95, 2),
+    showSearch = _React$useState96[0],
+    setShowSearch = _React$useState96[1];
+  var _React$useState97 = React.useState({}),
+    _React$useState98 = _slicedToArray(_React$useState97, 2),
+    searchQ = _React$useState98[0],
+    setSearchQ = _React$useState98[1]; // field -> search string
 
   // ---- Take-table header, freeze-panes style ----
   // Two earlier attempts (CSS position:sticky, then a JS "floating clone"
@@ -3970,10 +4012,10 @@ function CameraReport() {
   // space), and the table gets its OWN dedicated scroll container below
   // them - with nothing else competing for that scroll, a plain CSS
   // position:sticky header (see `th` below) just works, no JS needed.
-  var _React$useState95 = React.useState(false),
-    _React$useState96 = _slicedToArray(_React$useState95, 2),
-    metaCollapsed = _React$useState96[0],
-    setMetaCollapsed = _React$useState96[1];
+  var _React$useState99 = React.useState(false),
+    _React$useState100 = _slicedToArray(_React$useState99, 2),
+    metaCollapsed = _React$useState100[0],
+    setMetaCollapsed = _React$useState100[1];
   var scenes = proj.scenes || [];
   var sceneIds = React.useMemo(function () {
     return scenes.map(function (s) {
@@ -4077,10 +4119,10 @@ function CameraReport() {
   var undoStack = React.useRef([]); // array of rolls-snapshots (JSON strings)
   var redoStack = React.useRef([]);
   var isTimeTravel = React.useRef(false); // true while applying an undo/redo
-  var _React$useState97 = React.useState(0),
-    _React$useState98 = _slicedToArray(_React$useState97, 2),
-    histTick = _React$useState98[0],
-    setHistTick = _React$useState98[1]; // force re-render for button enable
+  var _React$useState101 = React.useState(0),
+    _React$useState102 = _slicedToArray(_React$useState101, 2),
+    histTick = _React$useState102[0],
+    setHistTick = _React$useState102[1]; // force re-render for button enable
   var prevRollsSnap = React.useRef(null); // last-known rolls, to push on next change
   var HIST_LIMIT = 20;
   var persist = /*#__PURE__*/function () {
@@ -4698,13 +4740,16 @@ function CameraReport() {
         photoIds: []
       });
     }
-    // New shot / new scene: FOCAL is deliberately left blank. A new setup means
-    // the lens has been re-framed, so carrying the previous focal length over
-    // just invites it being left wrong. Exposure settings (shutter, stop, WB,
-    // EI) usually DO stay put between setups, so those still carry over and
-    // only get touched when they actually change.
+    /* New shot / new scene inherits the whole optical + exposure setup from the
+       PREVIOUS TAKE - lens, stop, shutter, EI, WB and all three filter slots.
+       Between setups those rarely change, so re-typing them every time is
+       wasted keystrokes on set. LENS reads from `last` rather than the roll's
+       default so that swapping glass mid-roll sticks for the rest of the roll.
+       FOCAL is the deliberate exception: a new setup means a new framing, so
+       leaving it blank forces it to be entered rather than silently inheriting
+       a length that is now wrong. */
     return _objectSpread(_objectSpread({}, base), {}, {
-      lens: rk.lens || '',
+      lens: last.lens || rk.lens || '',
       focal: '',
       stop: last.stop || '',
       shutter: last.shutter || rk.shutter || '',
@@ -7354,14 +7399,15 @@ function CameraReport() {
       style: _objectSpread(_objectSpread({}, gb), {}, {
         borderRight: "1px solid ".concat(T.rule)
       })
-    }, /*#__PURE__*/React.createElement("input", {
+    }, /*#__PURE__*/React.createElement(LensFocalPicker, {
       value: t.intFilters || '',
-      onChange: function onChange(e) {
+      onChange: function onChange(v) {
         return patchTake(t.id, {
-          intFilters: e.target.value
+          intFilters: v
         });
       },
-      style: cellInput
+      options: FILTER1_OPTIONS,
+      inputStyle: cellInput
     })), !hiddenCols.has('filters') && /*#__PURE__*/React.createElement("td", {
       style: _objectSpread(_objectSpread({}, gb), {}, {
         borderRight: "1px solid ".concat(T.rule)
@@ -7379,14 +7425,15 @@ function CameraReport() {
       style: _objectSpread(_objectSpread({}, gb), {}, {
         borderRight: "1px solid ".concat(T.rule)
       })
-    }, /*#__PURE__*/React.createElement("input", {
+    }, /*#__PURE__*/React.createElement(LensFocalPicker, {
       value: t.filters3 || '',
-      onChange: function onChange(e) {
+      onChange: function onChange(v) {
         return patchTake(t.id, {
-          filters3: e.target.value
+          filters3: v
         });
       },
-      style: cellInput
+      options: FILTER3_OPTIONS,
+      inputStyle: cellInput
     })), !hiddenCols.has('wb') && /*#__PURE__*/React.createElement("td", {
       style: _objectSpread(_objectSpread({}, gb), {}, {
         borderRight: "1px solid ".concat(T.rule)
@@ -7900,30 +7947,30 @@ function SettingsModal(_ref35) {
   var _useStandaloneData2 = useStandaloneData(),
     data = _useStandaloneData2.data,
     updateData = _useStandaloneData2.updateData;
-  var _React$useState99 = React.useState(data.projectName || ''),
-    _React$useState100 = _slicedToArray(_React$useState99, 2),
-    projectName = _React$useState100[0],
-    setProjectName = _React$useState100[1];
-  var _React$useState101 = React.useState(data.gsheetsClientId || ''),
-    _React$useState102 = _slicedToArray(_React$useState101, 2),
-    clientId = _React$useState102[0],
-    setClientId = _React$useState102[1];
-  var _React$useState103 = React.useState(false),
+  var _React$useState103 = React.useState(data.projectName || ''),
     _React$useState104 = _slicedToArray(_React$useState103, 2),
-    saved = _React$useState104[0],
-    setSaved = _React$useState104[1];
-  var _React$useState105 = React.useState(false),
+    projectName = _React$useState104[0],
+    setProjectName = _React$useState104[1];
+  var _React$useState105 = React.useState(data.gsheetsClientId || ''),
     _React$useState106 = _slicedToArray(_React$useState105, 2),
-    showScenes = _React$useState106[0],
-    setShowScenes = _React$useState106[1];
+    clientId = _React$useState106[0],
+    setClientId = _React$useState106[1];
   var _React$useState107 = React.useState(false),
     _React$useState108 = _slicedToArray(_React$useState107, 2),
-    showDays = _React$useState108[0],
-    setShowDays = _React$useState108[1];
+    saved = _React$useState108[0],
+    setSaved = _React$useState108[1];
   var _React$useState109 = React.useState(false),
     _React$useState110 = _slicedToArray(_React$useState109, 2),
-    showColumns = _React$useState110[0],
-    setShowColumns = _React$useState110[1];
+    showScenes = _React$useState110[0],
+    setShowScenes = _React$useState110[1];
+  var _React$useState111 = React.useState(false),
+    _React$useState112 = _slicedToArray(_React$useState111, 2),
+    showDays = _React$useState112[0],
+    setShowDays = _React$useState112[1];
+  var _React$useState113 = React.useState(false),
+    _React$useState114 = _slicedToArray(_React$useState113, 2),
+    showColumns = _React$useState114[0],
+    setShowColumns = _React$useState114[1];
   var sceneCount = (data.scenes || []).length;
   var dayCount = (data.shootDays || []).length;
   var hiddenColCount = (data.hiddenColumns || []).length;
@@ -8151,7 +8198,7 @@ function ScenesEditorModal(_ref36) {
      (and a focused field jumps to another scene mid-edit). A key that sticks
      to the row itself makes deletes and reorders behave. */
   var keySeq = React.useRef(0);
-  var _React$useState111 = React.useState(function () {
+  var _React$useState115 = React.useState(function () {
       return (data.scenes || []).map(function (s) {
         return _objectSpread({
           _k: keySeq.current++,
@@ -8159,9 +8206,9 @@ function ScenesEditorModal(_ref36) {
         }, decomposeSlug(s.slug));
       });
     }),
-    _React$useState112 = _slicedToArray(_React$useState111, 2),
-    rows = _React$useState112[0],
-    setRows = _React$useState112[1];
+    _React$useState116 = _slicedToArray(_React$useState115, 2),
+    rows = _React$useState116[0],
+    setRows = _React$useState116[1];
   function patchRow(i, patch) {
     setRows(function (rs) {
       return rs.map(function (r, idx) {
@@ -8407,7 +8454,7 @@ function ShootDaysEditorModal(_ref37) {
   // note above for why array indices are the wrong key for an editable list.
   var keySeq = React.useRef(0);
   // Newest day at the top, matching the day pickers elsewhere in the app.
-  var _React$useState113 = React.useState(function () {
+  var _React$useState117 = React.useState(function () {
       return (data.shootDays || []).slice().sort(function (a, b) {
         return b.day - a.day;
       }).map(function (d) {
@@ -8416,9 +8463,9 @@ function ShootDaysEditorModal(_ref37) {
         });
       });
     }),
-    _React$useState114 = _slicedToArray(_React$useState113, 2),
-    rows = _React$useState114[0],
-    setRows = _React$useState114[1];
+    _React$useState118 = _slicedToArray(_React$useState117, 2),
+    rows = _React$useState118[0],
+    setRows = _React$useState118[1];
   function patchRow(i, patch) {
     setRows(function (rs) {
       return rs.map(function (r, idx) {
@@ -8666,12 +8713,12 @@ function ColumnsEditorModal(_ref38) {
   var _useStandaloneData5 = useStandaloneData(),
     data = _useStandaloneData5.data,
     updateData = _useStandaloneData5.updateData;
-  var _React$useState115 = React.useState(function () {
+  var _React$useState119 = React.useState(function () {
       return new Set(data.hiddenColumns || []);
     }),
-    _React$useState116 = _slicedToArray(_React$useState115, 2),
-    hidden = _React$useState116[0],
-    setHidden = _React$useState116[1];
+    _React$useState120 = _slicedToArray(_React$useState119, 2),
+    hidden = _React$useState120[0],
+    setHidden = _React$useState120[1];
   function toggle(key) {
     setHidden(function (prev) {
       var next = new Set(prev);
@@ -8824,15 +8871,18 @@ function BackupModal(_ref39) {
   var onClose = _ref39.onClose;
   var _useStandaloneData6 = useStandaloneData(),
     data = _useStandaloneData6.data,
-    updateData = _useStandaloneData6.updateData;
-  var _React$useState117 = React.useState('idle'),
-    _React$useState118 = _slicedToArray(_React$useState117, 2),
-    status = _React$useState118[0],
-    setStatus = _React$useState118[1]; // idle | working | done | error
-  var _React$useState119 = React.useState(''),
-    _React$useState120 = _slicedToArray(_React$useState119, 2),
-    errMsg = _React$useState120[0],
-    setErrMsg = _React$useState120[1];
+    updateData = _useStandaloneData6.updateData,
+    findProjectByName = _useStandaloneData6.findProjectByName,
+    importProject = _useStandaloneData6.importProject,
+    overwriteProject = _useStandaloneData6.overwriteProject;
+  var _React$useState121 = React.useState('idle'),
+    _React$useState122 = _slicedToArray(_React$useState121, 2),
+    status = _React$useState122[0],
+    setStatus = _React$useState122[1]; // idle | working | done | error
+  var _React$useState123 = React.useState(''),
+    _React$useState124 = _slicedToArray(_React$useState123, 2),
+    errMsg = _React$useState124[0],
+    setErrMsg = _React$useState124[1];
   // A per-device Settings value always overrides the baked-in shared default -
   // that's what lets a fork on a different hosting URL use its own Client ID.
   var effectiveClientId = getEffectiveClientId(data);
@@ -8845,14 +8895,14 @@ function BackupModal(_ref39) {
   }, [data.rolls]);
 
   // Restore state
-  var _React$useState121 = React.useState(null),
-    _React$useState122 = _slicedToArray(_React$useState121, 2),
-    sheets = _React$useState122[0],
-    setSheets = _React$useState122[1]; // null = not looked yet
-  var _React$useState123 = React.useState(false),
-    _React$useState124 = _slicedToArray(_React$useState123, 2),
-    restoring = _React$useState124[0],
-    setRestoring = _React$useState124[1];
+  var _React$useState125 = React.useState(null),
+    _React$useState126 = _slicedToArray(_React$useState125, 2),
+    sheets = _React$useState126[0],
+    setSheets = _React$useState126[1]; // null = not looked yet
+  var _React$useState127 = React.useState(false),
+    _React$useState128 = _slicedToArray(_React$useState127, 2),
+    restoring = _React$useState128[0],
+    setRestoring = _React$useState128[1];
   function runBackup() {
     return _runBackup.apply(this, arguments);
   }
@@ -8905,12 +8955,11 @@ function BackupModal(_ref39) {
   function findBackups() {
     return _findBackups.apply(this, arguments);
   }
-  /* Restore is guarded twice over, because it destroys local work:
-     1. the backup's project NAME must match this project's, so you can never
-        drop "The Greatest Game" on top of "Fractured Mind" by tapping the
-        wrong row in the list;
-     2. an explicit confirm() spelling out exactly what is about to be
-        replaced and with how much. */
+  /* Restoring never has to be blocked - only disambiguated. If this device has
+     no project by that name, the backup can simply land as a new project:
+     nothing existing is touched, so there is nothing to warn about. We only
+     stop and ask when a project of the same name is already here, because
+     that is the single case where local work could be lost. */
   function _findBackups() {
     _findBackups = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee13() {
       return _regeneratorRuntime().wrap(function _callee13$(_context13) {
@@ -8949,7 +8998,7 @@ function BackupModal(_ref39) {
   }
   function _restoreFrom() {
     _restoreFrom = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee14(file) {
-      var found, incoming, mine, theirs, nRolls, nTakes, curTakes;
+      var found, incoming, name, payload, nRolls, nTakes, existing, curRolls, curTakes;
       return _regeneratorRuntime().wrap(function _callee14$(_context14) {
         while (1) switch (_context14.prev = _context14.next) {
           case 0:
@@ -8969,55 +9018,62 @@ function BackupModal(_ref39) {
             return _context14.abrupt("return");
           case 10:
             incoming = found.project;
-            mine = (data.projectName || '').trim().toLowerCase();
-            theirs = (incoming.projectName || '').trim().toLowerCase();
-            if (!(mine !== theirs)) {
-              _context14.next = 17;
-              break;
-            }
-            setErrMsg("That backup is for a different production (\"".concat(incoming.projectName || 'Untitled', "\") - this project is \"").concat(data.projectName || 'Untitled', "\". Rename this project to match, or switch to the right project first."));
-            setStatus('error');
-            return _context14.abrupt("return");
-          case 17:
-            nRolls = (incoming.rolls || []).length;
-            nTakes = (incoming.rolls || []).reduce(function (n, r) {
-              return n + (r.takes || []).length;
-            }, 0);
-            curTakes = totalTakes;
-            if (confirm("Replace this project with the backup?\n\n" + "From sheet: ".concat(nRolls, " roll(s), ").concat(nTakes, " take(s)") + (found.savedAt ? "\nBacked up: ".concat(new Date(found.savedAt).toLocaleString()) : '') + "\n\nOn this device right now: ".concat((data.rolls || []).length, " roll(s), ").concat(curTakes, " take(s)") + "\n\nThis device's copy will be overwritten and cannot be undone.")) {
-              _context14.next = 22;
-              break;
-            }
-            return _context14.abrupt("return");
-          case 22:
-            updateData({
-              projectName: incoming.projectName || data.projectName,
+            name = (incoming.projectName || '').trim() || 'Untitled Production';
+            payload = {
+              projectName: name,
               scenes: incoming.scenes || [],
               shootDays: incoming.shootDays || [],
               rolls: incoming.rolls || [],
               hiddenColumns: incoming.hiddenColumns || [],
+              gsheetsClientId: data.gsheetsClientId || '',
               gsheetsSpreadsheetId: file.id
-            });
-            // CameraReport reads rolls into its own state once on mount, so a plain
-            // data update would leave the table showing the pre-restore rolls.
-            alert('Restored ' + nRolls + ' roll(s). Reloading to show the restored data.');
-            window.location.reload();
-            _context14.next = 31;
+            };
+            nRolls = payload.rolls.length;
+            nTakes = payload.rolls.reduce(function (n, r) {
+              return n + (r.takes || []).length;
+            }, 0);
+            existing = findProjectByName(name);
+            if (!existing) {
+              _context14.next = 25;
+              break;
+            }
+            curRolls = (existing.data.rolls || []).length;
+            curTakes = (existing.data.rolls || []).reduce(function (n, r) {
+              return n + (r.takes || []).length;
+            }, 0);
+            if (confirm("\"".concat(name, "\" already exists on this device.\n\n") + "From the sheet: ".concat(nRolls, " roll(s), ").concat(nTakes, " take(s)") + (found.savedAt ? "\nBacked up: ".concat(new Date(found.savedAt).toLocaleString()) : '') + "\n\nAlready here: ".concat(curRolls, " roll(s), ").concat(curTakes, " take(s)") + "\n\nReplace this device's copy? This cannot be undone.")) {
+              _context14.next = 21;
+              break;
+            }
+            return _context14.abrupt("return");
+          case 21:
+            overwriteProject(existing.id, payload);
+            alert("Replaced \"".concat(name, "\" with the backup (").concat(nRolls, " roll(s)). Reloading."));
+            _context14.next = 27;
             break;
+          case 25:
+            importProject(payload);
+            alert("Imported \"".concat(name, "\" as a new project (").concat(nRolls, " roll(s), ").concat(nTakes, " take(s)). Reloading."));
           case 27:
-            _context14.prev = 27;
+            // CameraReport loads rolls into its own state once on mount, so a reload
+            // is the simplest way to guarantee the table shows the restored data.
+            window.location.reload();
+            _context14.next = 34;
+            break;
+          case 30:
+            _context14.prev = 30;
             _context14.t0 = _context14["catch"](2);
             setErrMsg(_context14.t0 && _context14.t0.message || 'Restore failed.');
             setStatus('error');
-          case 31:
-            _context14.prev = 31;
-            setRestoring(false);
-            return _context14.finish(31);
           case 34:
+            _context14.prev = 34;
+            setRestoring(false);
+            return _context14.finish(34);
+          case 37:
           case "end":
             return _context14.stop();
         }
-      }, _callee14, null, [[2, 27, 31, 34]]);
+      }, _callee14, null, [[2, 30, 34, 37]]);
     }));
     return _restoreFrom.apply(this, arguments);
   }
@@ -9183,7 +9239,7 @@ function BackupModal(_ref39) {
       color: T.textDim,
       lineHeight: 1.55
     }
-  }, "Pulls a backup back down - use this to pick up on a second device. Only a backup of a project with the ", /*#__PURE__*/React.createElement("b", null, "same name"), " can be restored here, and it replaces this device's copy entirely."), sheets === null ? /*#__PURE__*/React.createElement("button", {
+  }, "Pulls a backup back down - use this to pick up on a second device. A production this device doesn't have yet is added as a new project. If a project of the ", /*#__PURE__*/React.createElement("b", null, "same name"), " is already here, you'll be asked before it's replaced."), sheets === null ? /*#__PURE__*/React.createElement("button", {
     onClick: findBackups,
     disabled: restoring,
     style: {
@@ -9279,43 +9335,43 @@ function App() {
   var _useAuth2 = useAuth(),
     unlocked = _useAuth2.unlocked,
     requireUnlock = _useAuth2.requireUnlock;
-  var _React$useState125 = React.useState(ensureProjectsSetup),
-    _React$useState126 = _slicedToArray(_React$useState125, 2),
-    projectIds = _React$useState126[0],
-    setProjectIds = _React$useState126[1];
-  var _React$useState127 = React.useState(function () {
+  var _React$useState129 = React.useState(ensureProjectsSetup),
+    _React$useState130 = _slicedToArray(_React$useState129, 2),
+    projectIds = _React$useState130[0],
+    setProjectIds = _React$useState130[1];
+  var _React$useState131 = React.useState(function () {
       return loadCurrentProjectId(projectIds);
     }),
-    _React$useState128 = _slicedToArray(_React$useState127, 2),
-    projectId = _React$useState128[0],
-    setProjectId = _React$useState128[1];
-  var _React$useState129 = React.useState(function () {
+    _React$useState132 = _slicedToArray(_React$useState131, 2),
+    projectId = _React$useState132[0],
+    setProjectId = _React$useState132[1];
+  var _React$useState133 = React.useState(function () {
       return loadProjectData(projectId);
     }),
-    _React$useState130 = _slicedToArray(_React$useState129, 2),
-    data = _React$useState130[0],
-    setData = _React$useState130[1];
-  var _React$useState131 = React.useState(false),
-    _React$useState132 = _slicedToArray(_React$useState131, 2),
-    showSettings = _React$useState132[0],
-    setShowSettings = _React$useState132[1];
-  var _React$useState133 = React.useState(false),
     _React$useState134 = _slicedToArray(_React$useState133, 2),
-    showBackup = _React$useState134[0],
-    setShowBackup = _React$useState134[1];
+    data = _React$useState134[0],
+    setData = _React$useState134[1];
   var _React$useState135 = React.useState(false),
     _React$useState136 = _slicedToArray(_React$useState135, 2),
-    showProjects = _React$useState136[0],
-    setShowProjects = _React$useState136[1];
+    showSettings = _React$useState136[0],
+    setShowSettings = _React$useState136[1];
+  var _React$useState137 = React.useState(false),
+    _React$useState138 = _slicedToArray(_React$useState137, 2),
+    showBackup = _React$useState138[0],
+    setShowBackup = _React$useState138[1];
+  var _React$useState139 = React.useState(false),
+    _React$useState140 = _slicedToArray(_React$useState139, 2),
+    showProjects = _React$useState140[0],
+    setShowProjects = _React$useState140[1];
   // True once a localStorage write has actually FAILED (quota full, private
   // browsing, storage blocked). Previously saveProjectData's false return was
   // discarded here, so the status pill kept saying "SAVED LOCALLY" while
   // nothing was being written - the worst possible failure mode for a camera
   // report you're relying on mid-shoot.
-  var _React$useState137 = React.useState(false),
-    _React$useState138 = _slicedToArray(_React$useState137, 2),
-    storageFailed = _React$useState138[0],
-    setStorageFailed = _React$useState138[1];
+  var _React$useState141 = React.useState(false),
+    _React$useState142 = _slicedToArray(_React$useState141, 2),
+    storageFailed = _React$useState142[0],
+    setStorageFailed = _React$useState142[1];
 
   // Pure state update - no side effects. It stays a functional updater because
   // two updateData calls can land in the same tick (e.g. adding a shoot day,
@@ -9368,6 +9424,49 @@ function App() {
     });
     switchProject(id);
   }
+  /* Restore support ────────────────────────────────────────────
+     A backup pulled onto a fresh device usually has no counterpart here at
+     all, so it should just land as a new project - nothing is at risk of
+     being lost. Only when a project of the SAME NAME already exists is there
+     a decision to make, and that is the one case we stop and ask about. */
+  function findProjectByName(name) {
+    var target = String(name || '').trim().toLowerCase();
+    if (!target) return null;
+    var _iterator = _createForOfIteratorHelper(projectIds),
+      _step;
+    try {
+      for (_iterator.s(); !(_step = _iterator.n()).done;) {
+        var pid = _step.value;
+        var d = loadProjectData(pid);
+        if (String(d.projectName || '').trim().toLowerCase() === target) return {
+          id: pid,
+          data: d
+        };
+      }
+    } catch (err) {
+      _iterator.e(err);
+    } finally {
+      _iterator.f();
+    }
+    return null;
+  }
+  function importProject(projectData) {
+    var id = newProjectId();
+    saveProjectData(id, projectData);
+    var next = [].concat(_toConsumableArray(projectIds), [id]);
+    saveProjectsList(next);
+    setProjectIds(next);
+    setProjectId(id);
+    setData(loadProjectData(id));
+    saveCurrentProjectId(id);
+    return id;
+  }
+  function overwriteProject(id, projectData) {
+    saveProjectData(id, projectData);
+    setProjectId(id);
+    setData(loadProjectData(id));
+    saveCurrentProjectId(id);
+  }
   function deleteProject(id) {
     if (projectIds.length <= 1) return; // never delete the last project
     var next = projectIds.filter(function (p) {
@@ -9394,7 +9493,10 @@ function App() {
       switchProject: switchProject,
       createProject: createProject,
       deleteProject: deleteProject,
-      storageFailed: storageFailed
+      storageFailed: storageFailed,
+      findProjectByName: findProjectByName,
+      importProject: importProject,
+      overwriteProject: overwriteProject
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -9572,28 +9674,28 @@ function ProjectSwitcherModal(_ref40) {
     switchProject = _useStandaloneData7.switchProject,
     createProject = _useStandaloneData7.createProject,
     deleteProject = _useStandaloneData7.deleteProject;
-  var _React$useState139 = React.useState(function () {
+  var _React$useState143 = React.useState(function () {
       var m = {};
       projectIds.forEach(function (id) {
         m[id] = id === projectId ? data.projectName : loadProjectData(id).projectName;
       });
       return m;
     }),
-    _React$useState140 = _slicedToArray(_React$useState139, 2),
-    names = _React$useState140[0],
-    setNames = _React$useState140[1];
-  var _React$useState141 = React.useState(null),
-    _React$useState142 = _slicedToArray(_React$useState141, 2),
-    editingId = _React$useState142[0],
-    setEditingId = _React$useState142[1];
-  var _React$useState143 = React.useState(''),
     _React$useState144 = _slicedToArray(_React$useState143, 2),
-    editName = _React$useState144[0],
-    setEditName = _React$useState144[1];
-  var _React$useState145 = React.useState(''),
+    names = _React$useState144[0],
+    setNames = _React$useState144[1];
+  var _React$useState145 = React.useState(null),
     _React$useState146 = _slicedToArray(_React$useState145, 2),
-    newName = _React$useState146[0],
-    setNewName = _React$useState146[1];
+    editingId = _React$useState146[0],
+    setEditingId = _React$useState146[1];
+  var _React$useState147 = React.useState(''),
+    _React$useState148 = _slicedToArray(_React$useState147, 2),
+    editName = _React$useState148[0],
+    setEditName = _React$useState148[1];
+  var _React$useState149 = React.useState(''),
+    _React$useState150 = _slicedToArray(_React$useState149, 2),
+    newName = _React$useState150[0],
+    setNewName = _React$useState150[1];
   function startEdit(id) {
     setEditingId(id);
     setEditName(names[id] || '');
@@ -9842,24 +9944,24 @@ var TRIAL_LIMITS = {
 };
 function AccessGate(_ref41) {
   var children = _ref41.children;
-  var _React$useState147 = React.useState(function () {
+  var _React$useState151 = React.useState(function () {
       return loadGateAuth() ? 'allowed' : 'trial';
     }),
-    _React$useState148 = _slicedToArray(_React$useState147, 2),
-    state = _React$useState148[0],
-    setState = _React$useState148[1]; // trial | working | denied | allowed | error
-  var _React$useState149 = React.useState(''),
-    _React$useState150 = _slicedToArray(_React$useState149, 2),
-    errMsg = _React$useState150[0],
-    setErrMsg = _React$useState150[1];
-  var _React$useState151 = React.useState(false),
     _React$useState152 = _slicedToArray(_React$useState151, 2),
-    showUnlock = _React$useState152[0],
-    setShowUnlock = _React$useState152[1];
+    state = _React$useState152[0],
+    setState = _React$useState152[1]; // trial | working | denied | allowed | error
   var _React$useState153 = React.useState(''),
     _React$useState154 = _slicedToArray(_React$useState153, 2),
-    unlockReason = _React$useState154[0],
-    setUnlockReason = _React$useState154[1];
+    errMsg = _React$useState154[0],
+    setErrMsg = _React$useState154[1];
+  var _React$useState155 = React.useState(false),
+    _React$useState156 = _slicedToArray(_React$useState155, 2),
+    showUnlock = _React$useState156[0],
+    setShowUnlock = _React$useState156[1];
+  var _React$useState157 = React.useState(''),
+    _React$useState158 = _slicedToArray(_React$useState157, 2),
+    unlockReason = _React$useState158[0],
+    setUnlockReason = _React$useState158[1];
   var checkedOnce = React.useRef(false);
   React.useEffect(function () {
     if (checkedOnce.current) return;

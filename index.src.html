@@ -1055,7 +1055,9 @@ async function loadProjectFromSheet(clientId,sid){
 const SB_NOTE_PRESETS_KEY='sb_camrep_note_presets';
 const SB_FOCAL_PRESETS_KEY='sb_camrep_focal_presets';
 const SB_STOP_PRESETS_KEY='sb_camrep_stop_presets';
+const SB_FILTER1_PRESETS_KEY='sb_camrep_filter1_presets';
 const SB_FILTER2_PRESETS_KEY='sb_camrep_filter2_presets';
+const SB_FILTER3_PRESETS_KEY='sb_camrep_filter3_presets';
 const SB_LENS_PRESETS_KEY='sb_camrep_lens_presets';
 
 /* Multi-camera config: each camera letter has a distinct header colour so
@@ -1065,7 +1067,7 @@ const SB_LENS_PRESETS_KEY='sb_camrep_lens_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-const APP_VERSION='v2.0';
+const APP_VERSION='v2.2';
 
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
@@ -1873,15 +1875,24 @@ function CameraReport(){
   const DEFAULT_FOCAL=['21mm','27mm','32mm','40mm','50mm','65mm','75mm','85mm','100mm','110mm'];
   const DEFAULT_STOP=['T1.4','T2','T2.2','T2.5','T2.8','T3.2','T3.5','T4','T4.5','T5.6','T6.3','T7.1','T8','T9','T11','T13','T16','T22'];
   const DEFAULT_FILTER2=['ND0.6','ND1.2','ND1.8','ND2.4','ND3.0'];
+  // Filter 1 is the in-camera / internal slot (usually an IRND or a clear),
+  // Filter 3 the second matte-box tray (diffusion, polariser, effects) - both
+  // used to be plain free-text boxes with no list to pick from.
+  const DEFAULT_FILTER1=['Clear','IRND 0.3','IRND 0.6','IRND 0.9','IRND 1.2','IRND 1.5','IRND 1.8','IRND 2.1'];
+  const DEFAULT_FILTER3=['Clear','Polariser','Black Pro-Mist 1/8','Black Pro-Mist 1/4','Black Pro-Mist 1/2','Black Pro-Mist 1','Glimmerglass 1','Hollywood Black Magic 1/8','Low Contrast 1/4','Soft FX 1/2'];
   const loadOpts=(key,def)=>{try{const v=JSON.parse(localStorage.getItem(key)||'null');return (Array.isArray(v)&&v.length)?v:def;}catch{return def;}};
   const [lensOptions,setLensOptions]=React.useState(()=>loadOpts(SB_LENS_PRESETS_KEY,DEFAULT_LENS));
   const [focalOptions,setFocalOptions]=React.useState(()=>loadOpts(SB_FOCAL_PRESETS_KEY,DEFAULT_FOCAL));
   const [stopOptions,setStopOptions]=React.useState(()=>loadOpts(SB_STOP_PRESETS_KEY,DEFAULT_STOP));
+  const [filter1Options,setFilter1Options]=React.useState(()=>loadOpts(SB_FILTER1_PRESETS_KEY,DEFAULT_FILTER1));
   const [filter2Options,setFilter2Options]=React.useState(()=>loadOpts(SB_FILTER2_PRESETS_KEY,DEFAULT_FILTER2));
+  const [filter3Options,setFilter3Options]=React.useState(()=>loadOpts(SB_FILTER3_PRESETS_KEY,DEFAULT_FILTER3));
   const LENS_OPTIONS=lensOptions;
   const FOCAL_OPTIONS=focalOptions;
   const STOP_OPTIONS=stopOptions;
+  const FILTER1_OPTIONS=filter1Options;
   const FILTER2_OPTIONS=filter2Options;
+  const FILTER3_OPTIONS=filter3Options;
   // Single active-preset editor (null = closed). Value is a config key.
   const [activePreset,setActivePreset]=React.useState(null);
   // Registry of all editable dropdown-option lists  -  add future fields here.
@@ -1890,9 +1901,12 @@ function CameraReport(){
     lens:   {title:'Lens Presets',    storageKey:SB_LENS_PRESETS_KEY,    defaults:DEFAULT_LENS,    placeholder:'e.g. Zeiss Supreme',   onSaved:setLensOptions},
     focal:  {title:'Focal Length Presets', storageKey:SB_FOCAL_PRESETS_KEY, defaults:DEFAULT_FOCAL, placeholder:'e.g. 135mm or 135', normalize:v=>/^\d+(\.\d+)?$/.test(v)?v+'mm':v, onSaved:setFocalOptions},
     stop:   {title:'T-Stop Presets',  storageKey:SB_STOP_PRESETS_KEY,    defaults:DEFAULT_STOP,    placeholder:'e.g. T2.8 or 2.8', normalize:v=>/^\d+(\.\d+)?$/.test(v)?'T'+v:v, onSaved:setStopOptions},
+    filter1:{title:'Filter 1 (internal) Presets', storageKey:SB_FILTER1_PRESETS_KEY, defaults:DEFAULT_FILTER1, placeholder:'e.g. IRND 0.9', onSaved:setFilter1Options},
     filter2:{title:'Filter 2 (ND) Presets', storageKey:SB_FILTER2_PRESETS_KEY, defaults:DEFAULT_FILTER2, placeholder:'e.g. ND1.2', normalize:v=>/^\d+(\.\d+)?$/.test(v)?'ND'+v:v, onSaved:setFilter2Options},
+    filter3:{title:'Filter 3 (diffusion/effects) Presets', storageKey:SB_FILTER3_PRESETS_KEY, defaults:DEFAULT_FILTER3, placeholder:'e.g. Black Pro-Mist 1/4', onSaved:setFilter3Options},
   };
-  const PRESET_MENU=[{k:'notes',l:'Notes'},{k:'lens',l:'Lens'},{k:'focal',l:'Focal'},{k:'stop',l:'Stop'},{k:'filter2',l:'Filter 2'}];
+  const PRESET_MENU=[{k:'notes',l:'Notes'},{k:'lens',l:'Lens'},{k:'focal',l:'Focal'},{k:'stop',l:'Stop'},
+    {k:'filter1',l:'Filter 1'},{k:'filter2',l:'Filter 2'},{k:'filter3',l:'Filter 3'}];
   const [showPresetMenu,setShowPresetMenu]=React.useState(false);
 
   const [rolls,setRolls]=React.useState([]);     // [{id, roll, cam, mag, date, shootDay, ...takes}]
@@ -2411,13 +2425,16 @@ function CameraReport(){
         intFilters:'', filters:'', filters3:'',
         wb:'', focus:'', notes:'', photoIds:[]};
     }
-    // New shot / new scene: FOCAL is deliberately left blank. A new setup means
-    // the lens has been re-framed, so carrying the previous focal length over
-    // just invites it being left wrong. Exposure settings (shutter, stop, WB,
-    // EI) usually DO stay put between setups, so those still carry over and
-    // only get touched when they actually change.
+    /* New shot / new scene inherits the whole optical + exposure setup from the
+       PREVIOUS TAKE - lens, stop, shutter, EI, WB and all three filter slots.
+       Between setups those rarely change, so re-typing them every time is
+       wasted keystrokes on set. LENS reads from `last` rather than the roll's
+       default so that swapping glass mid-roll sticks for the rest of the roll.
+       FOCAL is the deliberate exception: a new setup means a new framing, so
+       leaving it blank forces it to be entered rather than silently inheriting
+       a length that is now wrong. */
     return {...base,
-      lens:rk.lens||'', focal:'', stop:last.stop||'',
+      lens:last.lens||rk.lens||'', focal:'', stop:last.stop||'',
       shutter:last.shutter||rk.shutter||'', ei:last.ei||rk.baseEI||'',
       intFilters:last.intFilters||'', filters:last.filters||'', filters3:last.filters3||'',
       wb:last.wb||'', focus:'', notes:'', photoIds:[]};
@@ -3599,9 +3616,9 @@ function CameraReport(){
                   {!hiddenCols.has('stop')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,...(needStop?reqStyle:{})}}><LensFocalPicker value={t.stop||''} onChange={v=>patchTake(t.id,{stop:v})} options={STOP_OPTIONS} inputStyle={cellInput}/></td>}
                   {!hiddenCols.has('shutter')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.shutter||''} onChange={v=>patchTake(t.id,{shutter:v})} options={SHUTTER_OPTIONS} placeholder={roll.shutter||''} inputStyle={{...cellInput,textAlign:'center'}}/></td>}
                   {!hiddenCols.has('ei')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.ei||''} onChange={e=>patchTake(t.id,{ei:e.target.value})} style={cellInput}/></td>}
-                  {!hiddenCols.has('intFilters')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.intFilters||''} onChange={e=>patchTake(t.id,{intFilters:e.target.value})} style={cellInput}/></td>}
+                  {!hiddenCols.has('intFilters')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.intFilters||''} onChange={v=>patchTake(t.id,{intFilters:v})} options={FILTER1_OPTIONS} inputStyle={cellInput}/></td>}
                   {!hiddenCols.has('filters')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.filters||''} onChange={v=>patchTake(t.id,{filters:v})} options={FILTER2_OPTIONS} inputStyle={cellInput}/></td>}
-                  {!hiddenCols.has('filters3')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.filters3||''} onChange={e=>patchTake(t.id,{filters3:e.target.value})} style={cellInput}/></td>}
+                  {!hiddenCols.has('filters3')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.filters3||''} onChange={v=>patchTake(t.id,{filters3:v})} options={FILTER3_OPTIONS} inputStyle={cellInput}/></td>}
                   {!hiddenCols.has('wb')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.wb||''} onChange={v=>patchTake(t.id,{wb:v})} options={WB_OPTIONS} inputStyle={cellInput} normalize={withK}/></td>}
                   {/* Focus is plain free text now - no feet mark. ACs write
                       distances in whatever form the shot needs ("5'6", "4'6-4'",
@@ -4096,7 +4113,7 @@ function ColumnsEditorModal({onClose}){
    path; this is a bonus for when there's connectivity.
 ================================================================ */
 function BackupModal({onClose}){
-  const {data,updateData}=useStandaloneData();
+  const {data,updateData,findProjectByName,importProject,overwriteProject}=useStandaloneData();
   const [status,setStatus]=React.useState('idle'); // idle | working | done | error
   const [errMsg,setErrMsg]=React.useState('');
   // A per-device Settings value always overrides the baked-in shared default -
@@ -4143,12 +4160,11 @@ function BackupModal({onClose}){
     finally{ setRestoring(false); }
   }
 
-  /* Restore is guarded twice over, because it destroys local work:
-     1. the backup's project NAME must match this project's, so you can never
-        drop "The Greatest Game" on top of "Fractured Mind" by tapping the
-        wrong row in the list;
-     2. an explicit confirm() spelling out exactly what is about to be
-        replaced and with how much. */
+  /* Restoring never has to be blocked - only disambiguated. If this device has
+     no project by that name, the backup can simply land as a new project:
+     nothing existing is touched, so there is nothing to warn about. We only
+     stop and ask when a project of the same name is already here, because
+     that is the single case where local work could be lost. */
   async function restoreFrom(file){
     setRestoring(true); setErrMsg('');
     try{
@@ -4158,33 +4174,38 @@ function BackupModal({onClose}){
         setStatus('error'); return;
       }
       const incoming=found.project;
-      const mine=(data.projectName||'').trim().toLowerCase();
-      const theirs=(incoming.projectName||'').trim().toLowerCase();
-      if(mine!==theirs){
-        setErrMsg(`That backup is for a different production ("${incoming.projectName||'Untitled'}") - this project is "${data.projectName||'Untitled'}". Rename this project to match, or switch to the right project first.`);
-        setStatus('error'); return;
-      }
-      const nRolls=(incoming.rolls||[]).length;
-      const nTakes=(incoming.rolls||[]).reduce((n,r)=>n+((r.takes||[]).length),0);
-      const curTakes=totalTakes;
-      if(!confirm(
-        `Replace this project with the backup?\n\n`+
-        `From sheet: ${nRolls} roll(s), ${nTakes} take(s)`+
-        (found.savedAt?`\nBacked up: ${new Date(found.savedAt).toLocaleString()}`:'')+
-        `\n\nOn this device right now: ${(data.rolls||[]).length} roll(s), ${curTakes} take(s)`+
-        `\n\nThis device's copy will be overwritten and cannot be undone.`
-      )) return;
-      updateData({
-        projectName:incoming.projectName||data.projectName,
+      const name=(incoming.projectName||'').trim()||'Untitled Production';
+      const payload={
+        projectName:name,
         scenes:incoming.scenes||[],
         shootDays:incoming.shootDays||[],
         rolls:incoming.rolls||[],
         hiddenColumns:incoming.hiddenColumns||[],
+        gsheetsClientId:data.gsheetsClientId||'',
         gsheetsSpreadsheetId:file.id
-      });
-      // CameraReport reads rolls into its own state once on mount, so a plain
-      // data update would leave the table showing the pre-restore rolls.
-      alert('Restored '+nRolls+' roll(s). Reloading to show the restored data.');
+      };
+      const nRolls=payload.rolls.length;
+      const nTakes=payload.rolls.reduce((n,r)=>n+((r.takes||[]).length),0);
+      const existing=findProjectByName(name);
+
+      if(existing){
+        const curRolls=(existing.data.rolls||[]).length;
+        const curTakes=(existing.data.rolls||[]).reduce((n,r)=>n+((r.takes||[]).length),0);
+        if(!confirm(
+          `"${name}" already exists on this device.\n\n`+
+          `From the sheet: ${nRolls} roll(s), ${nTakes} take(s)`+
+          (found.savedAt?`\nBacked up: ${new Date(found.savedAt).toLocaleString()}`:'')+
+          `\n\nAlready here: ${curRolls} roll(s), ${curTakes} take(s)`+
+          `\n\nReplace this device's copy? This cannot be undone.`
+        )) return;
+        overwriteProject(existing.id,payload);
+        alert(`Replaced "${name}" with the backup (${nRolls} roll(s)). Reloading.`);
+      }else{
+        importProject(payload);
+        alert(`Imported "${name}" as a new project (${nRolls} roll(s), ${nTakes} take(s)). Reloading.`);
+      }
+      // CameraReport loads rolls into its own state once on mount, so a reload
+      // is the simplest way to guarantee the table shows the restored data.
       window.location.reload();
     }catch(e){
       setErrMsg((e&&e.message)||'Restore failed.'); setStatus('error');
@@ -4258,8 +4279,9 @@ function BackupModal({onClose}){
               <div style={{fontSize:12,fontWeight:600,color:T.text}}>{'⤓'} Restore onto this device</div>
               <div style={{fontSize:11,color:T.textDim,lineHeight:1.55}}>
                 Pulls a backup back down - use this to pick up on a second device.
-                Only a backup of a project with the <b>same name</b> can be restored here,
-                and it replaces this device's copy entirely.
+                A production this device doesn't have yet is added as a new project.
+                If a project of the <b>same name</b> is already here, you'll be asked
+                before it's replaced.
               </div>
 
               {sheets===null
@@ -4363,6 +4385,38 @@ function App(){
     setProjectIds(prev=>{ const next=[...prev,id]; saveProjectsList(next); return next; });
     switchProject(id);
   }
+  /* Restore support ────────────────────────────────────────────
+     A backup pulled onto a fresh device usually has no counterpart here at
+     all, so it should just land as a new project - nothing is at risk of
+     being lost. Only when a project of the SAME NAME already exists is there
+     a decision to make, and that is the one case we stop and ask about. */
+  function findProjectByName(name){
+    const target=String(name||'').trim().toLowerCase();
+    if(!target)return null;
+    for(const pid of projectIds){
+      const d=loadProjectData(pid);
+      if(String(d.projectName||'').trim().toLowerCase()===target) return {id:pid,data:d};
+    }
+    return null;
+  }
+  function importProject(projectData){
+    const id=newProjectId();
+    saveProjectData(id,projectData);
+    const next=[...projectIds,id];
+    saveProjectsList(next);
+    setProjectIds(next);
+    setProjectId(id);
+    setData(loadProjectData(id));
+    saveCurrentProjectId(id);
+    return id;
+  }
+  function overwriteProject(id,projectData){
+    saveProjectData(id,projectData);
+    setProjectId(id);
+    setData(loadProjectData(id));
+    saveCurrentProjectId(id);
+  }
+
   function deleteProject(id){
     if(projectIds.length<=1)return; // never delete the last project
     const next=projectIds.filter(p=>p!==id);
@@ -4376,7 +4430,7 @@ function App(){
   }
 
   return(
-    <DataCtx.Provider value={{data,updateData,projectId,projectIds,switchProject,createProject,deleteProject,storageFailed}}>
+    <DataCtx.Provider value={{data,updateData,projectId,projectIds,switchProject,createProject,deleteProject,storageFailed,findProjectByName,importProject,overwriteProject}}>
       {/* height:'100%' (not minHeight) + overflow:'hidden' is the real fix for
           the "header won't stay frozen" bug: html/body/#root are height:100%
           (see <style> above), but this was the ONE link in the chain that
