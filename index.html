@@ -330,7 +330,7 @@ html,body,#root{height:100%;width:100%}
 body{background:#0e0d0b;color:#f1ebe0;font-family:'Geist',sans-serif;-webkit-font-smoothing:antialiased}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:rgba(255,243,220,0.12);border-radius:3px}
+::-webkit-scrollbar-thumb{background:var(--scroll-thumb,rgba(255,243,220,0.12));border-radius:3px}
 button{cursor:pointer;border:none;background:none;font:inherit;color:inherit}
 input,textarea,select{font:inherit;color:inherit;background:none;border:none;outline:none}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -386,25 +386,85 @@ var _React = React,
    the light-theme toggle from the source app; every colour used by
    the Camera Report module below reads from this single object)
 ================================================================ */
-var T = {
-  bg: "#0e0d0b",
-  panel: "#161412",
-  panelHi: "#1d1a17",
-  border: "rgba(255,243,220,0.12)",
-  borderHi: "rgba(255,243,220,0.24)",
-  text: "#f4eee3",
-  textMute: "#bcb4a4",
-  textDim: "#8f8676",
-  accent: "#e0a866",
-  danger: "#d27358",
-  success: "#86b186",
-  warn: "#d4ab54",
-  info: "#84c2d0",
-  purple: "#ad88cf",
-  rule: "rgba(255,243,220,0.09)",
-  surface2: "#0a0908",
-  chip: "rgba(255,243,220,0.06)"
+var THEMES = {
+  dark: {
+    bg: "#0e0d0b",
+    panel: "#161412",
+    panelHi: "#1d1a17",
+    border: "rgba(255,243,220,0.12)",
+    borderHi: "rgba(255,243,220,0.24)",
+    text: "#f4eee3",
+    textMute: "#bcb4a4",
+    textDim: "#8f8676",
+    accent: "#e0a866",
+    danger: "#d27358",
+    success: "#86b186",
+    warn: "#d4ab54",
+    info: "#84c2d0",
+    purple: "#ad88cf",
+    rule: "rgba(255,243,220,0.09)",
+    surface2: "#0a0908",
+    chip: "rgba(255,243,220,0.06)"
+  },
+  /* Daylight palette. Deliberately warm off-white rather than pure #fff - a
+     camera report gets read on set in full sun, where a paper-white screen at
+     full brightness is punishing, and the warm cast matches the dark theme's
+     character so switching doesn't feel like a different app. Accents are
+     darkened versions of the dark theme's, so they still pass as readable
+     text/borders against a light background. */
+  light: {
+    bg: "#f4f1ea",
+    panel: "#fffdf8",
+    panelHi: "#f7f4ec",
+    border: "rgba(40,32,20,0.16)",
+    borderHi: "rgba(40,32,20,0.32)",
+    text: "#23201a",
+    textMute: "#5a5348",
+    textDim: "#857c6d",
+    accent: "#9a6212",
+    danger: "#a53b21",
+    success: "#3f6b3f",
+    warn: "#8a6410",
+    info: "#2c6b7a",
+    purple: "#6b4a91",
+    rule: "rgba(40,32,20,0.12)",
+    surface2: "#ebe7dd",
+    chip: "rgba(40,32,20,0.06)"
+  }
 };
+var SB_THEME_KEY = 'camrep_theme_v1';
+function loadThemeName() {
+  try {
+    var v = localStorage.getItem(SB_THEME_KEY);
+    if (v === 'light' || v === 'dark') return v;
+  } catch (e) {}
+  return 'dark';
+}
+/* T stays a single module-level object that every component reads at render
+   time, exactly as before - applyTheme() overwrites its fields in place rather
+   than replacing the reference. That keeps the theme switch to one small
+   change instead of threading a context through several hundred style
+   objects; the App re-mounts on switch (key={themeName}) so every component
+   re-reads the new values. */
+var T = _objectSpread({}, THEMES[loadThemeName()]);
+function applyTheme(name) {
+  Object.assign(T, THEMES[name] || THEMES.dark);
+  try {
+    localStorage.setItem(SB_THEME_KEY, name);
+  } catch (e) {}
+  try {
+    var light = name === 'light';
+    document.body.style.background = T.bg;
+    document.body.style.color = T.text;
+    // color-scheme drives the NATIVE controls - the date picker, <select>
+    // popups, the on-screen keyboard's tint. Without it those stay in dark
+    // dress on a light page and look broken.
+    document.documentElement.style.colorScheme = light ? 'light' : 'dark';
+    document.documentElement.style.setProperty('--scroll-thumb', light ? 'rgba(40,32,20,0.22)' : 'rgba(255,243,220,0.12)');
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', T.bg);
+  } catch (e) {}
+}
 
 /* ===============================================================
    IMAGE HELPERS (resize a captured/uploaded photo before storing)
@@ -1037,6 +1097,13 @@ var DEFAULT_GSHEETS_CLIENT_ID = '398002070662-oi0fuarrsmec4a1m8a3aie874bn7b0id.a
 var DataCtx = createContext(null);
 var useStandaloneData = function useStandaloneData() {
   return useContext(DataCtx);
+};
+var ThemeCtx = createContext(null);
+var useTheme = function useTheme() {
+  return useContext(ThemeCtx) || {
+    themeName: 'dark',
+    toggleTheme: function toggleTheme() {}
+  };
 };
 
 /* Parse/format helpers for the two optional Project Settings textareas.
@@ -1789,7 +1856,7 @@ var SB_LENS_PRESETS_KEY = 'sb_camrep_lens_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-var APP_VERSION = 'v2.6';
+var APP_VERSION = 'v2.7';
 var CAM_CONFIG = {
   A: {
     label: 'A',
@@ -9671,6 +9738,9 @@ function App() {
   var _useAuth2 = useAuth(),
     unlocked = _useAuth2.unlocked,
     requireUnlock = _useAuth2.requireUnlock;
+  var _useTheme = useTheme(),
+    themeName = _useTheme.themeName,
+    toggleTheme = _useTheme.toggleTheme;
   var _React$useState133 = React.useState(ensureProjectsSetup),
     _React$useState134 = _slicedToArray(_React$useState133, 2),
     projectIds = _React$useState134[0],
@@ -9877,7 +9947,24 @@ function App() {
       borderRadius: 99,
       padding: '1px 7px'
     }
-  }, APP_VERSION)), /*#__PURE__*/React.createElement("button", {
+  }, APP_VERSION), /*#__PURE__*/React.createElement("button", {
+    onClick: toggleTheme,
+    title: themeName === 'dark' ? 'Switch to light theme (easier to read in daylight)' : 'Switch to dark theme (easier on the eyes at night)',
+    "aria-label": "Toggle light or dark theme",
+    style: {
+      width: 22,
+      height: 22,
+      borderRadius: '50%',
+      display: 'grid',
+      placeItems: 'center',
+      fontSize: 11,
+      lineHeight: 1,
+      cursor: 'pointer',
+      background: T.chip,
+      border: "1px solid ".concat(T.border),
+      color: T.textMute
+    }
+  }, themeName === 'dark' ? '☀' : '☾')), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       return setShowProjects(true);
     },
@@ -10481,8 +10568,40 @@ function AccessGate(_ref38) {
     }
   }, "Keep using free preview"))));
 }
+
+/* Theme host. Owns the light/dark choice and hands a setter down through
+   ThemeCtx. key={themeName} on the tree below is what makes the switch take
+   effect: T's fields are mutated in place by applyTheme(), so the only thing
+   needed is for every component to render again and re-read them - remounting
+   under a new key guarantees that with no per-component wiring. */
+function ThemedApp() {
+  var _React$useState163 = React.useState(loadThemeName),
+    _React$useState164 = _slicedToArray(_React$useState163, 2),
+    themeName = _React$useState164[0],
+    setThemeName = _React$useState164[1];
+  React.useEffect(function () {
+    applyTheme(themeName);
+  }, [themeName]);
+  var toggleTheme = function toggleTheme() {
+    var next = themeName === 'dark' ? 'light' : 'dark';
+    applyTheme(next); // mutate T before the re-render, not after
+    setThemeName(next);
+  };
+  return /*#__PURE__*/React.createElement(ThemeCtx.Provider, {
+    value: {
+      themeName: themeName,
+      toggleTheme: toggleTheme
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    key: themeName,
+    style: {
+      height: '100%'
+    }
+  }, /*#__PURE__*/React.createElement(AccessGate, null, /*#__PURE__*/React.createElement(App, null))));
+}
 var root = ReactDOM.createRoot(document.getElementById('root'));
-root.render( /*#__PURE__*/React.createElement(AccessGate, null, /*#__PURE__*/React.createElement(App, null)));
+applyTheme(loadThemeName());
+root.render( /*#__PURE__*/React.createElement(ThemedApp, null));
 </script>
 <script>
 /* Register the offline service worker. Runs as a plain script (not JSX/Babel)
