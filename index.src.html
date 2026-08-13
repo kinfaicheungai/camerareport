@@ -1060,6 +1060,13 @@ const SB_LENS_PRESETS_KEY='sb_camrep_lens_presets';
 
 /* Multi-camera config: each camera letter has a distinct header colour so
    the user can tell at a glance which camera's report they're editing. */
+/* Bump this on every release. It is printed next to the app title so that a
+   crew member can read their version back to you and you can tell instantly
+   whether their PWA actually picked up the latest deploy - the recurring
+   "is this the new one or a stale cache?" question. Keep it in step with
+   CACHE_NAME in sw.js. */
+const APP_VERSION='v2.0';
+
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
   B:{label:'B', header:'#1e3a6b', accent:'#4d8ee5', tint:'rgba(77,142,229,0.14)'},  // blue
@@ -1850,7 +1857,6 @@ function CameraReport(){
   const projId=projectId;
 
   // Generic starting defaults (all fields editable inline per roll)
-  const DEFAULTS={camera:'ALEXA MINI LF',codec:'5K 1.7:1',fps:'24',shutter:'180',baseEI:'1600',lut:'Rec 709',director:'',dop:'',ac:''};
   const SHUTTER_OPTIONS=['180','172.8'];
   // WB 3200K..7000K in 50K steps
   const WB_OPTIONS=(()=>{const a=[];for(let k=3200;k<=7000;k+=50)a.push(k+'K');return a;})();
@@ -1902,6 +1908,8 @@ function CameraReport(){
   const [showAIFill,setShowAIFill]=React.useState(false);
   const [showIconGuide,setShowIconGuide]=React.useState(false);
   const [filterDay,setFilterDay]=React.useState('all');
+  const [showDayMenu,setShowDayMenu]=React.useState(false);  // day dropdown
+  const [showAddCam,setShowAddCam]=React.useState(false);    // "add camera to this day" picker
   const [selTakeIds,setSelTakeIds]=React.useState([]); // multi-selected clip rows (for moving)
   const [showSearch,setShowSearch]=React.useState(false);
   const [searchQ,setSearchQ]=React.useState({});  // field -> search string
@@ -2059,57 +2067,45 @@ function CameraReport(){
     return c+String(max+1).padStart(3,'0');
   }
 
-  // mode: 'blank' (New Roll  -  fresh page, minimal defaults, no shutter
-  //   pre-fill since every take fills its own) or 'continue' (+ Roll  -  carries
-  //   over shoot day / date / crew / camera settings from this camera's most
-  //   recent roll, for starting a fresh mag on the same day).
-  function addRoll(cam,mode){
-    if(rolls.length>=TRIAL_LIMITS.rolls&&!requireUnlock(`Free preview is limited to ${TRIAL_LIMITS.rolls} rolls. Sign in to add more.`))return;
-    const c=cam||activeCam||'A';
-    const m=mode||'blank';
-    const id='roll'+Date.now();
-    const today=new Date().toISOString().slice(0,10);
-    let newRoll;
-    if(m==='continue'){
-      // Most recent roll for this camera (rolls are prepended, so [0] is newest).
-      const prevRoll=rolls.find(r=>camOf(r)===c);
-      newRoll={id, roll:nextRollNo(c), cam:c, mag:'',
-        date:prevRoll?.date||today,
-        shootDay:prevRoll?.shootDay||shootDays[0]?.day||'',
-        location:prevRoll?.location||'',
-        director:prevRoll?.director||DEFAULTS.director,
-        dop:prevRoll?.dop||DEFAULTS.dop,
-        ac:prevRoll?.ac||DEFAULTS.ac,
-        camera:prevRoll?.camera||DEFAULTS.camera,
-        codec:prevRoll?.codec||DEFAULTS.codec,
-        fps:prevRoll?.fps||DEFAULTS.fps,
-        shutter:prevRoll?.shutter||DEFAULTS.shutter,
-        baseEI:prevRoll?.baseEI||DEFAULTS.baseEI,
-        lut:prevRoll?.lut||DEFAULTS.lut,
-        lens:prevRoll?.lens||LENS_OPTIONS[0],
-        takes:[]};
-    }else{
-      // Blank: minimal system defaults. Shutter intentionally left empty  -
-      // every take fills its own, so a roll-level default isn't needed.
-      // Defaults to the LATEST shoot day (shootDays is newest-first) with that
-      // day's own date, so the two never disagree out of the box.
-      newRoll={id, roll:nextRollNo(c), cam:c, mag:'',
-        date:(latestShootDay&&latestShootDay.date)||today,
-        shootDay:latestShootDay?latestShootDay.day:'', location:'',
-        director:DEFAULTS.director, dop:DEFAULTS.dop, ac:DEFAULTS.ac,
-        camera:DEFAULTS.camera, codec:DEFAULTS.codec, fps:DEFAULTS.fps, shutter:'',
-        baseEI:DEFAULTS.baseEI, lut:DEFAULTS.lut, lens:LENS_OPTIONS[0], takes:[]};
-    }
-    const updated=[newRoll,...rolls];
-    setRolls(updated); setActiveCam(c); setActiveRoll(id); saveRolls(updated);
+  /* A new roll copies its setup from the most recent roll of the SAME camera.
+     There are no hardcoded defaults any more: a brand-new production starts
+     completely blank, the AC fills the first roll in by hand, and every roll
+     after that inherits it. That also means a B-camera RED never inherits the
+     A-camera ALEXA's settings, which the old shared DEFAULTS block did.
+     `dayNum` pins the roll to the shoot day the user is currently looking at,
+     since day is now the top level of the hierarchy. */
+  function camSetupFrom(cam){
+    const prev=rolls.find(r=>camOf(r)===cam);  // rolls are newest-first
+    return {
+      location:prev?.location||'',
+      director:prev?.director||'', dop:prev?.dop||'', ac:prev?.ac||'',
+      camera:prev?.camera||'', codec:prev?.codec||'', fps:prev?.fps||'',
+      shutter:prev?.shutter||'', baseEI:prev?.baseEI||'', lut:prev?.lut||'',
+      lens:prev?.lens||''
+    };
   }
 
-  // Add the next camera (B, then C, then D) with an initial empty roll.
-  function addCamera(){
-    if(existingCams.length>=TRIAL_LIMITS.cams&&!requireUnlock(`Free preview is limited to ${TRIAL_LIMITS.cams} camera. Sign in to add more.`))return;
-    const next=CAM_ORDER.find(c=>!existingCams.includes(c));
-    if(!next){ alert('All cameras (A-D) already exist.'); return; }
-    addRoll(next); // creates e.g. B001 and switches to it
+  function addRoll(cam,dayNum){
+    if(rolls.length>=TRIAL_LIMITS.rolls&&!requireUnlock(`Free preview is limited to ${TRIAL_LIMITS.rolls} rolls. Sign in to add more.`))return;
+    const c=cam||activeCam||'A';
+    // Bringing a camera into the production for the first time is what the
+    // trial's camera cap governs (adding another roll to an existing camera is
+    // covered by the roll cap above).
+    const isNewCam=!rolls.some(r=>camOf(r)===c);
+    if(isNewCam&&existingCams.length>=TRIAL_LIMITS.cams&&
+       !requireUnlock(`Free preview is limited to ${TRIAL_LIMITS.cams} camera. Sign in to add more.`))return;
+    const id='roll'+Date.now();
+    const day=(dayNum!==undefined&&dayNum!==null&&dayNum!=='all')?dayNum
+      :(filterDay!=='all'?filterDay:(latestShootDay?latestShootDay.day:''));
+    const dayRec=shootDays.find(d=>d.day===day);
+    const newRoll={id, roll:nextRollNo(c), cam:c, mag:'',
+      date:(dayRec&&dayRec.date)||new Date().toISOString().slice(0,10),
+      shootDay:day===''?'':day,
+      ...camSetupFrom(c),
+      takes:[]};
+    const updated=[newRoll,...rolls];
+    setRolls(updated); setActiveCam(c); setActiveRoll(id); saveRolls(updated);
+    if(day!=='')setFilterDay(day);
   }
 
   // Move an entire roll (with all its takes) to a different camera.
@@ -2178,27 +2174,96 @@ function CameraReport(){
     }
   }
 
-  // Which cameras actually have rolls (always include A). Ordered A,B,C,D.
+  // Every camera that has a roll ANYWHERE in the project (used by trial limits
+  // and the sync-cams picker, which are project-wide, not day-scoped).
   const existingCams=React.useMemo(()=>{
-    const set=new Set(['A']);
+    const set=new Set();
     rolls.forEach(r=>set.add(camOf(r)));
     return CAM_ORDER.filter(c=>set.has(c));
   },[rolls]);
-  // Rolls belonging to the currently-selected camera.
-  const camRolls=React.useMemo(()=>rolls.filter(r=>camOf(r)===activeCam),[rolls,activeCam]);
+
+  /* ── Day → Cam → Roll derivation ──────────────────────────────
+     Every day the production has EITHER planned (Project Settings) or actually
+     shot (a roll tagged with it). Both sources matter: a day you just created
+     has no rolls yet but must still be selectable, and old rolls may carry a
+     day that was never entered in Settings. */
+  const allDayNums=React.useMemo(()=>{
+    const set=new Set();
+    shootDays.forEach(d=>set.add(d.day));
+    rolls.forEach(r=>{ if(r.shootDay)set.add(r.shootDay); });
+    return [...set].sort((a,b)=>b-a);   // newest first
+  },[shootDays,rolls]);
+
+  // Rolls on the selected day (all rolls when viewing "All days").
+  const dayRolls=React.useMemo(()=>
+    filterDay==='all'?rolls:rolls.filter(r=>r.shootDay===filterDay),
+  [rolls,filterDay]);
+
+  // ONLY the cameras that actually rolled on this day - an unused camera is
+  // absent rather than showing an empty roll.
+  const dayCams=React.useMemo(()=>{
+    const set=new Set();
+    dayRolls.forEach(r=>set.add(camOf(r)));
+    return CAM_ORDER.filter(c=>set.has(c));
+  },[dayRolls]);
+
+  const visRolls=React.useMemo(()=>dayRolls.filter(r=>camOf(r)===activeCam),[dayRolls,activeCam]);
+  const selectedDayDate=React.useMemo(()=>{
+    const rec=shootDays.find(d=>d.day===filterDay);
+    return rec?rec.date:'';
+  },[shootDays,filterDay]);
   const CAM=CAM_CONFIG[activeCam]||CAM_CONFIG.A;
 
-  // When the active camera changes (or its roll set changes), make sure the
-  // selected roll actually belongs to that camera; otherwise pick its first.
+  function selectDay(d){
+    setFilterDay(d);
+    const rs=rolls.filter(r=>r.shootDay===d);
+    if(rs.length===0)return;                       // empty day: nothing to select
+    // Stay on the same camera if it shot that day, otherwise take the first.
+    const keep=rs.find(r=>camOf(r)===activeCam);
+    const target=keep||rs[0];
+    setActiveCam(camOf(target));
+    setActiveRoll(target.id);
+  }
+  function selectCam(c){
+    setActiveCam(c);
+    const rs=dayRolls.filter(r=>camOf(r)===c);
+    if(rs.length)setActiveRoll(rs[0].id);
+  }
+  /* A new shoot day opens as a genuinely blank page: the day is registered in
+     Project Settings (so it is pickable and dated) but NO rolls are created.
+     The user adds whichever cameras actually turned over that day. */
+  function startNewShootDay(){
+    const nextDay=(latestShootDay?latestShootDay.day:0)+1;
+    const nextDate=latestShootDay?addOneDay(latestShootDay.date):new Date().toISOString().slice(0,10);
+    updateData({shootDays:[...shootDays,{day:nextDay,date:nextDate}]});
+    setFilterDay(nextDay);
+    setActiveRoll(null);
+  }
+
+  /* Open on the most recent shoot day rather than "All days" - that's the day
+     you're standing on set for. Runs once, after rolls have loaded, and only
+     while still on the initial 'all' so it never overrides a day the user has
+     since chosen themselves. */
+  const dayInitDone=React.useRef(false);
   React.useEffect(()=>{
-    if(camRolls.length===0)return;
-    if(!camRolls.some(r=>r.id===activeRoll)){
-      // Prefer the roll we last used for this camera, else its first roll.
-      const remembered=camActiveRoll[activeCam];
-      const target=(remembered&&camRolls.some(r=>r.id===remembered))?remembered:camRolls[0].id;
-      setActiveRoll(target);
-    }
-  },[activeCam,camRolls,activeRoll,camActiveRoll]);
+    if(dayInitDone.current)return;
+    if(allDayNums.length===0)return;
+    dayInitDone.current=true;
+    if(filterDay==='all')selectDay(allDayNums[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[allDayNums]);
+
+  // Keep the selected roll consistent with the visible day+camera.
+  React.useEffect(()=>{
+    if(visRolls.length===0)return;
+    if(!visRolls.some(r=>r.id===activeRoll)) setActiveRoll(visRolls[0].id);
+  },[visRolls,activeRoll]);
+
+  // If the current camera did not shoot the selected day, fall back to one that did.
+  React.useEffect(()=>{
+    if(dayCams.length===0)return;
+    if(!dayCams.includes(activeCam)) setActiveCam(dayCams[0]);
+  },[dayCams,activeCam]);
 
   // Remember which roll is active for the current camera (for sync-add + return).
   React.useEffect(()=>{
@@ -2402,14 +2467,22 @@ function CameraReport(){
   function addShot(){ doAdd('shot'); }
   function addNewScene(){ doAdd('scene'); }
 
-  // Cross-roll search ─────────────────────────────────────────
-  const SEARCH_FIELDS=[
+  /* Cross-roll search ─────────────────────────────────────────
+     ROLL_SEARCH_FIELDS live on the roll, not the take. They're what makes
+     "which days did C cam shoot?" answerable: search CAM = C and every
+     matching take comes back with its ROLL·DAY in the results table. */
+  const ROLL_SEARCH_FIELDS=[
+    {k:'cam',l:'CAM'},{k:'shootDay',l:'DAY'},{k:'roll',l:'ROLL'},
+  ];
+  const TAKE_SEARCH_FIELDS=[
     {k:'scene',l:'SCENE'},{k:'shot',l:'SHOT'},{k:'clip',l:'CLIP'},
     {k:'lens',l:'LENS'},{k:'focal',l:'FOCAL'},{k:'stop',l:'STOP'},
     {k:'shutter',l:'SHUTTER'},{k:'ei',l:'EI'},{k:'intFilters',l:'FILTER 1'},
     {k:'filters',l:'FILTER 2'},{k:'filters3',l:'FILTER 3'},{k:'wb',l:'WB'},{k:'focus',l:'FOCUS'},
     {k:'notes',l:'NOTES'},
   ];
+  const SEARCH_FIELDS=[...ROLL_SEARCH_FIELDS,...TAKE_SEARCH_FIELDS];
+  const ROLL_KEYS=new Set(ROLL_SEARCH_FIELDS.map(f=>f.k));
   const hasSearch=Object.values(searchQ).some(v=>v&&v.trim());
   const searchResults=React.useMemo(()=>{
     if(!hasSearch)return null;
@@ -2418,8 +2491,15 @@ function CameraReport(){
     rolls.forEach(r=>{
       (r.takes||[]).forEach(t=>{
         const match=active.every(([k,v])=>{
-          const cell=String(t[k]||'').toLowerCase();
-          return cell.includes(v.trim().toLowerCase());
+          const q=v.trim().toLowerCase();
+          if(ROLL_KEYS.has(k)){
+            // CAM is a single letter and must match exactly - otherwise
+            // searching "A" would also return every B/C roll whose number
+            // happens to contain an A.
+            const cell=String((k==='cam'?camOf(r):r[k])||'').toLowerCase();
+            return k==='cam'?cell===q:cell.includes(q);
+          }
+          return String(t[k]||'').toLowerCase().includes(q);
         });
         if(match) out.push({roll:r,take:t});
       });
@@ -2430,7 +2510,15 @@ function CameraReport(){
   // Unique existing values per search field  -  used for autocomplete suggestions
   const searchSuggestions=React.useMemo(()=>{
     const out={};
-    SEARCH_FIELDS.forEach(({k})=>{
+    ROLL_SEARCH_FIELDS.forEach(({k})=>{
+      const vals=new Set();
+      rolls.forEach(r=>{
+        const v=String((k==='cam'?camOf(r):r[k])||'').trim();
+        if(v)vals.add(v);
+      });
+      out[k]=[...vals].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+    });
+    TAKE_SEARCH_FIELDS.forEach(({k})=>{
       const vals=new Set();
       rolls.forEach(r=>(r.takes||[]).forEach(t=>{
         const v=(t[k]||'').trim(); if(v) vals.add(v);
@@ -2727,9 +2815,9 @@ function CameraReport(){
     <div class="sheet">
     <div class="hdr">
       <div class="crew">
-        <b>DIRECTOR:</b>${esc(roll.director||DEFAULTS.director)}<br>
-        <b>DOP:</b>${esc(roll.dop||DEFAULTS.dop)}<br>
-        <b>1ST AC:</b>${esc(roll.ac||DEFAULTS.ac)}
+        <b>DIRECTOR:</b>${esc(roll.director)}<br>
+        <b>DOP:</b>${esc(roll.dop)}<br>
+        <b>1ST AC:</b>${esc(roll.ac)}
       </div>
       <div class="title">${esc(proj.projectName||'CAMERA REPORT')}</div>
       <div class="rollbox">
@@ -2991,89 +3079,150 @@ function CameraReport(){
               display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{'?'}</button>
           {roll&&<button onClick={exportCSV} style={{padding:'4px 10px',borderRadius:5,fontSize:10,fontFamily:"'Geist Mono',monospace",background:'transparent',border:`1px solid ${T.border}`,color:T.textMute,cursor:'pointer'}}>CSV</button>}
           {roll&&<button disabled={exporting} onClick={async()=>{ setExporting(true); try{ await exportReport(); }finally{ setExporting(false); } }} style={{padding:'4px 10px',borderRadius:5,fontSize:10,fontFamily:"'Geist Mono',monospace",background:T.accent+'18',border:`1px solid ${T.accent}44`,color:T.accent,cursor:exporting?'default':'pointer',opacity:exporting?0.6:1}}>{exporting?'Preparing...':<>{unlocked?'\uD83D\uDDA8':'\uD83D\uDD12'} Print / PDF</>}</button>}
-          <button onClick={()=>addRoll(activeCam,'blank')} title="Start a completely fresh roll: today's date, blank location/lens/shutter - NOT the same as +Roll, which carries over the previous roll's date/crew/camera settings"
-            style={{padding:'4px 12px',borderRadius:5,fontSize:11,fontFamily:"'Geist Mono',monospace",background:CAM.accent,border:'none',color:'#0e0d0b',fontWeight:600,cursor:'pointer'}}>+ New Roll (blank)</button>
         </div>
       )}
 
-      {/* Shoot Day filter  -  shows all unique shoot days across rolls */}
-      {showToolbar&&rolls.length>0&&(()=>{
-        const dayNums=[...new Set(rolls.map(r=>r.shootDay).filter(Boolean))].sort((a,b)=>b-a); // newest day first
-        if(dayNums.length<2)return null; // only show selector if there are multiple days
-        return(
-          <div style={{padding:'6px 16px',borderBottom:`1px solid ${T.rule}`,display:'flex',gap:6,flexShrink:0,alignItems:'center',flexWrap:'wrap'}}>
-            <span style={{fontSize:9,fontFamily:"'Geist Mono',monospace",color:T.textDim,letterSpacing:'0.08em'}}>DAY</span>
-            {[{label:'ALL',val:'all'},...dayNums.map(d=>({label:'Day '+d,val:d}))].map(({label,val})=>(
-              <button key={val} onClick={()=>{
-                setFilterDay(val);
-                // Auto-select first roll of the chosen day (or first overall)
-                const target=val==='all'?rolls[0]:rolls.find(r=>r.shootDay===val);
-                if(target) setActiveRoll(target.id);
-              }} style={{padding:'3px 10px',borderRadius:4,fontSize:10,fontFamily:"'Geist Mono',monospace",
-                background:filterDay===val?T.accent+'22':T.chip,
-                color:filterDay===val?T.accent:T.textMute,
-                border:`1px solid ${filterDay===val?T.accent+'44':T.border}`,
-                cursor:'pointer'}}>
-              {label}
-            </button>
-            ))}
-          </div>
-        );
-      })()}
+      {/* \u2550\u2550\u2550 DAY \u2192 CAM \u2192 ROLL \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+          Shoot day is the top of the hierarchy: a production is a series of
+          days, each day uses some cameras, each camera burns some rolls. The
+          day list used to be a row of chips, which falls apart on a 100-day
+          shoot, so it is a dropdown now - newest first, since that is the day
+          you are actually on. Picking a day shows ONLY the cameras that
+          actually rolled that day; an unused camera is simply absent rather
+          than showing an empty roll. */}
+      <div style={{display:'flex',gap:8,padding:'8px 16px 4px',flexShrink:0,alignItems:'center',flexWrap:'wrap'}}>
+        <span style={{fontSize:9,fontFamily:"'Geist Mono',monospace",color:T.textDim,letterSpacing:'0.08em'}}>DAY</span>
+        <div style={{position:'relative'}}>
+          <button onClick={()=>setShowDayMenu(v=>!v)} title="Switch shoot day"
+            style={{display:'flex',alignItems:'center',gap:6,padding:'6px 11px',borderRadius:6,
+              background:T.surface2,border:`1.5px solid ${T.accent}66`,color:T.accent,
+              fontSize:13,fontWeight:600,fontFamily:"'Geist Mono',monospace",cursor:'pointer'}}>
+            {filterDay==='all'?'All days':'Day '+filterDay}
+            {filterDay!=='all'&&selectedDayDate&&
+              <span style={{fontSize:10,fontWeight:400,color:T.textDim}}>{fmtDayDate(selectedDayDate)}</span>}
+            <span style={{fontSize:9}}>{'\u25BE'}</span>
+          </button>
+          {showDayMenu&&(
+            <>
+              <div onClick={()=>setShowDayMenu(false)} style={{position:'fixed',inset:0,zIndex:400}}/>
+              <div style={{position:'absolute',top:'100%',left:0,marginTop:4,zIndex:401,minWidth:230,
+                maxHeight:'52vh',overflowY:'auto',background:T.panel,border:`1px solid ${T.border}`,
+                borderRadius:8,boxShadow:'0 8px 24px rgba(0,0,0,0.55)'}}>
+                <button onClick={()=>{ startNewShootDay(); setShowDayMenu(false); }}
+                  style={{display:'block',width:'100%',textAlign:'left',padding:'10px 13px',
+                    background:T.accent+'14',border:'none',borderBottom:`1px solid ${T.rule}`,
+                    color:T.accent,fontSize:12,fontWeight:600,fontFamily:"'Geist Mono',monospace",cursor:'pointer'}}>
+                  + New shoot day
+                </button>
+                {allDayNums.map(d=>{
+                  const rec=shootDays.find(x=>x.day===d);
+                  const dayRolls=rolls.filter(r=>r.shootDay===d);
+                  const cams=CAM_ORDER.filter(c=>dayRolls.some(r=>camOf(r)===c));
+                  const clips=dayRolls.reduce((n,r)=>n+((r.takes||[]).length),0);
+                  return(
+                    <button key={d} onClick={()=>{ selectDay(d); setShowDayMenu(false); }}
+                      style={{display:'block',width:'100%',textAlign:'left',padding:'9px 13px',
+                        background:filterDay===d?T.chip:'transparent',border:'none',
+                        borderBottom:`1px solid ${T.rule}`,color:T.text,fontSize:12,
+                        fontFamily:"'Geist Mono',monospace",cursor:'pointer'}}>
+                      <div style={{display:'flex',alignItems:'center',gap:7}}>
+                        <span style={{fontWeight:600}}>Day {d}</span>
+                        {rec&&rec.date&&<span style={{fontSize:10,color:T.textDim}}>{fmtDayDate(rec.date)}</span>}
+                      </div>
+                      <div style={{fontSize:9,color:T.textDim,marginTop:2}}>
+                        {cams.length?cams.join(' + ')+' \u00B7 '+dayRolls.length+' roll'+(dayRolls.length!==1?'s':'')+' \u00B7 '+clips+' clip'+(clips!==1?'s':''):'no rolls yet'}
+                      </div>
+                    </button>
+                  );
+                })}
+                <button onClick={()=>{ setFilterDay('all'); setShowDayMenu(false); }}
+                  style={{display:'block',width:'100%',textAlign:'left',padding:'9px 13px',
+                    background:filterDay==='all'?T.chip:'transparent',border:'none',
+                    color:T.textDim,fontSize:11,fontFamily:"'Geist Mono',monospace",cursor:'pointer'}}>
+                  All days ({rolls.length} roll{rolls.length!==1?'s':''})
+                </button>
+              </div>
+            </>
+          )}
+        </div>
 
-      {/* Camera switcher + Roll dropdown (per-camera) */}
-      {rolls.length>0&&(()=>{
-        // Rolls for the active camera, honouring the day filter.
-        const visRolls=(filterDay==='all'?camRolls:camRolls.filter(r=>r.shootDay===filterDay));
-        return(
-          <div style={{display:'flex',gap:8,padding:'8px 16px 4px',flexShrink:0,alignItems:'center',flexWrap:'wrap'}}>
-            {/* CAMERA selector */}
-            <span style={{fontSize:9,fontFamily:"'Geist Mono',monospace",color:T.textDim,letterSpacing:'0.08em'}}>CAM</span>
-            <div style={{display:'flex',gap:4,alignItems:'center'}}>
-              {existingCams.map(c=>{
+        {/* CAMERAS that actually rolled on the selected day */}
+        <span style={{fontSize:9,fontFamily:"'Geist Mono',monospace",color:T.textDim,letterSpacing:'0.08em',marginLeft:6}}>CAM</span>
+        <div style={{display:'flex',gap:4,alignItems:'center'}}>
+          {dayCams.map(c=>{
+            const cfg=CAM_CONFIG[c];
+            const on=activeCam===c;
+            return(
+              <button key={c} onClick={()=>selectCam(c)}
+                style={{width:30,height:30,borderRadius:7,fontSize:13,fontWeight:700,cursor:'pointer',
+                  fontFamily:"'Geist Mono',monospace",
+                  background:on?cfg.accent:cfg.tint,
+                  color:on?'#0e0d0b':cfg.accent,
+                  border:`1.5px solid ${on?cfg.accent:cfg.accent+'55'}`}}>
+                {cfg.label}
+              </button>
+            );
+          })}
+          {dayCams.length<CAM_ORDER.length&&(
+            <button onClick={()=>setShowAddCam(v=>!v)}
+              title={filterDay==='all'?'Add a camera':'Add a camera to Day '+filterDay}
+              style={{width:30,height:30,borderRadius:7,fontSize:16,cursor:'pointer',
+                background:'transparent',color:T.textDim,border:`1px dashed ${T.border}`}}>+</button>
+          )}
+        </div>
+        {showAddCam&&(
+          <>
+            <div onClick={()=>setShowAddCam(false)} style={{position:'fixed',inset:0,zIndex:400}}/>
+            <div style={{position:'absolute',zIndex:401,marginTop:70,minWidth:170,
+              background:T.panel,border:`1px solid ${T.border}`,borderRadius:8,
+              boxShadow:'0 8px 24px rgba(0,0,0,0.55)',overflow:'hidden'}}>
+              <div style={{padding:'7px 12px 4px',fontSize:8,fontFamily:"'Geist Mono',monospace",
+                color:T.textDim,letterSpacing:'0.08em'}}>
+                ADD CAMERA{filterDay!=='all'?' TO DAY '+filterDay:''}
+              </div>
+              {CAM_ORDER.filter(c=>!dayCams.includes(c)).map(c=>{
                 const cfg=CAM_CONFIG[c];
-                const on=activeCam===c;
                 return(
-                  <button key={c} onClick={()=>setActiveCam(c)}
-                    style={{width:30,height:30,borderRadius:7,fontSize:13,fontWeight:700,cursor:'pointer',
-                      fontFamily:"'Geist Mono',monospace",
-                      background:on?cfg.accent:cfg.tint,
-                      color:on?'#0e0d0b':cfg.accent,
-                      border:`1.5px solid ${on?cfg.accent:cfg.accent+'55'}`}}>
-                    {cfg.label}
+                  <button key={c} onClick={()=>{ addRoll(c,filterDay); setShowAddCam(false); }}
+                    style={{display:'flex',alignItems:'center',gap:9,width:'100%',textAlign:'left',
+                      padding:'9px 12px',background:'transparent',border:'none',borderTop:`1px solid ${T.rule}`,
+                      color:T.text,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:'pointer'}}>
+                    <span style={{width:20,height:20,borderRadius:5,display:'grid',placeItems:'center',
+                      background:cfg.tint,color:cfg.accent,border:`1px solid ${cfg.accent}55`,
+                      fontSize:11,fontWeight:700}}>{c}</span>
+                    Cam {c}
                   </button>
                 );
               })}
-              {existingCams.length<CAM_ORDER.length&&(
-                <button onClick={addCamera} title="Add another camera"
-                  style={{width:30,height:30,borderRadius:7,fontSize:16,cursor:'pointer',
-                    background:'transparent',color:T.textDim,border:`1px dashed ${T.border}`}}>+</button>
-              )}
             </div>
+          </>
+        )}
 
-            {/* ROLL dropdown for the active camera */}
-            <span style={{fontSize:9,fontFamily:"'Geist Mono',monospace",color:T.textDim,letterSpacing:'0.08em',marginLeft:8}}>ROLL</span>
-            {visRolls.length===0
-              ?<span style={{fontSize:11,color:T.textDim,fontFamily:"'Geist Mono',monospace",padding:'4px 0'}}>No {activeCam} cam rolls this day</span>
-              :<select value={activeRoll||''} onChange={e=>setActiveRoll(e.target.value)}
-                  style={{background:T.surface2,border:`1.5px solid ${CAM.accent}66`,borderRadius:6,
-                    padding:'6px 10px',fontSize:13,color:CAM.accent,fontWeight:600,
-                    fontFamily:"'Geist Mono',monospace",cursor:'pointer',minWidth:180}}>
-                  {visRolls.map(r=>(
-                    <option key={r.id} value={r.id}>
-                      {r.roll||'(roll)'} {'\u00B7'} Day {r.shootDay||'?'} {'\u00B7'} {(r.takes||[]).length} clips
-                    </option>
-                  ))}
-                </select>
-            }
-            <button onClick={()=>addRoll(activeCam,'continue')} title={'New '+activeCam+' cam roll  -  same day/date/crew/camera settings as the last roll'}
-              style={{padding:'5px 10px',borderRadius:6,fontSize:10,fontFamily:"'Geist Mono',monospace",
-                background:CAM.tint,border:`1px solid ${CAM.accent}55`,color:CAM.accent,cursor:'pointer'}}>
-              + Roll
-            </button>
-          </div>
-        );
-      })()}
+        {/* ROLLS of the selected day + camera */}
+        <span style={{fontSize:9,fontFamily:"'Geist Mono',monospace",color:T.textDim,letterSpacing:'0.08em',marginLeft:6}}>ROLL</span>
+        {visRolls.length===0
+          ?<span style={{fontSize:11,color:T.textDim,fontFamily:"'Geist Mono',monospace",padding:'4px 0'}}>
+            {dayCams.length===0?'no cameras yet':'no '+activeCam+' rolls'}
+          </span>
+          :<select value={activeRoll||''} onChange={e=>setActiveRoll(e.target.value)}
+              style={{background:T.surface2,border:`1.5px solid ${CAM.accent}66`,borderRadius:6,
+                padding:'6px 10px',fontSize:13,color:CAM.accent,fontWeight:600,
+                fontFamily:"'Geist Mono',monospace",cursor:'pointer',minWidth:170}}>
+              {visRolls.map(r=>(
+                <option key={r.id} value={r.id}>
+                  {r.roll||'(roll)'}{filterDay==='all'?' \u00B7 Day '+(r.shootDay||'?'):''} {'\u00B7'} {(r.takes||[]).length} clips
+                </option>
+              ))}
+            </select>
+        }
+        {dayCams.length>0&&(
+          <button onClick={()=>addRoll(activeCam,filterDay)} title={'Another '+activeCam+' cam roll on this day'}
+            style={{padding:'5px 10px',borderRadius:6,fontSize:10,fontFamily:"'Geist Mono',monospace",
+              background:CAM.tint,border:`1px solid ${CAM.accent}55`,color:CAM.accent,cursor:'pointer'}}>
+            + Roll
+          </button>
+        )}
+      </div>
 
 
       {/* ─── Search panel ─── */}
@@ -3208,9 +3357,39 @@ function CameraReport(){
         </div>
       )}
 
-      {!roll&&!hasSearch&&<div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:12,color:T.textDim}}>
-        <div style={{fontSize:13}}>No camera rolls yet.</div>
-        <button onClick={()=>addRoll(activeCam,'blank')} style={{padding:'8px 18px',borderRadius:6,background:T.accent,border:'none',color:'#0e0d0b',fontWeight:600,fontSize:12,cursor:'pointer'}}>+ Start a roll</button>
+      {/* Empty state. A brand-new shoot day lands here by design: the day
+          exists but nothing has rolled on it yet, so the first thing to do is
+          say which camera turned over. */}
+      {!roll&&!hasSearch&&<div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:14,color:T.textDim,padding:20}}>
+        {filterDay==='all'&&rolls.length===0
+          ?<>
+            <div style={{fontSize:13}}>No camera rolls yet.</div>
+            <button onClick={()=>addRoll('A',filterDay)}
+              style={{padding:'8px 18px',borderRadius:6,background:T.accent,border:'none',color:'#0e0d0b',fontWeight:600,fontSize:12,cursor:'pointer'}}>
+              + Start Cam A
+            </button>
+          </>
+          :<>
+            <div style={{fontSize:14,color:T.text,fontFamily:"'Geist Mono',monospace"}}>
+              Day {filterDay}{selectedDayDate?' · '+fmtDayDate(selectedDayDate):''}
+            </div>
+            <div style={{fontSize:12,textAlign:'center',lineHeight:1.6,maxWidth:280}}>
+              Nothing shot on this day yet. Add whichever camera turned over.
+            </div>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap',justifyContent:'center'}}>
+              {CAM_ORDER.map(c=>{
+                const cfg=CAM_CONFIG[c];
+                return(
+                  <button key={c} onClick={()=>addRoll(c,filterDay)} title={'Start Cam '+c+' on this day'}
+                    style={{width:44,height:44,borderRadius:9,fontSize:16,fontWeight:700,cursor:'pointer',
+                      fontFamily:"'Geist Mono',monospace",background:cfg.tint,color:cfg.accent,
+                      border:`1.5px solid ${cfg.accent}55`}}>
+                    {c}
+                  </button>
+                );
+              })}
+            </div>
+          </>}
       </div>}
 
       {roll&&!(showSearch&&hasSearch)&&<div style={{flex:1,display:'flex',flexDirection:'column',minHeight:0,overflow:'hidden'}}>
@@ -4213,7 +4392,12 @@ function App(){
         <div style={{padding:'10px 16px',paddingTop:'calc(10px + env(safe-area-inset-top, 0px))',borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
           <span style={{fontSize:15}}>{'🎥'}</span>
           <div>
-            <div style={{fontFamily:"'Geist Mono',monospace",fontSize:13,fontWeight:600,color:T.text}}>Camera Report - Standalone</div>
+            <div style={{fontFamily:"'Geist Mono',monospace",fontSize:13,fontWeight:600,color:T.text,display:'flex',alignItems:'center',gap:7}}>
+              Camera Report
+              <span title="App version - check this matches the latest release to confirm your update landed"
+                style={{fontSize:9,fontWeight:500,color:T.textDim,background:T.chip,
+                  border:`1px solid ${T.border}`,borderRadius:99,padding:'1px 7px'}}>{APP_VERSION}</span>
+            </div>
             <button onClick={()=>setShowProjects(true)} title="Switch or manage projects"
               style={{background:'transparent',border:'none',padding:0,cursor:'pointer',display:'flex',alignItems:'center',gap:3}}>
               <span style={{fontSize:10,color:T.textDim}}>{data.projectName||'Untitled Production'}</span>

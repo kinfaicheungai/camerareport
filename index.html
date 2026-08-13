@@ -1781,6 +1781,12 @@ var SB_LENS_PRESETS_KEY = 'sb_camrep_lens_presets';
 
 /* Multi-camera config: each camera letter has a distinct header colour so
    the user can tell at a glance which camera's report they're editing. */
+/* Bump this on every release. It is printed next to the app title so that a
+   crew member can read their version back to you and you can tell instantly
+   whether their PWA actually picked up the latest deploy - the recurring
+   "is this the new one or a stale cache?" question. Keep it in step with
+   CACHE_NAME in sw.js. */
+var APP_VERSION = 'v2.0';
 var CAM_CONFIG = {
   A: {
     label: 'A',
@@ -3751,17 +3757,6 @@ function CameraReport() {
   var projId = projectId;
 
   // Generic starting defaults (all fields editable inline per roll)
-  var DEFAULTS = {
-    camera: 'ALEXA MINI LF',
-    codec: '5K 1.7:1',
-    fps: '24',
-    shutter: '180',
-    baseEI: '1600',
-    lut: 'Rec 709',
-    director: '',
-    dop: '',
-    ac: ''
-  };
   var SHUTTER_OPTIONS = ['180', '172.8'];
   // WB 3200K..7000K in 50K steps
   var WB_OPTIONS = function () {
@@ -3942,18 +3937,26 @@ function CameraReport() {
     _React$useState84 = _slicedToArray(_React$useState83, 2),
     filterDay = _React$useState84[0],
     setFilterDay = _React$useState84[1];
-  var _React$useState85 = React.useState([]),
+  var _React$useState85 = React.useState(false),
     _React$useState86 = _slicedToArray(_React$useState85, 2),
-    selTakeIds = _React$useState86[0],
-    setSelTakeIds = _React$useState86[1]; // multi-selected clip rows (for moving)
+    showDayMenu = _React$useState86[0],
+    setShowDayMenu = _React$useState86[1]; // day dropdown
   var _React$useState87 = React.useState(false),
     _React$useState88 = _slicedToArray(_React$useState87, 2),
-    showSearch = _React$useState88[0],
-    setShowSearch = _React$useState88[1];
-  var _React$useState89 = React.useState({}),
+    showAddCam = _React$useState88[0],
+    setShowAddCam = _React$useState88[1]; // "add camera to this day" picker
+  var _React$useState89 = React.useState([]),
     _React$useState90 = _slicedToArray(_React$useState89, 2),
-    searchQ = _React$useState90[0],
-    setSearchQ = _React$useState90[1]; // field -> search string
+    selTakeIds = _React$useState90[0],
+    setSelTakeIds = _React$useState90[1]; // multi-selected clip rows (for moving)
+  var _React$useState91 = React.useState(false),
+    _React$useState92 = _slicedToArray(_React$useState91, 2),
+    showSearch = _React$useState92[0],
+    setShowSearch = _React$useState92[1];
+  var _React$useState93 = React.useState({}),
+    _React$useState94 = _slicedToArray(_React$useState93, 2),
+    searchQ = _React$useState94[0],
+    setSearchQ = _React$useState94[1]; // field -> search string
 
   // ---- Take-table header, freeze-panes style ----
   // Two earlier attempts (CSS position:sticky, then a JS "floating clone"
@@ -3967,10 +3970,10 @@ function CameraReport() {
   // space), and the table gets its OWN dedicated scroll container below
   // them - with nothing else competing for that scroll, a plain CSS
   // position:sticky header (see `th` below) just works, no JS needed.
-  var _React$useState91 = React.useState(false),
-    _React$useState92 = _slicedToArray(_React$useState91, 2),
-    metaCollapsed = _React$useState92[0],
-    setMetaCollapsed = _React$useState92[1];
+  var _React$useState95 = React.useState(false),
+    _React$useState96 = _slicedToArray(_React$useState95, 2),
+    metaCollapsed = _React$useState96[0],
+    setMetaCollapsed = _React$useState96[1];
   var scenes = proj.scenes || [];
   var sceneIds = React.useMemo(function () {
     return scenes.map(function (s) {
@@ -4074,10 +4077,10 @@ function CameraReport() {
   var undoStack = React.useRef([]); // array of rolls-snapshots (JSON strings)
   var redoStack = React.useRef([]);
   var isTimeTravel = React.useRef(false); // true while applying an undo/redo
-  var _React$useState93 = React.useState(0),
-    _React$useState94 = _slicedToArray(_React$useState93, 2),
-    histTick = _React$useState94[0],
-    setHistTick = _React$useState94[1]; // force re-render for button enable
+  var _React$useState97 = React.useState(0),
+    _React$useState98 = _slicedToArray(_React$useState97, 2),
+    histTick = _React$useState98[0],
+    setHistTick = _React$useState98[1]; // force re-render for button enable
   var prevRollsSnap = React.useRef(null); // last-known rolls, to push on next change
   var HIST_LIMIT = 20;
   var persist = /*#__PURE__*/function () {
@@ -4190,87 +4193,62 @@ function CameraReport() {
     return c + String(max + 1).padStart(3, '0');
   }
 
-  // mode: 'blank' (New Roll  -  fresh page, minimal defaults, no shutter
-  //   pre-fill since every take fills its own) or 'continue' (+ Roll  -  carries
-  //   over shoot day / date / crew / camera settings from this camera's most
-  //   recent roll, for starting a fresh mag on the same day).
-  function addRoll(cam, mode) {
+  /* A new roll copies its setup from the most recent roll of the SAME camera.
+     There are no hardcoded defaults any more: a brand-new production starts
+     completely blank, the AC fills the first roll in by hand, and every roll
+     after that inherits it. That also means a B-camera RED never inherits the
+     A-camera ALEXA's settings, which the old shared DEFAULTS block did.
+     `dayNum` pins the roll to the shoot day the user is currently looking at,
+     since day is now the top level of the hierarchy. */
+  function camSetupFrom(cam) {
+    var prev = rolls.find(function (r) {
+      return camOf(r) === cam;
+    }); // rolls are newest-first
+    return {
+      location: (prev === null || prev === void 0 ? void 0 : prev.location) || '',
+      director: (prev === null || prev === void 0 ? void 0 : prev.director) || '',
+      dop: (prev === null || prev === void 0 ? void 0 : prev.dop) || '',
+      ac: (prev === null || prev === void 0 ? void 0 : prev.ac) || '',
+      camera: (prev === null || prev === void 0 ? void 0 : prev.camera) || '',
+      codec: (prev === null || prev === void 0 ? void 0 : prev.codec) || '',
+      fps: (prev === null || prev === void 0 ? void 0 : prev.fps) || '',
+      shutter: (prev === null || prev === void 0 ? void 0 : prev.shutter) || '',
+      baseEI: (prev === null || prev === void 0 ? void 0 : prev.baseEI) || '',
+      lut: (prev === null || prev === void 0 ? void 0 : prev.lut) || '',
+      lens: (prev === null || prev === void 0 ? void 0 : prev.lens) || ''
+    };
+  }
+  function addRoll(cam, dayNum) {
     if (rolls.length >= TRIAL_LIMITS.rolls && !requireUnlock("Free preview is limited to ".concat(TRIAL_LIMITS.rolls, " rolls. Sign in to add more."))) return;
     var c = cam || activeCam || 'A';
-    var m = mode || 'blank';
+    // Bringing a camera into the production for the first time is what the
+    // trial's camera cap governs (adding another roll to an existing camera is
+    // covered by the roll cap above).
+    var isNewCam = !rolls.some(function (r) {
+      return camOf(r) === c;
+    });
+    if (isNewCam && existingCams.length >= TRIAL_LIMITS.cams && !requireUnlock("Free preview is limited to ".concat(TRIAL_LIMITS.cams, " camera. Sign in to add more."))) return;
     var id = 'roll' + Date.now();
-    var today = new Date().toISOString().slice(0, 10);
-    var newRoll;
-    if (m === 'continue') {
-      var _shootDays$;
-      // Most recent roll for this camera (rolls are prepended, so [0] is newest).
-      var prevRoll = rolls.find(function (r) {
-        return camOf(r) === c;
-      });
-      newRoll = {
-        id: id,
-        roll: nextRollNo(c),
-        cam: c,
-        mag: '',
-        date: (prevRoll === null || prevRoll === void 0 ? void 0 : prevRoll.date) || today,
-        shootDay: (prevRoll === null || prevRoll === void 0 ? void 0 : prevRoll.shootDay) || ((_shootDays$ = shootDays[0]) === null || _shootDays$ === void 0 ? void 0 : _shootDays$.day) || '',
-        location: (prevRoll === null || prevRoll === void 0 ? void 0 : prevRoll.location) || '',
-        director: (prevRoll === null || prevRoll === void 0 ? void 0 : prevRoll.director) || DEFAULTS.director,
-        dop: (prevRoll === null || prevRoll === void 0 ? void 0 : prevRoll.dop) || DEFAULTS.dop,
-        ac: (prevRoll === null || prevRoll === void 0 ? void 0 : prevRoll.ac) || DEFAULTS.ac,
-        camera: (prevRoll === null || prevRoll === void 0 ? void 0 : prevRoll.camera) || DEFAULTS.camera,
-        codec: (prevRoll === null || prevRoll === void 0 ? void 0 : prevRoll.codec) || DEFAULTS.codec,
-        fps: (prevRoll === null || prevRoll === void 0 ? void 0 : prevRoll.fps) || DEFAULTS.fps,
-        shutter: (prevRoll === null || prevRoll === void 0 ? void 0 : prevRoll.shutter) || DEFAULTS.shutter,
-        baseEI: (prevRoll === null || prevRoll === void 0 ? void 0 : prevRoll.baseEI) || DEFAULTS.baseEI,
-        lut: (prevRoll === null || prevRoll === void 0 ? void 0 : prevRoll.lut) || DEFAULTS.lut,
-        lens: (prevRoll === null || prevRoll === void 0 ? void 0 : prevRoll.lens) || LENS_OPTIONS[0],
-        takes: []
-      };
-    } else {
-      // Blank: minimal system defaults. Shutter intentionally left empty  -
-      // every take fills its own, so a roll-level default isn't needed.
-      // Defaults to the LATEST shoot day (shootDays is newest-first) with that
-      // day's own date, so the two never disagree out of the box.
-      newRoll = {
-        id: id,
-        roll: nextRollNo(c),
-        cam: c,
-        mag: '',
-        date: latestShootDay && latestShootDay.date || today,
-        shootDay: latestShootDay ? latestShootDay.day : '',
-        location: '',
-        director: DEFAULTS.director,
-        dop: DEFAULTS.dop,
-        ac: DEFAULTS.ac,
-        camera: DEFAULTS.camera,
-        codec: DEFAULTS.codec,
-        fps: DEFAULTS.fps,
-        shutter: '',
-        baseEI: DEFAULTS.baseEI,
-        lut: DEFAULTS.lut,
-        lens: LENS_OPTIONS[0],
-        takes: []
-      };
-    }
+    var day = dayNum !== undefined && dayNum !== null && dayNum !== 'all' ? dayNum : filterDay !== 'all' ? filterDay : latestShootDay ? latestShootDay.day : '';
+    var dayRec = shootDays.find(function (d) {
+      return d.day === day;
+    });
+    var newRoll = _objectSpread(_objectSpread({
+      id: id,
+      roll: nextRollNo(c),
+      cam: c,
+      mag: '',
+      date: dayRec && dayRec.date || new Date().toISOString().slice(0, 10),
+      shootDay: day === '' ? '' : day
+    }, camSetupFrom(c)), {}, {
+      takes: []
+    });
     var updated = [newRoll].concat(_toConsumableArray(rolls));
     setRolls(updated);
     setActiveCam(c);
     setActiveRoll(id);
     saveRolls(updated);
-  }
-
-  // Add the next camera (B, then C, then D) with an initial empty roll.
-  function addCamera() {
-    if (existingCams.length >= TRIAL_LIMITS.cams && !requireUnlock("Free preview is limited to ".concat(TRIAL_LIMITS.cams, " camera. Sign in to add more."))) return;
-    var next = CAM_ORDER.find(function (c) {
-      return !existingCams.includes(c);
-    });
-    if (!next) {
-      alert('All cameras (A-D) already exist.');
-      return;
-    }
-    addRoll(next); // creates e.g. B001 and switches to it
+    if (day !== '') setFilterDay(day);
   }
 
   // Move an entire roll (with all its takes) to a different camera.
@@ -4382,9 +4360,10 @@ function CameraReport() {
     }
   }
 
-  // Which cameras actually have rolls (always include A). Ordered A,B,C,D.
+  // Every camera that has a roll ANYWHERE in the project (used by trial limits
+  // and the sync-cams picker, which are project-wide, not day-scoped).
   var existingCams = React.useMemo(function () {
-    var set = new Set(['A']);
+    var set = new Set();
     rolls.forEach(function (r) {
       return set.add(camOf(r));
     });
@@ -4392,29 +4371,118 @@ function CameraReport() {
       return set.has(c);
     });
   }, [rolls]);
-  // Rolls belonging to the currently-selected camera.
-  var camRolls = React.useMemo(function () {
-    return rolls.filter(function (r) {
+
+  /* ── Day → Cam → Roll derivation ──────────────────────────────
+     Every day the production has EITHER planned (Project Settings) or actually
+     shot (a roll tagged with it). Both sources matter: a day you just created
+     has no rolls yet but must still be selectable, and old rolls may carry a
+     day that was never entered in Settings. */
+  var allDayNums = React.useMemo(function () {
+    var set = new Set();
+    shootDays.forEach(function (d) {
+      return set.add(d.day);
+    });
+    rolls.forEach(function (r) {
+      if (r.shootDay) set.add(r.shootDay);
+    });
+    return _toConsumableArray(set).sort(function (a, b) {
+      return b - a;
+    }); // newest first
+  }, [shootDays, rolls]);
+
+  // Rolls on the selected day (all rolls when viewing "All days").
+  var dayRolls = React.useMemo(function () {
+    return filterDay === 'all' ? rolls : rolls.filter(function (r) {
+      return r.shootDay === filterDay;
+    });
+  }, [rolls, filterDay]);
+
+  // ONLY the cameras that actually rolled on this day - an unused camera is
+  // absent rather than showing an empty roll.
+  var dayCams = React.useMemo(function () {
+    var set = new Set();
+    dayRolls.forEach(function (r) {
+      return set.add(camOf(r));
+    });
+    return CAM_ORDER.filter(function (c) {
+      return set.has(c);
+    });
+  }, [dayRolls]);
+  var visRolls = React.useMemo(function () {
+    return dayRolls.filter(function (r) {
       return camOf(r) === activeCam;
     });
-  }, [rolls, activeCam]);
+  }, [dayRolls, activeCam]);
+  var selectedDayDate = React.useMemo(function () {
+    var rec = shootDays.find(function (d) {
+      return d.day === filterDay;
+    });
+    return rec ? rec.date : '';
+  }, [shootDays, filterDay]);
   var CAM = CAM_CONFIG[activeCam] || CAM_CONFIG.A;
+  function selectDay(d) {
+    setFilterDay(d);
+    var rs = rolls.filter(function (r) {
+      return r.shootDay === d;
+    });
+    if (rs.length === 0) return; // empty day: nothing to select
+    // Stay on the same camera if it shot that day, otherwise take the first.
+    var keep = rs.find(function (r) {
+      return camOf(r) === activeCam;
+    });
+    var target = keep || rs[0];
+    setActiveCam(camOf(target));
+    setActiveRoll(target.id);
+  }
+  function selectCam(c) {
+    setActiveCam(c);
+    var rs = dayRolls.filter(function (r) {
+      return camOf(r) === c;
+    });
+    if (rs.length) setActiveRoll(rs[0].id);
+  }
+  /* A new shoot day opens as a genuinely blank page: the day is registered in
+     Project Settings (so it is pickable and dated) but NO rolls are created.
+     The user adds whichever cameras actually turned over that day. */
+  function startNewShootDay() {
+    var nextDay = (latestShootDay ? latestShootDay.day : 0) + 1;
+    var nextDate = latestShootDay ? addOneDay(latestShootDay.date) : new Date().toISOString().slice(0, 10);
+    updateData({
+      shootDays: [].concat(_toConsumableArray(shootDays), [{
+        day: nextDay,
+        date: nextDate
+      }])
+    });
+    setFilterDay(nextDay);
+    setActiveRoll(null);
+  }
 
-  // When the active camera changes (or its roll set changes), make sure the
-  // selected roll actually belongs to that camera; otherwise pick its first.
+  /* Open on the most recent shoot day rather than "All days" - that's the day
+     you're standing on set for. Runs once, after rolls have loaded, and only
+     while still on the initial 'all' so it never overrides a day the user has
+     since chosen themselves. */
+  var dayInitDone = React.useRef(false);
   React.useEffect(function () {
-    if (camRolls.length === 0) return;
-    if (!camRolls.some(function (r) {
+    if (dayInitDone.current) return;
+    if (allDayNums.length === 0) return;
+    dayInitDone.current = true;
+    if (filterDay === 'all') selectDay(allDayNums[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allDayNums]);
+
+  // Keep the selected roll consistent with the visible day+camera.
+  React.useEffect(function () {
+    if (visRolls.length === 0) return;
+    if (!visRolls.some(function (r) {
       return r.id === activeRoll;
-    })) {
-      // Prefer the roll we last used for this camera, else its first roll.
-      var remembered = camActiveRoll[activeCam];
-      var target = remembered && camRolls.some(function (r) {
-        return r.id === remembered;
-      }) ? remembered : camRolls[0].id;
-      setActiveRoll(target);
-    }
-  }, [activeCam, camRolls, activeRoll, camActiveRoll]);
+    })) setActiveRoll(visRolls[0].id);
+  }, [visRolls, activeRoll]);
+
+  // If the current camera did not shoot the selected day, fall back to one that did.
+  React.useEffect(function () {
+    if (dayCams.length === 0) return;
+    if (!dayCams.includes(activeCam)) setActiveCam(dayCams[0]);
+  }, [dayCams, activeCam]);
 
   // Remember which roll is active for the current camera (for sync-add + return).
   React.useEffect(function () {
@@ -4715,8 +4783,21 @@ function CameraReport() {
     doAdd('scene');
   }
 
-  // Cross-roll search ─────────────────────────────────────────
-  var SEARCH_FIELDS = [{
+  /* Cross-roll search ─────────────────────────────────────────
+     ROLL_SEARCH_FIELDS live on the roll, not the take. They're what makes
+     "which days did C cam shoot?" answerable: search CAM = C and every
+     matching take comes back with its ROLL·DAY in the results table. */
+  var ROLL_SEARCH_FIELDS = [{
+    k: 'cam',
+    l: 'CAM'
+  }, {
+    k: 'shootDay',
+    l: 'DAY'
+  }, {
+    k: 'roll',
+    l: 'ROLL'
+  }];
+  var TAKE_SEARCH_FIELDS = [{
     k: 'scene',
     l: 'SCENE'
   }, {
@@ -4759,6 +4840,10 @@ function CameraReport() {
     k: 'notes',
     l: 'NOTES'
   }];
+  var SEARCH_FIELDS = [].concat(ROLL_SEARCH_FIELDS, TAKE_SEARCH_FIELDS);
+  var ROLL_KEYS = new Set(ROLL_SEARCH_FIELDS.map(function (f) {
+    return f.k;
+  }));
   var hasSearch = Object.values(searchQ).some(function (v) {
     return v && v.trim();
   });
@@ -4776,8 +4861,15 @@ function CameraReport() {
           var _ref23 = _slicedToArray(_ref22, 2),
             k = _ref23[0],
             v = _ref23[1];
-          var cell = String(t[k] || '').toLowerCase();
-          return cell.includes(v.trim().toLowerCase());
+          var q = v.trim().toLowerCase();
+          if (ROLL_KEYS.has(k)) {
+            // CAM is a single letter and must match exactly - otherwise
+            // searching "A" would also return every B/C roll whose number
+            // happens to contain an A.
+            var cell = String((k === 'cam' ? camOf(r) : r[k]) || '').toLowerCase();
+            return k === 'cam' ? cell === q : cell.includes(q);
+          }
+          return String(t[k] || '').toLowerCase().includes(q);
         });
         if (match) out.push({
           roll: r,
@@ -4791,8 +4883,21 @@ function CameraReport() {
   // Unique existing values per search field  -  used for autocomplete suggestions
   var searchSuggestions = React.useMemo(function () {
     var out = {};
-    SEARCH_FIELDS.forEach(function (_ref24) {
+    ROLL_SEARCH_FIELDS.forEach(function (_ref24) {
       var k = _ref24.k;
+      var vals = new Set();
+      rolls.forEach(function (r) {
+        var v = String((k === 'cam' ? camOf(r) : r[k]) || '').trim();
+        if (v) vals.add(v);
+      });
+      out[k] = _toConsumableArray(vals).sort(function (a, b) {
+        return a.localeCompare(b, undefined, {
+          numeric: true
+        });
+      });
+    });
+    TAKE_SEARCH_FIELDS.forEach(function (_ref25) {
+      var k = _ref25.k;
       var vals = new Set();
       rolls.forEach(function (r) {
         return (r.takes || []).forEach(function (t) {
@@ -4849,13 +4954,13 @@ function CameraReport() {
     return _applyAITake.apply(this, arguments);
   } // Scene changed manually -> shot back to "/" (new-scene convention), take recomputed.
   function _applyAITake() {
-    _applyAITake = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee8(_ref25) {
+    _applyAITake = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee8(_ref26) {
       var _roll$takes, _scenes$3;
       var fields, imgData, takeId, sceneVal, shotVal, takeVal, intFiltVal, newTake, finalPhotoIds, imgId, _final, rollPatch, updatedTakes;
       return _regeneratorRuntime().wrap(function _callee8$(_context8) {
         while (1) switch (_context8.prev = _context8.next) {
           case 0:
-            fields = _ref25.fields, imgData = _ref25.imgData;
+            fields = _ref26.fields, imgData = _ref26.imgData;
             if (roll) {
               _context8.next = 3;
               break;
@@ -5251,7 +5356,7 @@ function CameraReport() {
             rows = roll.takes.map(function (t) {
               return "<tr>\n      <td>".concat(esc(sceneWithIE(t.scene)), "</td><td style=\"text-align:center\">").concat(esc(t.shot), "</td><td style=\"text-align:center\">").concat(esc(t.take), "</td>\n      <td style=\"text-align:center\">").concat(t.tail ? "\u2705" : '', "</td><td>").concat(esc(t.clip), "</td>\n      <td>").concat(esc(t.lens), "</td><td>").concat(esc(t.focal), "</td><td>").concat(esc(t.stop), "</td><td>").concat(esc(t.shutter || roll.shutter), "</td><td>").concat(esc(t.ei), "</td>\n      <td>").concat(esc(t.intFilters), "</td><td>").concat(esc(t.filters), "</td><td>").concat(esc(t.filters3), "</td><td>").concat(esc(t.wb), "</td><td>").concat(esc(t.focus), "</td>\n      <td>").concat(esc(t.notes), "</td>\n      ").concat(hasAnyPhoto ? "<td>".concat(photoMap[t.id] ? "<img src=\"".concat(esc(photoMap[t.id]), "\" style=\"width:46px;height:34px;object-fit:cover;border-radius:2px;border:1px solid #999;\">") : '', "</td>") : '', "\n      </tr>");
             }).join('');
-            html = "<!doctype html><html><head><meta charset=\"utf-8\"><title>".concat(esc(proj.projectName || 'Camera Report'), " ").concat(esc(roll.roll), "</title>\n    <style>\n      /* THE colour fix. By default Safari (and Chrome) strip background colours\n         when printing unless the user happens to tick \"Print backgrounds\" in\n         the print dialog - which is why this report came out plain white. These\n         two properties override that and force backgrounds to render, so the\n         black title bar and the coloured header row survive into the PDF with\n         no checkbox hunting on an iPad. Both spellings are needed: WebKit still\n         wants the -webkit- prefix, the unprefixed one is the standard. */\n      *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }\n      @page{ size:A4 landscape; margin:8mm; }\n      body{font-family:Arial,Helvetica,sans-serif;margin:14px;color:#111;}\n      .sheet{border:2px solid #999;}\n      .hdr{background:#111;color:#fff;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;gap:12px;}\n      .hdr .title{font-size:26px;font-weight:bold;text-align:center;flex:1;line-height:1.1;}\n      .crew{font-size:10px;line-height:1.6;white-space:nowrap;}\n      .crew b{display:inline-block;min-width:58px;text-align:right;margin-right:5px;font-weight:bold;}\n      .rollbox{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:bold;}\n      .rollbox .lbl{text-align:right;line-height:1.9;}\n      .rollbox .val{text-align:center;}\n      .rollbox .roll{background:").concat(camRollTag, ";color:#111;font-weight:bold;font-size:21px;padding:2px 16px;}\n      .rollbox .mag{background:#fff;color:#111;font-weight:bold;font-size:15px;padding:1px 16px;margin-top:3px;}\n      /* Meta block: two rows, mirroring the paper report it replaces. */\n      table.meta{width:100%;border-collapse:collapse;font-size:10.5px;}\n      table.meta td{border:1px solid #111;padding:3px 6px;vertical-align:middle;}\n      table.meta td.k{background:#e9e9e9;font-weight:bold;white-space:nowrap;width:1%;}\n      table.main{width:100%;border-collapse:collapse;font-size:9.5px;table-layout:fixed;margin-top:0;}\n      /* Every cell fully bordered, header included. */\n      table.main th{background:").concat(camHeaderColor, ";color:#fff;padding:4px 3px;text-align:left;font-size:9.5px;\n        border:1px solid #111;word-wrap:break-word;line-height:1.15;vertical-align:middle;}\n      table.main td{border:1px solid #444;padding:3px 4px;word-wrap:break-word;vertical-align:top;height:15px;}\n      table.main tr:nth-child(even) td{background:#f4f4f4;}\n      .foot td{border:1px solid #111;background:#e9e9e9;font-size:10px;padding:4px 6px;text-align:center;font-weight:bold;}\n      .foot td.k{text-align:left;width:1%;white-space:nowrap;}\n      .toolbar{position:fixed;top:0;left:0;right:0;background:#1a1a1a;color:#fff;padding:8px 14px;display:flex;gap:10px;align-items:center;justify-content:flex-end;box-shadow:0 2px 8px rgba(0,0,0,0.3);z-index:9999;}\n      .toolbar button{font-family:Arial,sans-serif;font-size:13px;padding:7px 16px;border-radius:6px;border:none;cursor:pointer;}\n      .toolbar .close{background:#444;color:#fff;}\n      .toolbar .print{background:#c98a3a;color:#111;font-weight:bold;}\n      .toolbar .spacer-note{flex:1;font-size:11px;color:#aaa;text-align:left;}\n      .content{margin-top:52px;}\n      @media print{ .toolbar{display:none!important;} .content{margin-top:0;} body{margin:0;} }\n    </style></head><body>\n    <div class=\"toolbar\">\n      <span class=\"spacer-note\">").concat(esc(roll.roll), " camera report &middot; use Print to save as PDF</span>\n      <button class=\"close\" onclick=\"window.close()\">&times; Close</button>\n      <button class=\"print\" onclick=\"window.print()\">&#128424; Print / Save PDF</button>\n    </div>\n    <div class=\"content\">\n    <div class=\"sheet\">\n    <div class=\"hdr\">\n      <div class=\"crew\">\n        <b>DIRECTOR:</b>").concat(esc(roll.director || DEFAULTS.director), "<br>\n        <b>DOP:</b>").concat(esc(roll.dop || DEFAULTS.dop), "<br>\n        <b>1ST AC:</b>").concat(esc(roll.ac || DEFAULTS.ac), "\n      </div>\n      <div class=\"title\">").concat(esc(proj.projectName || 'CAMERA REPORT'), "</div>\n      <div class=\"rollbox\">\n        <div class=\"lbl\">ROLL #<br>MAG #</div>\n        <div class=\"val\"><div class=\"roll\">").concat(esc(roll.roll), "</div><div class=\"mag\">").concat(esc(roll.mag) || '&nbsp;', "</div></div>\n      </div>\n    </div>\n    <table class=\"meta\"><tbody>\n      <tr>\n        <td class=\"k\">DATE:</td><td>").concat(esc(dateStr), "</td>\n        <td class=\"k\">SHOOT DAY:</td><td>").concat(esc(roll.shootDay), "</td>\n        <td class=\"k\">CODEC:</td><td>").concat(esc(roll.codec), "</td>\n        <td class=\"k\">CAMERA:</td><td>").concat(esc(roll.camera), "</td>\n        <td class=\"k\">LUT:</td><td>").concat(esc(roll.lut), "</td>\n      </tr>\n      <tr>\n        <td class=\"k\">FPS:</td><td>").concat(esc(roll.fps), "</td>\n        <td class=\"k\">SHUTTER:</td><td>").concat(esc(roll.shutter), "</td>\n        <td class=\"k\">LOCATION:</td><td colspan=\"5\">").concat(esc(roll.location), "</td>\n      </tr>\n    </tbody></table>\n    <table class=\"main\">\n    <colgroup>\n      <col style=\"width:8.5%\"/>  <!-- SCENE (fits \"S57 INT, S60 INT, S46 INT\" on one line at 10px) -->\n      <col style=\"width:3.5%\"/>  <!-- SHOT -->\n      <col style=\"width:3.5%\"/>  <!-- TAKE -->\n      <col style=\"width:3%\"/>    <!-- T/S -->\n      <col style=\"width:5%\"/>    <!-- CLIP -->\n      <col style=\"width:8%\"/>    <!-- LENS -->\n      <col style=\"width:4.5%\"/>  <!-- FOCAL -->\n      <col style=\"width:3.5%\"/>  <!-- STOP -->\n      <col style=\"width:5%\"/>    <!-- SHUTTER (was ~8-9%) -->\n      <col style=\"width:3.5%\"/>  <!-- EI -->\n      <col style=\"width:8%\"/>    <!-- FILTER 1 -->\n      <col style=\"width:5%\"/>    <!-- FILTER 2 (was ~7%) -->\n      <col style=\"width:5%\"/>    <!-- FILTER 3 -->\n      <col style=\"width:4.5%\"/>  <!-- WB -->\n      <col style=\"width:5.5%\"/>  <!-- FOCUS -->\n      <col/>                     <!-- NOTES takes remaining space -->\n      ").concat(hasAnyPhoto ? '<col style="width:5%"/>' : '', "\n    </colgroup>\n    <thead><tr>\n      <th>SCENE</th><th>SHOT</th><th>TAKE</th><th>T/S</th><th>CLIP</th><th>LENS</th><th>FOCAL</th><th>STOP</th><th>SHUTTER</th><th>EI</th>\n      <th>FILTER 1</th><th>FILTER 2</th><th>FILTER 3</th><th>WB</th><th>FOCUS</th><th>NOTES</th>").concat(hasAnyPhoto ? '<th>PHOTO</th>' : '', "\n    </tr></thead><tbody>").concat(rows, "</tbody></table>\n    <table class=\"meta\"><tbody><tr class=\"foot\">\n      <td class=\"k\">NOTES:</td><td>End of ").concat(esc(roll.roll)).concat(roll.shootDay ? ' &middot; SD ' + esc(String(roll.shootDay).padStart(2, '0')) : '', "</td>\n    </tr></tbody></table>\n    </div>\n    </div>\n    </body></html>"); // Write the finished report into the tab we opened synchronously above  - 
+            html = "<!doctype html><html><head><meta charset=\"utf-8\"><title>".concat(esc(proj.projectName || 'Camera Report'), " ").concat(esc(roll.roll), "</title>\n    <style>\n      /* THE colour fix. By default Safari (and Chrome) strip background colours\n         when printing unless the user happens to tick \"Print backgrounds\" in\n         the print dialog - which is why this report came out plain white. These\n         two properties override that and force backgrounds to render, so the\n         black title bar and the coloured header row survive into the PDF with\n         no checkbox hunting on an iPad. Both spellings are needed: WebKit still\n         wants the -webkit- prefix, the unprefixed one is the standard. */\n      *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }\n      @page{ size:A4 landscape; margin:8mm; }\n      body{font-family:Arial,Helvetica,sans-serif;margin:14px;color:#111;}\n      .sheet{border:2px solid #999;}\n      .hdr{background:#111;color:#fff;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;gap:12px;}\n      .hdr .title{font-size:26px;font-weight:bold;text-align:center;flex:1;line-height:1.1;}\n      .crew{font-size:10px;line-height:1.6;white-space:nowrap;}\n      .crew b{display:inline-block;min-width:58px;text-align:right;margin-right:5px;font-weight:bold;}\n      .rollbox{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:bold;}\n      .rollbox .lbl{text-align:right;line-height:1.9;}\n      .rollbox .val{text-align:center;}\n      .rollbox .roll{background:").concat(camRollTag, ";color:#111;font-weight:bold;font-size:21px;padding:2px 16px;}\n      .rollbox .mag{background:#fff;color:#111;font-weight:bold;font-size:15px;padding:1px 16px;margin-top:3px;}\n      /* Meta block: two rows, mirroring the paper report it replaces. */\n      table.meta{width:100%;border-collapse:collapse;font-size:10.5px;}\n      table.meta td{border:1px solid #111;padding:3px 6px;vertical-align:middle;}\n      table.meta td.k{background:#e9e9e9;font-weight:bold;white-space:nowrap;width:1%;}\n      table.main{width:100%;border-collapse:collapse;font-size:9.5px;table-layout:fixed;margin-top:0;}\n      /* Every cell fully bordered, header included. */\n      table.main th{background:").concat(camHeaderColor, ";color:#fff;padding:4px 3px;text-align:left;font-size:9.5px;\n        border:1px solid #111;word-wrap:break-word;line-height:1.15;vertical-align:middle;}\n      table.main td{border:1px solid #444;padding:3px 4px;word-wrap:break-word;vertical-align:top;height:15px;}\n      table.main tr:nth-child(even) td{background:#f4f4f4;}\n      .foot td{border:1px solid #111;background:#e9e9e9;font-size:10px;padding:4px 6px;text-align:center;font-weight:bold;}\n      .foot td.k{text-align:left;width:1%;white-space:nowrap;}\n      .toolbar{position:fixed;top:0;left:0;right:0;background:#1a1a1a;color:#fff;padding:8px 14px;display:flex;gap:10px;align-items:center;justify-content:flex-end;box-shadow:0 2px 8px rgba(0,0,0,0.3);z-index:9999;}\n      .toolbar button{font-family:Arial,sans-serif;font-size:13px;padding:7px 16px;border-radius:6px;border:none;cursor:pointer;}\n      .toolbar .close{background:#444;color:#fff;}\n      .toolbar .print{background:#c98a3a;color:#111;font-weight:bold;}\n      .toolbar .spacer-note{flex:1;font-size:11px;color:#aaa;text-align:left;}\n      .content{margin-top:52px;}\n      @media print{ .toolbar{display:none!important;} .content{margin-top:0;} body{margin:0;} }\n    </style></head><body>\n    <div class=\"toolbar\">\n      <span class=\"spacer-note\">").concat(esc(roll.roll), " camera report &middot; use Print to save as PDF</span>\n      <button class=\"close\" onclick=\"window.close()\">&times; Close</button>\n      <button class=\"print\" onclick=\"window.print()\">&#128424; Print / Save PDF</button>\n    </div>\n    <div class=\"content\">\n    <div class=\"sheet\">\n    <div class=\"hdr\">\n      <div class=\"crew\">\n        <b>DIRECTOR:</b>").concat(esc(roll.director), "<br>\n        <b>DOP:</b>").concat(esc(roll.dop), "<br>\n        <b>1ST AC:</b>").concat(esc(roll.ac), "\n      </div>\n      <div class=\"title\">").concat(esc(proj.projectName || 'CAMERA REPORT'), "</div>\n      <div class=\"rollbox\">\n        <div class=\"lbl\">ROLL #<br>MAG #</div>\n        <div class=\"val\"><div class=\"roll\">").concat(esc(roll.roll), "</div><div class=\"mag\">").concat(esc(roll.mag) || '&nbsp;', "</div></div>\n      </div>\n    </div>\n    <table class=\"meta\"><tbody>\n      <tr>\n        <td class=\"k\">DATE:</td><td>").concat(esc(dateStr), "</td>\n        <td class=\"k\">SHOOT DAY:</td><td>").concat(esc(roll.shootDay), "</td>\n        <td class=\"k\">CODEC:</td><td>").concat(esc(roll.codec), "</td>\n        <td class=\"k\">CAMERA:</td><td>").concat(esc(roll.camera), "</td>\n        <td class=\"k\">LUT:</td><td>").concat(esc(roll.lut), "</td>\n      </tr>\n      <tr>\n        <td class=\"k\">FPS:</td><td>").concat(esc(roll.fps), "</td>\n        <td class=\"k\">SHUTTER:</td><td>").concat(esc(roll.shutter), "</td>\n        <td class=\"k\">LOCATION:</td><td colspan=\"5\">").concat(esc(roll.location), "</td>\n      </tr>\n    </tbody></table>\n    <table class=\"main\">\n    <colgroup>\n      <col style=\"width:8.5%\"/>  <!-- SCENE (fits \"S57 INT, S60 INT, S46 INT\" on one line at 10px) -->\n      <col style=\"width:3.5%\"/>  <!-- SHOT -->\n      <col style=\"width:3.5%\"/>  <!-- TAKE -->\n      <col style=\"width:3%\"/>    <!-- T/S -->\n      <col style=\"width:5%\"/>    <!-- CLIP -->\n      <col style=\"width:8%\"/>    <!-- LENS -->\n      <col style=\"width:4.5%\"/>  <!-- FOCAL -->\n      <col style=\"width:3.5%\"/>  <!-- STOP -->\n      <col style=\"width:5%\"/>    <!-- SHUTTER (was ~8-9%) -->\n      <col style=\"width:3.5%\"/>  <!-- EI -->\n      <col style=\"width:8%\"/>    <!-- FILTER 1 -->\n      <col style=\"width:5%\"/>    <!-- FILTER 2 (was ~7%) -->\n      <col style=\"width:5%\"/>    <!-- FILTER 3 -->\n      <col style=\"width:4.5%\"/>  <!-- WB -->\n      <col style=\"width:5.5%\"/>  <!-- FOCUS -->\n      <col/>                     <!-- NOTES takes remaining space -->\n      ").concat(hasAnyPhoto ? '<col style="width:5%"/>' : '', "\n    </colgroup>\n    <thead><tr>\n      <th>SCENE</th><th>SHOT</th><th>TAKE</th><th>T/S</th><th>CLIP</th><th>LENS</th><th>FOCAL</th><th>STOP</th><th>SHUTTER</th><th>EI</th>\n      <th>FILTER 1</th><th>FILTER 2</th><th>FILTER 3</th><th>WB</th><th>FOCUS</th><th>NOTES</th>").concat(hasAnyPhoto ? '<th>PHOTO</th>' : '', "\n    </tr></thead><tbody>").concat(rows, "</tbody></table>\n    <table class=\"meta\"><tbody><tr class=\"foot\">\n      <td class=\"k\">NOTES:</td><td>End of ").concat(esc(roll.roll)).concat(roll.shootDay ? ' &middot; SD ' + esc(String(roll.shootDay).padStart(2, '0')) : '', "</td>\n    </tr></tbody></table>\n    </div>\n    </div>\n    </body></html>"); // Write the finished report into the tab we opened synchronously above  - 
             // this works even on Safari/iPad because that tab was opened in direct
             // response to the click, before any async work happened.
             if (!(preOpened && !preOpened.closed)) {
@@ -5742,9 +5847,9 @@ function CameraReport() {
       color: T.textDim,
       letterSpacing: '0.08em'
     }
-  }, "EDIT OPTION LISTS"), PRESET_MENU.map(function (_ref26) {
-    var k = _ref26.k,
-      l = _ref26.l;
+  }, "EDIT OPTION LISTS"), PRESET_MENU.map(function (_ref27) {
+    var k = _ref27.k,
+      l = _ref27.l;
     return /*#__PURE__*/React.createElement("button", {
       key: k,
       onClick: function onClick() {
@@ -5829,194 +5934,346 @@ function CameraReport() {
       cursor: exporting ? 'default' : 'pointer',
       opacity: exporting ? 0.6 : 1
     }
-  }, exporting ? 'Preparing...' : /*#__PURE__*/React.createElement(React.Fragment, null, unlocked ? "\uD83D\uDDA8" : "\uD83D\uDD12", " Print / PDF")), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return addRoll(activeCam, 'blank');
-    },
-    title: "Start a completely fresh roll: today's date, blank location/lens/shutter - NOT the same as +Roll, which carries over the previous roll's date/crew/camera settings",
+  }, exporting ? 'Preparing...' : /*#__PURE__*/React.createElement(React.Fragment, null, unlocked ? "\uD83D\uDDA8" : "\uD83D\uDD12", " Print / PDF"))), /*#__PURE__*/React.createElement("div", {
     style: {
-      padding: '4px 12px',
-      borderRadius: 5,
-      fontSize: 11,
+      display: 'flex',
+      gap: 8,
+      padding: '8px 16px 4px',
+      flexShrink: 0,
+      alignItems: 'center',
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 9,
       fontFamily: "'Geist Mono',monospace",
-      background: CAM.accent,
-      border: 'none',
-      color: '#0e0d0b',
+      color: T.textDim,
+      letterSpacing: '0.08em'
+    }
+  }, "DAY"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'relative'
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: function onClick() {
+      return setShowDayMenu(function (v) {
+        return !v;
+      });
+    },
+    title: "Switch shoot day",
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6,
+      padding: '6px 11px',
+      borderRadius: 6,
+      background: T.surface2,
+      border: "1.5px solid ".concat(T.accent, "66"),
+      color: T.accent,
+      fontSize: 13,
       fontWeight: 600,
+      fontFamily: "'Geist Mono',monospace",
       cursor: 'pointer'
     }
-  }, "+ New Roll (blank)")), showToolbar && rolls.length > 0 && function () {
-    var dayNums = _toConsumableArray(new Set(rolls.map(function (r) {
-      return r.shootDay;
-    }).filter(Boolean))).sort(function (a, b) {
-      return b - a;
-    }); // newest day first
-    if (dayNums.length < 2) return null; // only show selector if there are multiple days
-    return /*#__PURE__*/React.createElement("div", {
-      style: {
-        padding: '6px 16px',
-        borderBottom: "1px solid ".concat(T.rule),
-        display: 'flex',
-        gap: 6,
-        flexShrink: 0,
-        alignItems: 'center',
-        flexWrap: 'wrap'
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 9,
-        fontFamily: "'Geist Mono',monospace",
-        color: T.textDim,
-        letterSpacing: '0.08em'
-      }
-    }, "DAY"), [{
-      label: 'ALL',
-      val: 'all'
-    }].concat(_toConsumableArray(dayNums.map(function (d) {
-      return {
-        label: 'Day ' + d,
-        val: d
-      };
-    }))).map(function (_ref28) {
-      var label = _ref28.label,
-        val = _ref28.val;
-      return /*#__PURE__*/React.createElement("button", {
-        key: val,
-        onClick: function onClick() {
-          setFilterDay(val);
-          // Auto-select first roll of the chosen day (or first overall)
-          var target = val === 'all' ? rolls[0] : rolls.find(function (r) {
-            return r.shootDay === val;
-          });
-          if (target) setActiveRoll(target.id);
-        },
-        style: {
-          padding: '3px 10px',
-          borderRadius: 4,
-          fontSize: 10,
-          fontFamily: "'Geist Mono',monospace",
-          background: filterDay === val ? T.accent + '22' : T.chip,
-          color: filterDay === val ? T.accent : T.textMute,
-          border: "1px solid ".concat(filterDay === val ? T.accent + '44' : T.border),
-          cursor: 'pointer'
-        }
-      }, label);
-    }));
-  }(), rolls.length > 0 && function () {
-    // Rolls for the active camera, honouring the day filter.
-    var visRolls = filterDay === 'all' ? camRolls : camRolls.filter(function (r) {
-      return r.shootDay === filterDay;
+  }, filterDay === 'all' ? 'All days' : 'Day ' + filterDay, filterDay !== 'all' && selectedDayDate && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      fontWeight: 400,
+      color: T.textDim
+    }
+  }, fmtDayDate(selectedDayDate)), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 9
+    }
+  }, "\u25BE")), showDayMenu && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    onClick: function onClick() {
+      return setShowDayMenu(false);
+    },
+    style: {
+      position: 'fixed',
+      inset: 0,
+      zIndex: 400
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'absolute',
+      top: '100%',
+      left: 0,
+      marginTop: 4,
+      zIndex: 401,
+      minWidth: 230,
+      maxHeight: '52vh',
+      overflowY: 'auto',
+      background: T.panel,
+      border: "1px solid ".concat(T.border),
+      borderRadius: 8,
+      boxShadow: '0 8px 24px rgba(0,0,0,0.55)'
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: function onClick() {
+      startNewShootDay();
+      setShowDayMenu(false);
+    },
+    style: {
+      display: 'block',
+      width: '100%',
+      textAlign: 'left',
+      padding: '10px 13px',
+      background: T.accent + '14',
+      border: 'none',
+      borderBottom: "1px solid ".concat(T.rule),
+      color: T.accent,
+      fontSize: 12,
+      fontWeight: 600,
+      fontFamily: "'Geist Mono',monospace",
+      cursor: 'pointer'
+    }
+  }, "+ New shoot day"), allDayNums.map(function (d) {
+    var rec = shootDays.find(function (x) {
+      return x.day === d;
     });
-    return /*#__PURE__*/React.createElement("div", {
+    var dayRolls = rolls.filter(function (r) {
+      return r.shootDay === d;
+    });
+    var cams = CAM_ORDER.filter(function (c) {
+      return dayRolls.some(function (r) {
+        return camOf(r) === c;
+      });
+    });
+    var clips = dayRolls.reduce(function (n, r) {
+      return n + (r.takes || []).length;
+    }, 0);
+    return /*#__PURE__*/React.createElement("button", {
+      key: d,
+      onClick: function onClick() {
+        selectDay(d);
+        setShowDayMenu(false);
+      },
+      style: {
+        display: 'block',
+        width: '100%',
+        textAlign: 'left',
+        padding: '9px 13px',
+        background: filterDay === d ? T.chip : 'transparent',
+        border: 'none',
+        borderBottom: "1px solid ".concat(T.rule),
+        color: T.text,
+        fontSize: 12,
+        fontFamily: "'Geist Mono',monospace",
+        cursor: 'pointer'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
       style: {
         display: 'flex',
-        gap: 8,
-        padding: '8px 16px 4px',
-        flexShrink: 0,
         alignItems: 'center',
-        flexWrap: 'wrap'
+        gap: 7
       }
     }, /*#__PURE__*/React.createElement("span", {
       style: {
-        fontSize: 9,
-        fontFamily: "'Geist Mono',monospace",
-        color: T.textDim,
-        letterSpacing: '0.08em'
+        fontWeight: 600
       }
-    }, "CAM"), /*#__PURE__*/React.createElement("div", {
+    }, "Day ", d), rec && rec.date && /*#__PURE__*/React.createElement("span", {
       style: {
-        display: 'flex',
-        gap: 4,
-        alignItems: 'center'
+        fontSize: 10,
+        color: T.textDim
       }
-    }, existingCams.map(function (c) {
-      var cfg = CAM_CONFIG[c];
-      var on = activeCam === c;
-      return /*#__PURE__*/React.createElement("button", {
-        key: c,
-        onClick: function onClick() {
-          return setActiveCam(c);
-        },
-        style: {
-          width: 30,
-          height: 30,
-          borderRadius: 7,
-          fontSize: 13,
-          fontWeight: 700,
-          cursor: 'pointer',
-          fontFamily: "'Geist Mono',monospace",
-          background: on ? cfg.accent : cfg.tint,
-          color: on ? '#0e0d0b' : cfg.accent,
-          border: "1.5px solid ".concat(on ? cfg.accent : cfg.accent + '55')
-        }
-      }, cfg.label);
-    }), existingCams.length < CAM_ORDER.length && /*#__PURE__*/React.createElement("button", {
-      onClick: addCamera,
-      title: "Add another camera",
+    }, fmtDayDate(rec.date))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 9,
+        color: T.textDim,
+        marginTop: 2
+      }
+    }, cams.length ? cams.join(' + ') + " \xB7 " + dayRolls.length + ' roll' + (dayRolls.length !== 1 ? 's' : '') + " \xB7 " + clips + ' clip' + (clips !== 1 ? 's' : '') : 'no rolls yet'));
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: function onClick() {
+      setFilterDay('all');
+      setShowDayMenu(false);
+    },
+    style: {
+      display: 'block',
+      width: '100%',
+      textAlign: 'left',
+      padding: '9px 13px',
+      background: filterDay === 'all' ? T.chip : 'transparent',
+      border: 'none',
+      color: T.textDim,
+      fontSize: 11,
+      fontFamily: "'Geist Mono',monospace",
+      cursor: 'pointer'
+    }
+  }, "All days (", rolls.length, " roll", rolls.length !== 1 ? 's' : '', ")")))), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 9,
+      fontFamily: "'Geist Mono',monospace",
+      color: T.textDim,
+      letterSpacing: '0.08em',
+      marginLeft: 6
+    }
+  }, "CAM"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 4,
+      alignItems: 'center'
+    }
+  }, dayCams.map(function (c) {
+    var cfg = CAM_CONFIG[c];
+    var on = activeCam === c;
+    return /*#__PURE__*/React.createElement("button", {
+      key: c,
+      onClick: function onClick() {
+        return selectCam(c);
+      },
       style: {
         width: 30,
         height: 30,
         borderRadius: 7,
-        fontSize: 16,
-        cursor: 'pointer',
-        background: 'transparent',
-        color: T.textDim,
-        border: "1px dashed ".concat(T.border)
-      }
-    }, "+")), /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 9,
-        fontFamily: "'Geist Mono',monospace",
-        color: T.textDim,
-        letterSpacing: '0.08em',
-        marginLeft: 8
-      }
-    }, "ROLL"), visRolls.length === 0 ? /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 11,
-        color: T.textDim,
-        fontFamily: "'Geist Mono',monospace",
-        padding: '4px 0'
-      }
-    }, "No ", activeCam, " cam rolls this day") : /*#__PURE__*/React.createElement("select", {
-      value: activeRoll || '',
-      onChange: function onChange(e) {
-        return setActiveRoll(e.target.value);
-      },
-      style: {
-        background: T.surface2,
-        border: "1.5px solid ".concat(CAM.accent, "66"),
-        borderRadius: 6,
-        padding: '6px 10px',
         fontSize: 13,
-        color: CAM.accent,
-        fontWeight: 600,
-        fontFamily: "'Geist Mono',monospace",
+        fontWeight: 700,
         cursor: 'pointer',
-        minWidth: 180
-      }
-    }, visRolls.map(function (r) {
-      return /*#__PURE__*/React.createElement("option", {
-        key: r.id,
-        value: r.id
-      }, r.roll || '(roll)', " ", "\xB7", " Day ", r.shootDay || '?', " ", "\xB7", " ", (r.takes || []).length, " clips");
-    })), /*#__PURE__*/React.createElement("button", {
-      onClick: function onClick() {
-        return addRoll(activeCam, 'continue');
-      },
-      title: 'New ' + activeCam + ' cam roll  -  same day/date/crew/camera settings as the last roll',
-      style: {
-        padding: '5px 10px',
-        borderRadius: 6,
-        fontSize: 10,
         fontFamily: "'Geist Mono',monospace",
-        background: CAM.tint,
-        border: "1px solid ".concat(CAM.accent, "55"),
-        color: CAM.accent,
+        background: on ? cfg.accent : cfg.tint,
+        color: on ? '#0e0d0b' : cfg.accent,
+        border: "1.5px solid ".concat(on ? cfg.accent : cfg.accent + '55')
+      }
+    }, cfg.label);
+  }), dayCams.length < CAM_ORDER.length && /*#__PURE__*/React.createElement("button", {
+    onClick: function onClick() {
+      return setShowAddCam(function (v) {
+        return !v;
+      });
+    },
+    title: filterDay === 'all' ? 'Add a camera' : 'Add a camera to Day ' + filterDay,
+    style: {
+      width: 30,
+      height: 30,
+      borderRadius: 7,
+      fontSize: 16,
+      cursor: 'pointer',
+      background: 'transparent',
+      color: T.textDim,
+      border: "1px dashed ".concat(T.border)
+    }
+  }, "+")), showAddCam && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    onClick: function onClick() {
+      return setShowAddCam(false);
+    },
+    style: {
+      position: 'fixed',
+      inset: 0,
+      zIndex: 400
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'absolute',
+      zIndex: 401,
+      marginTop: 70,
+      minWidth: 170,
+      background: T.panel,
+      border: "1px solid ".concat(T.border),
+      borderRadius: 8,
+      boxShadow: '0 8px 24px rgba(0,0,0,0.55)',
+      overflow: 'hidden'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '7px 12px 4px',
+      fontSize: 8,
+      fontFamily: "'Geist Mono',monospace",
+      color: T.textDim,
+      letterSpacing: '0.08em'
+    }
+  }, "ADD CAMERA", filterDay !== 'all' ? ' TO DAY ' + filterDay : ''), CAM_ORDER.filter(function (c) {
+    return !dayCams.includes(c);
+  }).map(function (c) {
+    var cfg = CAM_CONFIG[c];
+    return /*#__PURE__*/React.createElement("button", {
+      key: c,
+      onClick: function onClick() {
+        addRoll(c, filterDay);
+        setShowAddCam(false);
+      },
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 9,
+        width: '100%',
+        textAlign: 'left',
+        padding: '9px 12px',
+        background: 'transparent',
+        border: 'none',
+        borderTop: "1px solid ".concat(T.rule),
+        color: T.text,
+        fontSize: 12,
+        fontFamily: "'Geist Mono',monospace",
         cursor: 'pointer'
       }
-    }, "+ Roll"));
-  }(), showSearch && /*#__PURE__*/React.createElement("div", {
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        width: 20,
+        height: 20,
+        borderRadius: 5,
+        display: 'grid',
+        placeItems: 'center',
+        background: cfg.tint,
+        color: cfg.accent,
+        border: "1px solid ".concat(cfg.accent, "55"),
+        fontSize: 11,
+        fontWeight: 700
+      }
+    }, c), "Cam ", c);
+  }))), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 9,
+      fontFamily: "'Geist Mono',monospace",
+      color: T.textDim,
+      letterSpacing: '0.08em',
+      marginLeft: 6
+    }
+  }, "ROLL"), visRolls.length === 0 ? /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: T.textDim,
+      fontFamily: "'Geist Mono',monospace",
+      padding: '4px 0'
+    }
+  }, dayCams.length === 0 ? 'no cameras yet' : 'no ' + activeCam + ' rolls') : /*#__PURE__*/React.createElement("select", {
+    value: activeRoll || '',
+    onChange: function onChange(e) {
+      return setActiveRoll(e.target.value);
+    },
+    style: {
+      background: T.surface2,
+      border: "1.5px solid ".concat(CAM.accent, "66"),
+      borderRadius: 6,
+      padding: '6px 10px',
+      fontSize: 13,
+      color: CAM.accent,
+      fontWeight: 600,
+      fontFamily: "'Geist Mono',monospace",
+      cursor: 'pointer',
+      minWidth: 170
+    }
+  }, visRolls.map(function (r) {
+    return /*#__PURE__*/React.createElement("option", {
+      key: r.id,
+      value: r.id
+    }, r.roll || '(roll)', filterDay === 'all' ? " \xB7 Day " + (r.shootDay || '?') : '', " ", "\xB7", " ", (r.takes || []).length, " clips");
+  })), dayCams.length > 0 && /*#__PURE__*/React.createElement("button", {
+    onClick: function onClick() {
+      return addRoll(activeCam, filterDay);
+    },
+    title: 'Another ' + activeCam + ' cam roll on this day',
+    style: {
+      padding: '5px 10px',
+      borderRadius: 6,
+      fontSize: 10,
+      fontFamily: "'Geist Mono',monospace",
+      background: CAM.tint,
+      border: "1px solid ".concat(CAM.accent, "55"),
+      color: CAM.accent,
+      cursor: 'pointer'
+    }
+  }, "+ Roll")), showSearch && /*#__PURE__*/React.createElement("div", {
     style: {
       padding: '10px 14px',
       borderBottom: "1px solid ".concat(T.rule),
@@ -6439,16 +6696,17 @@ function CameraReport() {
       alignItems: 'center',
       justifyContent: 'center',
       flexDirection: 'column',
-      gap: 12,
-      color: T.textDim
+      gap: 14,
+      color: T.textDim,
+      padding: 20
     }
-  }, /*#__PURE__*/React.createElement("div", {
+  }, filterDay === 'all' && rolls.length === 0 ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13
     }
   }, "No camera rolls yet."), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
-      return addRoll(activeCam, 'blank');
+      return addRoll('A', filterDay);
     },
     style: {
       padding: '8px 18px',
@@ -6460,7 +6718,48 @@ function CameraReport() {
       fontSize: 12,
       cursor: 'pointer'
     }
-  }, "+ Start a roll")), roll && !(showSearch && hasSearch) && /*#__PURE__*/React.createElement("div", {
+  }, "+ Start Cam A")) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 14,
+      color: T.text,
+      fontFamily: "'Geist Mono',monospace"
+    }
+  }, "Day ", filterDay, selectedDayDate ? ' · ' + fmtDayDate(selectedDayDate) : ''), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      textAlign: 'center',
+      lineHeight: 1.6,
+      maxWidth: 280
+    }
+  }, "Nothing shot on this day yet. Add whichever camera turned over."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      flexWrap: 'wrap',
+      justifyContent: 'center'
+    }
+  }, CAM_ORDER.map(function (c) {
+    var cfg = CAM_CONFIG[c];
+    return /*#__PURE__*/React.createElement("button", {
+      key: c,
+      onClick: function onClick() {
+        return addRoll(c, filterDay);
+      },
+      title: 'Start Cam ' + c + ' on this day',
+      style: {
+        width: 44,
+        height: 44,
+        borderRadius: 9,
+        fontSize: 16,
+        fontWeight: 700,
+        cursor: 'pointer',
+        fontFamily: "'Geist Mono',monospace",
+        background: cfg.tint,
+        color: cfg.accent,
+        border: "1.5px solid ".concat(cfg.accent, "55")
+      }
+    }, c);
+  })))), roll && !(showSearch && hasSearch) && /*#__PURE__*/React.createElement("div", {
     style: {
       flex: 1,
       display: 'flex',
@@ -7601,30 +7900,30 @@ function SettingsModal(_ref35) {
   var _useStandaloneData2 = useStandaloneData(),
     data = _useStandaloneData2.data,
     updateData = _useStandaloneData2.updateData;
-  var _React$useState95 = React.useState(data.projectName || ''),
-    _React$useState96 = _slicedToArray(_React$useState95, 2),
-    projectName = _React$useState96[0],
-    setProjectName = _React$useState96[1];
-  var _React$useState97 = React.useState(data.gsheetsClientId || ''),
-    _React$useState98 = _slicedToArray(_React$useState97, 2),
-    clientId = _React$useState98[0],
-    setClientId = _React$useState98[1];
-  var _React$useState99 = React.useState(false),
+  var _React$useState99 = React.useState(data.projectName || ''),
     _React$useState100 = _slicedToArray(_React$useState99, 2),
-    saved = _React$useState100[0],
-    setSaved = _React$useState100[1];
-  var _React$useState101 = React.useState(false),
+    projectName = _React$useState100[0],
+    setProjectName = _React$useState100[1];
+  var _React$useState101 = React.useState(data.gsheetsClientId || ''),
     _React$useState102 = _slicedToArray(_React$useState101, 2),
-    showScenes = _React$useState102[0],
-    setShowScenes = _React$useState102[1];
+    clientId = _React$useState102[0],
+    setClientId = _React$useState102[1];
   var _React$useState103 = React.useState(false),
     _React$useState104 = _slicedToArray(_React$useState103, 2),
-    showDays = _React$useState104[0],
-    setShowDays = _React$useState104[1];
+    saved = _React$useState104[0],
+    setSaved = _React$useState104[1];
   var _React$useState105 = React.useState(false),
     _React$useState106 = _slicedToArray(_React$useState105, 2),
-    showColumns = _React$useState106[0],
-    setShowColumns = _React$useState106[1];
+    showScenes = _React$useState106[0],
+    setShowScenes = _React$useState106[1];
+  var _React$useState107 = React.useState(false),
+    _React$useState108 = _slicedToArray(_React$useState107, 2),
+    showDays = _React$useState108[0],
+    setShowDays = _React$useState108[1];
+  var _React$useState109 = React.useState(false),
+    _React$useState110 = _slicedToArray(_React$useState109, 2),
+    showColumns = _React$useState110[0],
+    setShowColumns = _React$useState110[1];
   var sceneCount = (data.scenes || []).length;
   var dayCount = (data.shootDays || []).length;
   var hiddenColCount = (data.hiddenColumns || []).length;
@@ -7852,7 +8151,7 @@ function ScenesEditorModal(_ref36) {
      (and a focused field jumps to another scene mid-edit). A key that sticks
      to the row itself makes deletes and reorders behave. */
   var keySeq = React.useRef(0);
-  var _React$useState107 = React.useState(function () {
+  var _React$useState111 = React.useState(function () {
       return (data.scenes || []).map(function (s) {
         return _objectSpread({
           _k: keySeq.current++,
@@ -7860,9 +8159,9 @@ function ScenesEditorModal(_ref36) {
         }, decomposeSlug(s.slug));
       });
     }),
-    _React$useState108 = _slicedToArray(_React$useState107, 2),
-    rows = _React$useState108[0],
-    setRows = _React$useState108[1];
+    _React$useState112 = _slicedToArray(_React$useState111, 2),
+    rows = _React$useState112[0],
+    setRows = _React$useState112[1];
   function patchRow(i, patch) {
     setRows(function (rs) {
       return rs.map(function (r, idx) {
@@ -8108,7 +8407,7 @@ function ShootDaysEditorModal(_ref37) {
   // note above for why array indices are the wrong key for an editable list.
   var keySeq = React.useRef(0);
   // Newest day at the top, matching the day pickers elsewhere in the app.
-  var _React$useState109 = React.useState(function () {
+  var _React$useState113 = React.useState(function () {
       return (data.shootDays || []).slice().sort(function (a, b) {
         return b.day - a.day;
       }).map(function (d) {
@@ -8117,9 +8416,9 @@ function ShootDaysEditorModal(_ref37) {
         });
       });
     }),
-    _React$useState110 = _slicedToArray(_React$useState109, 2),
-    rows = _React$useState110[0],
-    setRows = _React$useState110[1];
+    _React$useState114 = _slicedToArray(_React$useState113, 2),
+    rows = _React$useState114[0],
+    setRows = _React$useState114[1];
   function patchRow(i, patch) {
     setRows(function (rs) {
       return rs.map(function (r, idx) {
@@ -8367,12 +8666,12 @@ function ColumnsEditorModal(_ref38) {
   var _useStandaloneData5 = useStandaloneData(),
     data = _useStandaloneData5.data,
     updateData = _useStandaloneData5.updateData;
-  var _React$useState111 = React.useState(function () {
+  var _React$useState115 = React.useState(function () {
       return new Set(data.hiddenColumns || []);
     }),
-    _React$useState112 = _slicedToArray(_React$useState111, 2),
-    hidden = _React$useState112[0],
-    setHidden = _React$useState112[1];
+    _React$useState116 = _slicedToArray(_React$useState115, 2),
+    hidden = _React$useState116[0],
+    setHidden = _React$useState116[1];
   function toggle(key) {
     setHidden(function (prev) {
       var next = new Set(prev);
@@ -8526,14 +8825,14 @@ function BackupModal(_ref39) {
   var _useStandaloneData6 = useStandaloneData(),
     data = _useStandaloneData6.data,
     updateData = _useStandaloneData6.updateData;
-  var _React$useState113 = React.useState('idle'),
-    _React$useState114 = _slicedToArray(_React$useState113, 2),
-    status = _React$useState114[0],
-    setStatus = _React$useState114[1]; // idle | working | done | error
-  var _React$useState115 = React.useState(''),
-    _React$useState116 = _slicedToArray(_React$useState115, 2),
-    errMsg = _React$useState116[0],
-    setErrMsg = _React$useState116[1];
+  var _React$useState117 = React.useState('idle'),
+    _React$useState118 = _slicedToArray(_React$useState117, 2),
+    status = _React$useState118[0],
+    setStatus = _React$useState118[1]; // idle | working | done | error
+  var _React$useState119 = React.useState(''),
+    _React$useState120 = _slicedToArray(_React$useState119, 2),
+    errMsg = _React$useState120[0],
+    setErrMsg = _React$useState120[1];
   // A per-device Settings value always overrides the baked-in shared default -
   // that's what lets a fork on a different hosting URL use its own Client ID.
   var effectiveClientId = getEffectiveClientId(data);
@@ -8546,14 +8845,14 @@ function BackupModal(_ref39) {
   }, [data.rolls]);
 
   // Restore state
-  var _React$useState117 = React.useState(null),
-    _React$useState118 = _slicedToArray(_React$useState117, 2),
-    sheets = _React$useState118[0],
-    setSheets = _React$useState118[1]; // null = not looked yet
-  var _React$useState119 = React.useState(false),
-    _React$useState120 = _slicedToArray(_React$useState119, 2),
-    restoring = _React$useState120[0],
-    setRestoring = _React$useState120[1];
+  var _React$useState121 = React.useState(null),
+    _React$useState122 = _slicedToArray(_React$useState121, 2),
+    sheets = _React$useState122[0],
+    setSheets = _React$useState122[1]; // null = not looked yet
+  var _React$useState123 = React.useState(false),
+    _React$useState124 = _slicedToArray(_React$useState123, 2),
+    restoring = _React$useState124[0],
+    setRestoring = _React$useState124[1];
   function runBackup() {
     return _runBackup.apply(this, arguments);
   }
@@ -8980,43 +9279,43 @@ function App() {
   var _useAuth2 = useAuth(),
     unlocked = _useAuth2.unlocked,
     requireUnlock = _useAuth2.requireUnlock;
-  var _React$useState121 = React.useState(ensureProjectsSetup),
-    _React$useState122 = _slicedToArray(_React$useState121, 2),
-    projectIds = _React$useState122[0],
-    setProjectIds = _React$useState122[1];
-  var _React$useState123 = React.useState(function () {
+  var _React$useState125 = React.useState(ensureProjectsSetup),
+    _React$useState126 = _slicedToArray(_React$useState125, 2),
+    projectIds = _React$useState126[0],
+    setProjectIds = _React$useState126[1];
+  var _React$useState127 = React.useState(function () {
       return loadCurrentProjectId(projectIds);
     }),
-    _React$useState124 = _slicedToArray(_React$useState123, 2),
-    projectId = _React$useState124[0],
-    setProjectId = _React$useState124[1];
-  var _React$useState125 = React.useState(function () {
+    _React$useState128 = _slicedToArray(_React$useState127, 2),
+    projectId = _React$useState128[0],
+    setProjectId = _React$useState128[1];
+  var _React$useState129 = React.useState(function () {
       return loadProjectData(projectId);
     }),
-    _React$useState126 = _slicedToArray(_React$useState125, 2),
-    data = _React$useState126[0],
-    setData = _React$useState126[1];
-  var _React$useState127 = React.useState(false),
-    _React$useState128 = _slicedToArray(_React$useState127, 2),
-    showSettings = _React$useState128[0],
-    setShowSettings = _React$useState128[1];
-  var _React$useState129 = React.useState(false),
     _React$useState130 = _slicedToArray(_React$useState129, 2),
-    showBackup = _React$useState130[0],
-    setShowBackup = _React$useState130[1];
+    data = _React$useState130[0],
+    setData = _React$useState130[1];
   var _React$useState131 = React.useState(false),
     _React$useState132 = _slicedToArray(_React$useState131, 2),
-    showProjects = _React$useState132[0],
-    setShowProjects = _React$useState132[1];
+    showSettings = _React$useState132[0],
+    setShowSettings = _React$useState132[1];
+  var _React$useState133 = React.useState(false),
+    _React$useState134 = _slicedToArray(_React$useState133, 2),
+    showBackup = _React$useState134[0],
+    setShowBackup = _React$useState134[1];
+  var _React$useState135 = React.useState(false),
+    _React$useState136 = _slicedToArray(_React$useState135, 2),
+    showProjects = _React$useState136[0],
+    setShowProjects = _React$useState136[1];
   // True once a localStorage write has actually FAILED (quota full, private
   // browsing, storage blocked). Previously saveProjectData's false return was
   // discarded here, so the status pill kept saying "SAVED LOCALLY" while
   // nothing was being written - the worst possible failure mode for a camera
   // report you're relying on mid-shoot.
-  var _React$useState133 = React.useState(false),
-    _React$useState134 = _slicedToArray(_React$useState133, 2),
-    storageFailed = _React$useState134[0],
-    setStorageFailed = _React$useState134[1];
+  var _React$useState137 = React.useState(false),
+    _React$useState138 = _slicedToArray(_React$useState137, 2),
+    storageFailed = _React$useState138[0],
+    setStorageFailed = _React$useState138[1];
 
   // Pure state update - no side effects. It stays a functional updater because
   // two updateData calls can land in the same tick (e.g. adding a shoot day,
@@ -9124,9 +9423,23 @@ function App() {
       fontFamily: "'Geist Mono',monospace",
       fontSize: 13,
       fontWeight: 600,
-      color: T.text
+      color: T.text,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 7
     }
-  }, "Camera Report - Standalone"), /*#__PURE__*/React.createElement("button", {
+  }, "Camera Report", /*#__PURE__*/React.createElement("span", {
+    title: "App version - check this matches the latest release to confirm your update landed",
+    style: {
+      fontSize: 9,
+      fontWeight: 500,
+      color: T.textDim,
+      background: T.chip,
+      border: "1px solid ".concat(T.border),
+      borderRadius: 99,
+      padding: '1px 7px'
+    }
+  }, APP_VERSION)), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       return setShowProjects(true);
     },
@@ -9259,28 +9572,28 @@ function ProjectSwitcherModal(_ref40) {
     switchProject = _useStandaloneData7.switchProject,
     createProject = _useStandaloneData7.createProject,
     deleteProject = _useStandaloneData7.deleteProject;
-  var _React$useState135 = React.useState(function () {
+  var _React$useState139 = React.useState(function () {
       var m = {};
       projectIds.forEach(function (id) {
         m[id] = id === projectId ? data.projectName : loadProjectData(id).projectName;
       });
       return m;
     }),
-    _React$useState136 = _slicedToArray(_React$useState135, 2),
-    names = _React$useState136[0],
-    setNames = _React$useState136[1];
-  var _React$useState137 = React.useState(null),
-    _React$useState138 = _slicedToArray(_React$useState137, 2),
-    editingId = _React$useState138[0],
-    setEditingId = _React$useState138[1];
-  var _React$useState139 = React.useState(''),
     _React$useState140 = _slicedToArray(_React$useState139, 2),
-    editName = _React$useState140[0],
-    setEditName = _React$useState140[1];
-  var _React$useState141 = React.useState(''),
+    names = _React$useState140[0],
+    setNames = _React$useState140[1];
+  var _React$useState141 = React.useState(null),
     _React$useState142 = _slicedToArray(_React$useState141, 2),
-    newName = _React$useState142[0],
-    setNewName = _React$useState142[1];
+    editingId = _React$useState142[0],
+    setEditingId = _React$useState142[1];
+  var _React$useState143 = React.useState(''),
+    _React$useState144 = _slicedToArray(_React$useState143, 2),
+    editName = _React$useState144[0],
+    setEditName = _React$useState144[1];
+  var _React$useState145 = React.useState(''),
+    _React$useState146 = _slicedToArray(_React$useState145, 2),
+    newName = _React$useState146[0],
+    setNewName = _React$useState146[1];
   function startEdit(id) {
     setEditingId(id);
     setEditName(names[id] || '');
@@ -9529,24 +9842,24 @@ var TRIAL_LIMITS = {
 };
 function AccessGate(_ref41) {
   var children = _ref41.children;
-  var _React$useState143 = React.useState(function () {
+  var _React$useState147 = React.useState(function () {
       return loadGateAuth() ? 'allowed' : 'trial';
     }),
-    _React$useState144 = _slicedToArray(_React$useState143, 2),
-    state = _React$useState144[0],
-    setState = _React$useState144[1]; // trial | working | denied | allowed | error
-  var _React$useState145 = React.useState(''),
-    _React$useState146 = _slicedToArray(_React$useState145, 2),
-    errMsg = _React$useState146[0],
-    setErrMsg = _React$useState146[1];
-  var _React$useState147 = React.useState(false),
     _React$useState148 = _slicedToArray(_React$useState147, 2),
-    showUnlock = _React$useState148[0],
-    setShowUnlock = _React$useState148[1];
+    state = _React$useState148[0],
+    setState = _React$useState148[1]; // trial | working | denied | allowed | error
   var _React$useState149 = React.useState(''),
     _React$useState150 = _slicedToArray(_React$useState149, 2),
-    unlockReason = _React$useState150[0],
-    setUnlockReason = _React$useState150[1];
+    errMsg = _React$useState150[0],
+    setErrMsg = _React$useState150[1];
+  var _React$useState151 = React.useState(false),
+    _React$useState152 = _slicedToArray(_React$useState151, 2),
+    showUnlock = _React$useState152[0],
+    setShowUnlock = _React$useState152[1];
+  var _React$useState153 = React.useState(''),
+    _React$useState154 = _slicedToArray(_React$useState153, 2),
+    unlockReason = _React$useState154[0],
+    setUnlockReason = _React$useState154[1];
   var checkedOnce = React.useRef(false);
   React.useEffect(function () {
     if (checkedOnce.current) return;
