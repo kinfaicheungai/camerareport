@@ -1067,7 +1067,7 @@ const SB_LENS_PRESETS_KEY='sb_camrep_lens_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-const APP_VERSION='v2.2';
+const APP_VERSION='v2.3';
 
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
@@ -2795,7 +2795,18 @@ function CameraReport(){
       body{font-family:Arial,Helvetica,sans-serif;margin:14px;color:#111;}
       .sheet{border:2px solid #999;}
       .hdr{background:#111;color:#fff;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;gap:12px;}
-      .hdr .title{font-size:26px;font-weight:bold;text-align:center;flex:1;line-height:1.1;}
+      /* Production title plate. The name gets a coloured slab in the camera's
+         own colour rather than sitting as plain text on black - it reads as a
+         masthead, and it makes an A-cam report distinguishable from a B-cam
+         one at a glance across a stack of paper. */
+      .hdr .title{flex:1;text-align:center;}
+      .hdr .title .plate{display:inline-block;background:${camHeaderColor};
+        border:1px solid rgba(255,255,255,0.28);border-radius:4px;
+        padding:5px 20px;font-size:24px;font-weight:bold;line-height:1.15;
+        letter-spacing:1.5px;text-transform:uppercase;color:#fff;
+        box-shadow:inset 0 0 0 3px rgba(0,0,0,0.25);}
+      .hdr .title .sub{display:block;margin-top:4px;font-size:8.5px;
+        letter-spacing:3px;color:#9a9a9a;text-transform:uppercase;}
       .crew{font-size:10px;line-height:1.6;white-space:nowrap;}
       .crew b{display:inline-block;min-width:58px;text-align:right;margin-right:5px;font-weight:bold;}
       .rollbox{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:bold;}
@@ -2808,9 +2819,14 @@ function CameraReport(){
       table.meta td{border:1px solid #111;padding:3px 6px;vertical-align:middle;}
       table.meta td.k{background:#e9e9e9;font-weight:bold;white-space:nowrap;width:1%;}
       table.main{width:100%;border-collapse:collapse;font-size:9.5px;table-layout:fixed;margin-top:0;}
-      /* Every cell fully bordered, header included. */
-      table.main th{background:${camHeaderColor};color:#fff;padding:4px 3px;text-align:left;font-size:9.5px;
-        border:1px solid #111;word-wrap:break-word;line-height:1.15;vertical-align:middle;}
+      /* Every cell fully bordered, header included.
+         nowrap + a slightly tighter type size keeps every heading on ONE line.
+         Previously they wrapped mid-word in portrait ("SHO / T", "SHUTT / ER"),
+         which is unreadable; the column widths below are sized so the longest
+         heading in each still fits without clipping. */
+      table.main th{background:${camHeaderColor};color:#fff;padding:4px 2px;text-align:left;font-size:8px;
+        border:1px solid #111;white-space:nowrap;overflow:hidden;letter-spacing:-0.1px;
+        line-height:1.2;vertical-align:middle;}
       table.main td{border:1px solid #444;padding:3px 4px;word-wrap:break-word;vertical-align:top;height:15px;}
       table.main tr:nth-child(even) td{background:#f4f4f4;}
       .foot td{border:1px solid #111;background:#e9e9e9;font-size:10px;padding:4px 6px;text-align:center;font-weight:bold;}
@@ -2836,7 +2852,10 @@ function CameraReport(){
         <b>DOP:</b>${esc(roll.dop)}<br>
         <b>1ST AC:</b>${esc(roll.ac)}
       </div>
-      <div class="title">${esc(proj.projectName||'CAMERA REPORT')}</div>
+      <div class="title">
+        <span class="plate">${esc(proj.projectName||'Camera Report')}</span>
+        <span class="sub">Camera Report</span>
+      </div>
       <div class="rollbox">
         <div class="lbl">ROLL #<br>MAG #</div>
         <div class="val"><div class="roll">${esc(roll.roll)}</div><div class="mag">${esc(roll.mag)||'&nbsp;'}</div></div>
@@ -2858,21 +2877,24 @@ function CameraReport(){
     </tbody></table>
     <table class="main">
     <colgroup>
-      <col style="width:8.5%"/>  <!-- SCENE (fits "S57 INT, S60 INT, S46 INT" on one line at 10px) -->
-      <col style="width:3.5%"/>  <!-- SHOT -->
-      <col style="width:3.5%"/>  <!-- TAKE -->
-      <col style="width:3%"/>    <!-- T/S -->
-      <col style="width:5%"/>    <!-- CLIP -->
-      <col style="width:8%"/>    <!-- LENS -->
-      <col style="width:4.5%"/>  <!-- FOCAL -->
-      <col style="width:3.5%"/>  <!-- STOP -->
-      <col style="width:5%"/>    <!-- SHUTTER (was ~8-9%) -->
-      <col style="width:3.5%"/>  <!-- EI -->
-      <col style="width:8%"/>    <!-- FILTER 1 -->
-      <col style="width:5%"/>    <!-- FILTER 2 (was ~7%) -->
-      <col style="width:5%"/>    <!-- FILTER 3 -->
-      <col style="width:4.5%"/>  <!-- WB -->
-      <col style="width:5.5%"/>  <!-- FOCUS -->
+      <!-- Widths are driven by the widest HEADING each column must fit on one
+           line at 8px, not by the data - the data wraps happily, headings must
+           not. "SHUTTER" and "FILTER n" are the constraining ones. -->
+      <col style="width:7.5%"/>  <!-- SCENE -->
+      <col style="width:4.2%"/>  <!-- SHOT -->
+      <col style="width:4.2%"/>  <!-- TAKE -->
+      <col style="width:2.8%"/>  <!-- T/S -->
+      <col style="width:4.4%"/>  <!-- CLIP -->
+      <col style="width:8.5%"/>  <!-- LENS -->
+      <col style="width:4.6%"/>  <!-- FOCAL -->
+      <col style="width:4%"/>    <!-- STOP -->
+      <col style="width:6%"/>    <!-- SHUTTER -->
+      <col style="width:3%"/>    <!-- EI -->
+      <col style="width:6%"/>    <!-- FILTER 1 -->
+      <col style="width:6%"/>    <!-- FILTER 2 -->
+      <col style="width:6%"/>    <!-- FILTER 3 -->
+      <col style="width:4.4%"/>  <!-- WB -->
+      <col style="width:5%"/>    <!-- FOCUS -->
       <col/>                     <!-- NOTES takes remaining space -->
       ${hasAnyPhoto?'<col style="width:5%"/>':''}
     </colgroup>
