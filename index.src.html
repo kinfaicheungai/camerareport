@@ -1114,7 +1114,7 @@ const SB_LENS_PRESETS_KEY='sb_camrep_lens_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-const APP_VERSION='v2.7';
+const APP_VERSION='v2.8';
 
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
@@ -2056,7 +2056,11 @@ function CameraReport(){
     const updated=rolls.map(r=>{
       if(!r.shootDay)return r;
       const dd=shootDays.find(d=>d.day===r.shootDay);
-      if(dd&&dd.date&&prevMap[r.shootDay]!==undefined&&prevMap[r.shootDay]!==dd.date&&r.date!==dd.date){
+      // No `prevMap[...] !== undefined` guard: a day can first appear in
+      // shootDays when someone dates a roll that was tagged with a day the
+      // settings never knew about. That still has to reach the OTHER rolls of
+      // that day, and undefined !== the new date, so it does.
+      if(dd&&dd.date&&prevMap[r.shootDay]!==dd.date&&r.date!==dd.date){
         changed=true;
         return {...r,date:dd.date};
       }
@@ -2351,6 +2355,26 @@ function CameraReport(){
   /* A new shoot day opens as a genuinely blank page: the day is registered in
      Project Settings (so it is pickable and dated) but NO rolls are created.
      The user adds whichever cameras actually turned over that day. */
+  /* The roll DATE box and Project Settings > Shoot days are two views of ONE
+     fact: what calendar date this shoot day fell on. Editing either now moves
+     the other.
+       here  -> settings : written below, and the shoot-day effect then pushes
+                           the new date onto every other roll of that day
+       settings -> here  : handled by that same effect
+     A roll with no shoot day assigned just keeps a private date, since there's
+     nothing to share it with. */
+  function setRollDate(v){
+    if(!roll)return;
+    patchRoll(roll.id,{date:v});
+    if(!roll.shootDay)return;
+    const rec=shootDays.find(d=>d.day===roll.shootDay);
+    if(rec&&rec.date===v)return;                       // already in step
+    const next=rec
+      ? shootDays.map(d=>d.day===roll.shootDay?{...d,date:v}:d)
+      : [...shootDays,{day:roll.shootDay,date:v}];     // day existed only on rolls
+    updateData({shootDays:next});
+  }
+
   function startNewShootDay(){
     const nextDay=(latestShootDay?latestShootDay.day:0)+1;
     const nextDate=latestShootDay?addOneDay(latestShootDay.date):new Date().toISOString().slice(0,10);
@@ -3682,8 +3706,12 @@ function CameraReport(){
               </div>
               <div>
                 <span style={metaLabel}>DATE</span>
-                <input type="date" value={roll.date||''} onChange={e=>patchRoll(roll.id,{date:e.target.value})} style={metaInput}/>
+                <input type="date" value={roll.date||''} onChange={e=>setRollDate(e.target.value)} style={metaInput}
+                  title={roll.shootDay?'Changing this also updates Day '+roll.shootDay+' in Project Settings, and every other roll on that day':'Date for this roll'}/>
                 {roll.date&&<div style={{fontSize:9,color:T.accent,fontFamily:"'Geist Mono',monospace",marginTop:2}}>{fmtDayDate(roll.date)}</div>}
+                {roll.shootDay&&<div style={{fontSize:8,color:T.textDim,fontFamily:"'Geist Mono',monospace",marginTop:1}}>
+                  shared with Day {roll.shootDay}
+                </div>}
               </div>
               <div>
                 <span style={metaLabel}>DIRECTOR</span>
@@ -4270,19 +4298,24 @@ function ShootDaysEditorModal({onClose}){
   // _k: stable per-row render key, never persisted - see the ScenesEditorModal
   // note above for why array indices are the wrong key for an editable list.
   const keySeq=React.useRef(0);
-  // Newest day at the top, matching the day pickers elsewhere in the app.
-  const [rows,setRows]=React.useState(()=>(data.shootDays||[]).slice().sort((a,b)=>b.day-a.day).map(d=>({...d,_k:keySeq.current++})));
+  /* Ascending here (Day 1 at the top), unlike the day picker on the main
+     screen which is newest-first. Different job: the picker is for "jump to
+     the day I'm shooting", which is almost always the latest; this is the
+     schedule itself, and a calendar reads forwards. Ascending also makes a
+     mis-typed date obvious at a glance, because the dates should march
+     downwards in step with the day numbers. */
+  const [rows,setRows]=React.useState(()=>(data.shootDays||[]).slice().sort((a,b)=>a.day-b.day).map(d=>({...d,_k:keySeq.current++})));
 
   function patchRow(i,patch){ setRows(rs=>rs.map((r,idx)=>idx===i?{...r,...patch}:r)); }
   function removeRow(i){ setRows(rs=>rs.filter((_,idx)=>idx!==i)); }
   function addRow(){
     setRows(rs=>{
-      // Continue from the highest day number present, whatever order the rows
-      // are currently in (the user can retype any day number by hand), and put
-      // the new day on top where the list is newest-first.
+      // Continue from the highest day number present (not simply the last row -
+      // day numbers are hand-editable, so the two can disagree) and append,
+      // which is where the newest day belongs in an ascending list.
       const maxDay=rs.reduce((m,r)=>Math.max(m,parseInt(r.day,10)||0),0);
       const from=rs.find(r=>(parseInt(r.day,10)||0)===maxDay);
-      return [{day:maxDay+1,date:from?addOneDay(from.date):'',_k:keySeq.current++},...rs];
+      return [...rs,{day:maxDay+1,date:from?addOneDay(from.date):'',_k:keySeq.current++}];
     });
   }
   function save(){
