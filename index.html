@@ -1856,7 +1856,7 @@ var SB_LENS_PRESETS_KEY = 'sb_camrep_lens_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-var APP_VERSION = 'v2.9';
+var APP_VERSION = 'v3.1';
 var CAM_CONFIG = {
   A: {
     label: 'A',
@@ -4413,17 +4413,39 @@ function CameraReport() {
     });
     if (isNewCam && existingCams.length >= TRIAL_LIMITS.cams && !requireUnlock("Free preview is limited to ".concat(TRIAL_LIMITS.cams, " camera. Sign in to add more."))) return;
     var id = 'roll' + Date.now();
-    var day = dayNum !== undefined && dayNum !== null && dayNum !== 'all' ? dayNum : filterDay !== 'all' ? filterDay : latestShootDay ? latestShootDay.day : '';
+    var today = new Date().toISOString().slice(0, 10);
+    // 'all' and 'none' are VIEW filters, not real days - never let either be
+    // written onto a roll. Both fall through to "no day", which the block
+    // below turns into a real one.
+    var asDay = function asDay(v) {
+      return v === 'all' || v === 'none' || v === '' || v === undefined || v === null ? '' : v;
+    };
+    var day = asDay(dayNum) || asDay(filterDay) || (latestShootDay ? latestShootDay.day : '');
+    /* Never create a roll with no shoot day. Day is the top level of the
+       hierarchy now, so a day-less roll is unreachable: it shows up under
+       "All days" and nowhere else, with no control left to assign it one.
+       That's exactly what happened on a brand-new production, where the very
+       first roll is created before any day exists - so open Day 1 for it. */
     var dayRec = shootDays.find(function (d) {
       return d.day === day;
     });
+    if (day === '' || day === undefined || day === null) {
+      day = 1;
+      dayRec = {
+        day: 1,
+        date: today
+      };
+      updateData({
+        shootDays: [].concat(_toConsumableArray(shootDays), [dayRec])
+      });
+    }
     var newRoll = _objectSpread(_objectSpread({
       id: id,
       roll: nextRollNo(c),
       cam: c,
       mag: '',
-      date: dayRec && dayRec.date || new Date().toISOString().slice(0, 10),
-      shootDay: day === '' ? '' : day
+      date: dayRec && dayRec.date || today,
+      shootDay: day
     }, camSetupFrom(c)), {}, {
       takes: []
     });
@@ -4432,7 +4454,35 @@ function CameraReport() {
     setActiveCam(c);
     setActiveRoll(id);
     saveRolls(updated);
-    if (day !== '') setFilterDay(day);
+    setFilterDay(day);
+  }
+
+  /* Move a roll (with all its takes) to a different shoot day. Rare, but the
+     only recovery when a day's worth of clips was logged under the wrong day -
+     without it the mistake is permanent, since the day picker at the top only
+     decides where NEW rolls land. Lives in the Actions drawer rather than the
+     always-visible panel precisely because it should not be easy to hit. */
+  function moveRollToDay(rollId, targetDay) {
+    var rk = rolls.find(function (r) {
+      return r.id === rollId;
+    });
+    if (!rk || rk.shootDay === targetDay) return;
+    var rec = shootDays.find(function (d) {
+      return d.day === targetDay;
+    });
+    var updated = rolls.map(function (r) {
+      return r.id === rollId ? _objectSpread(_objectSpread({}, r), {}, {
+        shootDay: targetDay,
+        date: rec && rec.date || r.date
+      }) : r;
+    });
+    setRolls(updated);
+    saveRolls(updated);
+    // Follow the roll to its new day, otherwise it vanishes from view and
+    // looks like it was deleted.
+    setFilterDay(targetDay);
+    setActiveCam(camOf(rk));
+    setActiveRoll(rollId);
   }
 
   // Move an entire roll (with all its takes) to a different camera.
@@ -4574,12 +4624,24 @@ function CameraReport() {
     }); // newest first
   }, [shootDays, rolls]);
 
+  /* Rolls made before the day-first hierarchy (or by an older build) can carry
+     no shoot day at all. Without a home they'd be invisible under every day -
+     data you own but cannot open - so they get their own bucket in the day
+     picker, from which the Actions drawer can assign them a real day. */
+  var orphanRolls = React.useMemo(function () {
+    return rolls.filter(function (r) {
+      return !r.shootDay;
+    });
+  }, [rolls]);
+
   // Rolls on the selected day (all rolls when viewing "All days").
   var dayRolls = React.useMemo(function () {
-    return filterDay === 'all' ? rolls : rolls.filter(function (r) {
+    if (filterDay === 'all') return rolls;
+    if (filterDay === 'none') return orphanRolls;
+    return rolls.filter(function (r) {
       return r.shootDay === filterDay;
     });
-  }, [rolls, filterDay]);
+  }, [rolls, filterDay, orphanRolls]);
 
   // ONLY the cameras that actually rolled on this day - an unused camera is
   // absent rather than showing an empty roll.
@@ -4631,9 +4693,47 @@ function CameraReport() {
   /* A new shoot day opens as a genuinely blank page: the day is registered in
      Project Settings (so it is pickable and dated) but NO rolls are created.
      The user adds whichever cameras actually turned over that day. */
+  /* The roll's DATE box and Project Settings > Shoot days are two views of ONE
+     fact: which calendar date this shoot day fell on. Editing here writes back
+     to the shoot-day record, and the shoot-day effect then pushes that date
+     onto every other camera's roll from the same day - so all three stay in
+     step no matter where the edit started.
+     A roll with no shoot day (legacy data) just keeps a private date, since
+     there is no day record to share it with. */
+  function setRollDate(v) {
+    if (!roll) return;
+    patchRoll(roll.id, {
+      date: v
+    });
+    if (!roll.shootDay) return;
+    var rec = shootDays.find(function (d) {
+      return d.day === roll.shootDay;
+    });
+    if (rec && rec.date === v) return; // already in step
+    var next = rec ? shootDays.map(function (d) {
+      return d.day === roll.shootDay ? _objectSpread(_objectSpread({}, d), {}, {
+        date: v
+      }) : d;
+    }) : [].concat(_toConsumableArray(shootDays), [{
+      day: roll.shootDay,
+      date: v
+    }]); // day existed only on rolls
+    updateData({
+      shootDays: next
+    });
+  }
   function startNewShootDay() {
-    var nextDay = (latestShootDay ? latestShootDay.day : 0) + 1;
-    var nextDate = latestShootDay ? addOneDay(latestShootDay.date) : new Date().toISOString().slice(0, 10);
+    /* Count from the highest day the production knows about ANYWHERE - both
+       the Settings list and any day stamped on a roll. Using only the Settings
+       list could hand out a number that rolls are already using (e.g. restored
+       data whose day records were never written), silently merging two days
+       into one. */
+    var maxDay = allDayNums.length ? Math.max.apply(Math, _toConsumableArray(allDayNums)) : 0;
+    var nextDay = maxDay + 1;
+    var prevRec = shootDays.find(function (d) {
+      return d.day === maxDay;
+    });
+    var nextDate = prevRec && prevRec.date ? addOneDay(prevRec.date) : new Date().toISOString().slice(0, 10);
     updateData({
       shootDays: [].concat(_toConsumableArray(shootDays), [{
         day: nextDay,
@@ -6213,7 +6313,7 @@ function CameraReport() {
       fontFamily: "'Geist Mono',monospace",
       cursor: 'pointer'
     }
-  }, filterDay === 'all' ? 'All days' : 'Day ' + filterDay, filterDay !== 'all' && selectedDayDate && /*#__PURE__*/React.createElement("span", {
+  }, filterDay === 'all' ? 'All days' : filterDay === 'none' ? 'Unassigned' : 'Day ' + filterDay, filterDay !== 'all' && filterDay !== 'none' && selectedDayDate && /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 10,
       fontWeight: 400,
@@ -6322,7 +6422,27 @@ function CameraReport() {
         marginTop: 2
       }
     }, cams.length ? cams.join(' + ') + " \xB7 " + dayRolls.length + ' roll' + (dayRolls.length !== 1 ? 's' : '') + " \xB7 " + clips + ' clip' + (clips !== 1 ? 's' : '') : 'no rolls yet'));
-  }), /*#__PURE__*/React.createElement("button", {
+  }), orphanRolls.length > 0 && /*#__PURE__*/React.createElement("button", {
+    onClick: function onClick() {
+      setFilterDay('none');
+      setActiveRoll(orphanRolls[0].id);
+      setShowDayMenu(false);
+    },
+    title: "Rolls that were never given a shoot day - open one and use Actions > Move to another day",
+    style: {
+      display: 'block',
+      width: '100%',
+      textAlign: 'left',
+      padding: '9px 13px',
+      background: filterDay === 'none' ? T.chip : 'transparent',
+      border: 'none',
+      borderTop: "1px solid ".concat(T.rule),
+      color: T.warn,
+      fontSize: 11,
+      fontFamily: "'Geist Mono',monospace",
+      cursor: 'pointer'
+    }
+  }, '⚠', " Unassigned (", orphanRolls.length, " roll", orphanRolls.length !== 1 ? 's' : '', ")"), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       setFilterDay('all');
       setShowDayMenu(false);
@@ -6334,6 +6454,7 @@ function CameraReport() {
       padding: '9px 13px',
       background: filterDay === 'all' ? T.chip : 'transparent',
       border: 'none',
+      borderTop: "1px solid ".concat(T.rule),
       color: T.textDim,
       fontSize: 11,
       fontFamily: "'Geist Mono',monospace",
@@ -6380,7 +6501,7 @@ function CameraReport() {
         return !v;
       });
     },
-    title: filterDay === 'all' ? 'Add a camera' : 'Add a camera to Day ' + filterDay,
+    title: filterDay === 'all' || filterDay === 'none' ? 'Add a camera' : 'Add a camera to Day ' + filterDay,
     style: {
       width: 30,
       height: 30,
@@ -6420,7 +6541,7 @@ function CameraReport() {
       color: T.textDim,
       letterSpacing: '0.08em'
     }
-  }, "ADD CAMERA", filterDay !== 'all' ? ' TO DAY ' + filterDay : ''), CAM_ORDER.filter(function (c) {
+  }, "ADD CAMERA", filterDay === 'all' || filterDay === 'none' ? '' : ' TO DAY ' + filterDay), CAM_ORDER.filter(function (c) {
     return !dayCams.includes(c);
   }).map(function (c) {
     var cfg = CAM_CONFIG[c];
@@ -6495,7 +6616,7 @@ function CameraReport() {
     return /*#__PURE__*/React.createElement("option", {
       key: r.id,
       value: r.id
-    }, r.roll || '(roll)', filterDay === 'all' ? " \xB7 Day " + (r.shootDay || '?') : '', " ", "\xB7", " ", (r.takes || []).length, " clips");
+    }, r.roll || '(roll)', filterDay === 'all' || filterDay === 'none' ? " \xB7 Day " + (r.shootDay || '?') : '', " ", "\xB7", " ", (r.takes || []).length, " clips");
   })), dayCams.length > 0 && /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       return addRoll(activeCam, filterDay);
@@ -6962,7 +7083,7 @@ function CameraReport() {
       color: T.text,
       fontFamily: "'Geist Mono',monospace"
     }
-  }, "Day ", filterDay, selectedDayDate ? ' · ' + fmtDayDate(selectedDayDate) : ''), /*#__PURE__*/React.createElement("div", {
+  }, filterDay === 'none' ? 'Unassigned rolls' : 'Day ' + filterDay, filterDay !== 'none' && selectedDayDate ? ' · ' + fmtDayDate(selectedDayDate) : ''), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 12,
       textAlign: 'center',
@@ -7138,65 +7259,29 @@ function CameraReport() {
     }
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
     style: metaLabel
-  }, "SHOOT DAY"), /*#__PURE__*/React.createElement("select", {
-    value: roll.shootDay || '',
+  }, "DATE"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: roll.date || '',
     onChange: function onChange(e) {
-      var v = e.target.value;
-      if (v === '__add__') {
-        // shootDays is newest-first, so the day to continue from is
-        // the FIRST entry, not the last.
-        var nextDay = (latestShootDay ? latestShootDay.day : 0) + 1;
-        var nextDate = latestShootDay ? addOneDay(latestShootDay.date) : '';
-        updateData({
-          shootDays: [].concat(_toConsumableArray(shootDays), [{
-            day: nextDay,
-            date: nextDate
-          }])
-        });
-        patchRoll(roll.id, {
-          shootDay: nextDay,
-          date: nextDate || roll.date
-        });
-        return;
-      }
-      var d = parseInt(v, 10);
-      var dd = shootDays.find(function (x) {
-        return x.day === d;
-      });
-      patchRoll(roll.id, {
-        shootDay: d,
-        date: dd && dd.date || roll.date
-      });
+      return setRollDate(e.target.value);
     },
-    style: metaInput
-  }, /*#__PURE__*/React.createElement("option", {
-    value: ""
-  }, "-"), shootDays.map(function (d) {
-    return /*#__PURE__*/React.createElement("option", {
-      key: d.day,
-      value: d.day
-    }, "Day ", d.day, d.date ? ' · ' + fmtDayDate(d.date) : '');
-  }), /*#__PURE__*/React.createElement("option", {
-    value: "__add__"
-  }, '+ Add new day'))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
-    style: metaLabel
-  }, "DATE"), /*#__PURE__*/React.createElement("div", {
-    style: _objectSpread(_objectSpread({}, metaInput), {}, {
-      display: 'flex',
-      alignItems: 'center',
-      color: roll.date ? T.accent : T.textDim,
-      background: 'transparent',
-      border: "1px dashed ".concat(T.border),
-      minHeight: 24
-    })
-  }, roll.date ? fmtDayDate(roll.date) : 'set by shoot day'), /*#__PURE__*/React.createElement("div", {
+    style: metaInput,
+    title: roll.shootDay ? 'This is Day ' + roll.shootDay + "'s date - changing it updates Project Settings and every roll shot that day" : 'Date for this roll'
+  }), roll.date && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 9,
+      color: T.accent,
+      fontFamily: "'Geist Mono',monospace",
+      marginTop: 2
+    }
+  }, fmtDayDate(roll.date)), roll.shootDay && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 8,
       color: T.textDim,
       fontFamily: "'Geist Mono',monospace",
-      marginTop: 2
+      marginTop: 1
     }
-  }, "edit in Settings ", '>', " Shoot days")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
+  }, "= Day ", roll.shootDay, " \xB7 synced with Settings")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
     style: metaLabel
   }, "DIRECTOR"), /*#__PURE__*/React.createElement(LensFocalPicker, {
     value: roll.director || '',
@@ -8012,7 +8097,58 @@ function CameraReport() {
       textAlign: 'left',
       marginTop: 2
     }
-  }, "\u21B3", " Resequence clips"))), showPrint && /*#__PURE__*/React.createElement("div", {
+  }, "\u21B3", " Resequence clips"), allDayNums.length > 0 && (allDayNums.length > 1 || !roll.shootDay) && /*#__PURE__*/React.createElement("div", {
+    style: {
+      borderTop: "1px solid ".concat(T.rule),
+      paddingTop: 10,
+      marginTop: 2
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 8,
+      fontFamily: "'Geist Mono',monospace",
+      color: T.textDim,
+      letterSpacing: '0.08em',
+      marginBottom: 5
+    }
+  }, "MOVE ", roll.roll, " TO ANOTHER DAY"), /*#__PURE__*/React.createElement("select", {
+    value: roll.shootDay || '',
+    onChange: function onChange(e) {
+      var d = parseInt(e.target.value, 10);
+      if (!d || d === roll.shootDay) return;
+      var rec = shootDays.find(function (x) {
+        return x.day === d;
+      });
+      var n = (roll.takes || []).length;
+      if (!confirm("Move roll ".concat(roll.roll, " to Day ").concat(d).concat(rec && rec.date ? ' (' + fmtDayDate(rec.date) + ')' : '', "?\n\n") + "".concat(n, " clip").concat(n !== 1 ? 's' : '', " will move with it, and the roll's date becomes that day's date."))) {
+        e.target.value = String(roll.shootDay || '');
+        return;
+      }
+      moveRollToDay(roll.id, d);
+      setShowActions(false);
+    },
+    style: {
+      width: '100%',
+      background: T.surface2,
+      border: "1px solid ".concat(T.border),
+      borderRadius: 6,
+      padding: '8px 10px',
+      fontSize: 11,
+      color: T.text,
+      fontFamily: "'Geist Mono',monospace",
+      cursor: 'pointer'
+    }
+  }, !roll.shootDay && /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "- not assigned to a day -"), allDayNums.map(function (d) {
+    var rec = shootDays.find(function (x) {
+      return x.day === d;
+    });
+    return /*#__PURE__*/React.createElement("option", {
+      key: d,
+      value: d
+    }, "Day ", d, rec && rec.date ? " \xB7 " + fmtDayDate(rec.date) : '', d === roll.shootDay ? '  (current)' : '');
+  }))))), showPrint && /*#__PURE__*/React.createElement("div", {
     style: {
       position: 'fixed',
       inset: 0,
@@ -8053,7 +8189,7 @@ function CameraReport() {
       color: T.text,
       flex: 1
     }
-  }, "Print ", filterDay === 'all' ? 'all days' : 'Day ' + filterDay), /*#__PURE__*/React.createElement("button", {
+  }, "Print ", filterDay === 'all' ? 'all days' : filterDay === 'none' ? 'unassigned rolls' : 'Day ' + filterDay), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       return setShowPrint(false);
     },

@@ -1114,7 +1114,7 @@ const SB_LENS_PRESETS_KEY='sb_camrep_lens_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-const APP_VERSION='v2.9';
+const APP_VERSION='v3.1';
 
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
@@ -2218,17 +2218,50 @@ function CameraReport(){
     if(isNewCam&&existingCams.length>=TRIAL_LIMITS.cams&&
        !requireUnlock(`Free preview is limited to ${TRIAL_LIMITS.cams} camera. Sign in to add more.`))return;
     const id='roll'+Date.now();
-    const day=(dayNum!==undefined&&dayNum!==null&&dayNum!=='all')?dayNum
-      :(filterDay!=='all'?filterDay:(latestShootDay?latestShootDay.day:''));
-    const dayRec=shootDays.find(d=>d.day===day);
+    const today=new Date().toISOString().slice(0,10);
+    // 'all' and 'none' are VIEW filters, not real days - never let either be
+    // written onto a roll. Both fall through to "no day", which the block
+    // below turns into a real one.
+    const asDay=(v)=>(v==='all'||v==='none'||v===''||v===undefined||v===null)?'':v;
+    let day=asDay(dayNum)||asDay(filterDay)||(latestShootDay?latestShootDay.day:'');
+    /* Never create a roll with no shoot day. Day is the top level of the
+       hierarchy now, so a day-less roll is unreachable: it shows up under
+       "All days" and nowhere else, with no control left to assign it one.
+       That's exactly what happened on a brand-new production, where the very
+       first roll is created before any day exists - so open Day 1 for it. */
+    let dayRec=shootDays.find(d=>d.day===day);
+    if(day===''||day===undefined||day===null){
+      day=1;
+      dayRec={day:1,date:today};
+      updateData({shootDays:[...shootDays,dayRec]});
+    }
     const newRoll={id, roll:nextRollNo(c), cam:c, mag:'',
-      date:(dayRec&&dayRec.date)||new Date().toISOString().slice(0,10),
-      shootDay:day===''?'':day,
+      date:(dayRec&&dayRec.date)||today,
+      shootDay:day,
       ...camSetupFrom(c),
       takes:[]};
     const updated=[newRoll,...rolls];
     setRolls(updated); setActiveCam(c); setActiveRoll(id); saveRolls(updated);
-    if(day!=='')setFilterDay(day);
+    setFilterDay(day);
+  }
+
+  /* Move a roll (with all its takes) to a different shoot day. Rare, but the
+     only recovery when a day's worth of clips was logged under the wrong day -
+     without it the mistake is permanent, since the day picker at the top only
+     decides where NEW rolls land. Lives in the Actions drawer rather than the
+     always-visible panel precisely because it should not be easy to hit. */
+  function moveRollToDay(rollId,targetDay){
+    const rk=rolls.find(r=>r.id===rollId);
+    if(!rk||rk.shootDay===targetDay)return;
+    const rec=shootDays.find(d=>d.day===targetDay);
+    const updated=rolls.map(r=>r.id===rollId
+      ?{...r,shootDay:targetDay,date:(rec&&rec.date)||r.date}:r);
+    setRolls(updated); saveRolls(updated);
+    // Follow the roll to its new day, otherwise it vanishes from view and
+    // looks like it was deleted.
+    setFilterDay(targetDay);
+    setActiveCam(camOf(rk));
+    setActiveRoll(rollId);
   }
 
   // Move an entire roll (with all its takes) to a different camera.
@@ -2317,10 +2350,18 @@ function CameraReport(){
     return [...set].sort((a,b)=>b-a);   // newest first
   },[shootDays,rolls]);
 
+  /* Rolls made before the day-first hierarchy (or by an older build) can carry
+     no shoot day at all. Without a home they'd be invisible under every day -
+     data you own but cannot open - so they get their own bucket in the day
+     picker, from which the Actions drawer can assign them a real day. */
+  const orphanRolls=React.useMemo(()=>rolls.filter(r=>!r.shootDay),[rolls]);
+
   // Rolls on the selected day (all rolls when viewing "All days").
-  const dayRolls=React.useMemo(()=>
-    filterDay==='all'?rolls:rolls.filter(r=>r.shootDay===filterDay),
-  [rolls,filterDay]);
+  const dayRolls=React.useMemo(()=>{
+    if(filterDay==='all')return rolls;
+    if(filterDay==='none')return orphanRolls;
+    return rolls.filter(r=>r.shootDay===filterDay);
+  },[rolls,filterDay,orphanRolls]);
 
   // ONLY the cameras that actually rolled on this day - an unused camera is
   // absent rather than showing an empty roll.
@@ -2355,9 +2396,37 @@ function CameraReport(){
   /* A new shoot day opens as a genuinely blank page: the day is registered in
      Project Settings (so it is pickable and dated) but NO rolls are created.
      The user adds whichever cameras actually turned over that day. */
+  /* The roll's DATE box and Project Settings > Shoot days are two views of ONE
+     fact: which calendar date this shoot day fell on. Editing here writes back
+     to the shoot-day record, and the shoot-day effect then pushes that date
+     onto every other camera's roll from the same day - so all three stay in
+     step no matter where the edit started.
+     A roll with no shoot day (legacy data) just keeps a private date, since
+     there is no day record to share it with. */
+  function setRollDate(v){
+    if(!roll)return;
+    patchRoll(roll.id,{date:v});
+    if(!roll.shootDay)return;
+    const rec=shootDays.find(d=>d.day===roll.shootDay);
+    if(rec&&rec.date===v)return;                       // already in step
+    const next=rec
+      ? shootDays.map(d=>d.day===roll.shootDay?{...d,date:v}:d)
+      : [...shootDays,{day:roll.shootDay,date:v}];     // day existed only on rolls
+    updateData({shootDays:next});
+  }
+
   function startNewShootDay(){
-    const nextDay=(latestShootDay?latestShootDay.day:0)+1;
-    const nextDate=latestShootDay?addOneDay(latestShootDay.date):new Date().toISOString().slice(0,10);
+    /* Count from the highest day the production knows about ANYWHERE - both
+       the Settings list and any day stamped on a roll. Using only the Settings
+       list could hand out a number that rolls are already using (e.g. restored
+       data whose day records were never written), silently merging two days
+       into one. */
+    const maxDay=allDayNums.length?Math.max(...allDayNums):0;
+    const nextDay=maxDay+1;
+    const prevRec=shootDays.find(d=>d.day===maxDay);
+    const nextDate=prevRec&&prevRec.date
+      ? addOneDay(prevRec.date)
+      : new Date().toISOString().slice(0,10);
     updateData({shootDays:[...shootDays,{day:nextDay,date:nextDate}]});
     setFilterDay(nextDay);
     setActiveRoll(null);
@@ -3325,8 +3394,8 @@ function CameraReport(){
             style={{display:'flex',alignItems:'center',gap:6,padding:'6px 11px',borderRadius:6,
               background:T.surface2,border:`1.5px solid ${T.accent}66`,color:T.accent,
               fontSize:13,fontWeight:600,fontFamily:"'Geist Mono',monospace",cursor:'pointer'}}>
-            {filterDay==='all'?'All days':'Day '+filterDay}
-            {filterDay!=='all'&&selectedDayDate&&
+            {filterDay==='all'?'All days':filterDay==='none'?'Unassigned':'Day '+filterDay}
+            {filterDay!=='all'&&filterDay!=='none'&&selectedDayDate&&
               <span style={{fontSize:10,fontWeight:400,color:T.textDim}}>{fmtDayDate(selectedDayDate)}</span>}
             <span style={{fontSize:9}}>{'\u25BE'}</span>
           </button>
@@ -3363,9 +3432,20 @@ function CameraReport(){
                     </button>
                   );
                 })}
+                {orphanRolls.length>0&&(
+                  <button onClick={()=>{ setFilterDay('none'); setActiveRoll(orphanRolls[0].id); setShowDayMenu(false); }}
+                    title="Rolls that were never given a shoot day - open one and use Actions > Move to another day"
+                    style={{display:'block',width:'100%',textAlign:'left',padding:'9px 13px',
+                      background:filterDay==='none'?T.chip:'transparent',border:'none',
+                      borderTop:`1px solid ${T.rule}`,color:T.warn,fontSize:11,
+                      fontFamily:"'Geist Mono',monospace",cursor:'pointer'}}>
+                    {'⚠'} Unassigned ({orphanRolls.length} roll{orphanRolls.length!==1?'s':''})
+                  </button>
+                )}
                 <button onClick={()=>{ setFilterDay('all'); setShowDayMenu(false); }}
                   style={{display:'block',width:'100%',textAlign:'left',padding:'9px 13px',
                     background:filterDay==='all'?T.chip:'transparent',border:'none',
+                    borderTop:`1px solid ${T.rule}`,
                     color:T.textDim,fontSize:11,fontFamily:"'Geist Mono',monospace",cursor:'pointer'}}>
                   All days ({rolls.length} roll{rolls.length!==1?'s':''})
                 </button>
@@ -3393,7 +3473,7 @@ function CameraReport(){
           })}
           {dayCams.length<CAM_ORDER.length&&(
             <button onClick={()=>setShowAddCam(v=>!v)}
-              title={filterDay==='all'?'Add a camera':'Add a camera to Day '+filterDay}
+              title={(filterDay==='all'||filterDay==='none')?'Add a camera':'Add a camera to Day '+filterDay}
               style={{width:30,height:30,borderRadius:7,fontSize:16,cursor:'pointer',
                 background:'transparent',color:T.textDim,border:`1px dashed ${T.border}`}}>+</button>
           )}
@@ -3406,7 +3486,7 @@ function CameraReport(){
               boxShadow:'0 8px 24px rgba(0,0,0,0.55)',overflow:'hidden'}}>
               <div style={{padding:'7px 12px 4px',fontSize:8,fontFamily:"'Geist Mono',monospace",
                 color:T.textDim,letterSpacing:'0.08em'}}>
-                ADD CAMERA{filterDay!=='all'?' TO DAY '+filterDay:''}
+                ADD CAMERA{(filterDay==='all'||filterDay==='none')?'':' TO DAY '+filterDay}
               </div>
               {CAM_ORDER.filter(c=>!dayCams.includes(c)).map(c=>{
                 const cfg=CAM_CONFIG[c];
@@ -3438,7 +3518,7 @@ function CameraReport(){
                 fontFamily:"'Geist Mono',monospace",cursor:'pointer',minWidth:170}}>
               {visRolls.map(r=>(
                 <option key={r.id} value={r.id}>
-                  {r.roll||'(roll)'}{filterDay==='all'?' \u00B7 Day '+(r.shootDay||'?'):''} {'\u00B7'} {(r.takes||[]).length} clips
+                  {r.roll||'(roll)'}{(filterDay==='all'||filterDay==='none')?' \u00B7 Day '+(r.shootDay||'?'):''} {'\u00B7'} {(r.takes||[]).length} clips
                 </option>
               ))}
             </select>
@@ -3599,7 +3679,8 @@ function CameraReport(){
           </>
           :<>
             <div style={{fontSize:14,color:T.text,fontFamily:"'Geist Mono',monospace"}}>
-              Day {filterDay}{selectedDayDate?' · '+fmtDayDate(selectedDayDate):''}
+              {filterDay==='none'?'Unassigned rolls':'Day '+filterDay}
+              {filterDay!=='none'&&selectedDayDate?' · '+fmtDayDate(selectedDayDate):''}
             </div>
             <div style={{fontSize:12,textAlign:'center',lineHeight:1.6,maxWidth:280}}>
               Nothing shot on this day yet. Add whichever camera turned over.
@@ -3668,43 +3749,22 @@ function CameraReport(){
             )}
 
             {!metaCollapsed&&<div style={{display:'grid',gridTemplateColumns:mob?'repeat(3,1fr)':'repeat(7,1fr)',gap:'5px 7px'}}>
-              <div>
-                <span style={metaLabel}>SHOOT DAY</span>
-                <select value={roll.shootDay||''} onChange={e=>{
-                  const v=e.target.value;
-                  if(v==='__add__'){
-                    // shootDays is newest-first, so the day to continue from is
-                    // the FIRST entry, not the last.
-                    const nextDay=(latestShootDay?latestShootDay.day:0)+1;
-                    const nextDate=latestShootDay?addOneDay(latestShootDay.date):'';
-                    updateData({shootDays:[...shootDays,{day:nextDay,date:nextDate}]});
-                    patchRoll(roll.id,{shootDay:nextDay, date:nextDate||roll.date});
-                    return;
-                  }
-                  const d=parseInt(v,10);
-                  const dd=shootDays.find(x=>x.day===d);
-                  patchRoll(roll.id,{shootDay:d, date:(dd&&dd.date)||roll.date});
-                }} style={metaInput}>
-                  <option value="">-</option>
-                  {shootDays.map(d=><option key={d.day} value={d.day}>Day {d.day}{d.date?' · '+fmtDayDate(d.date):''}</option>)}
-                  <option value="__add__">{'+ Add new day'}</option>
-                </select>
-              </div>
-              {/* No separate DATE box. A roll's date IS its shoot day's date -
-                  two editable fields for one fact could only ever disagree,
-                  and they did. The date now lives in exactly one place (Project
-                  Settings > Shoot days) and is shown read-only here, right
-                  under the day it belongs to. */}
+              {/* No SHOOT DAY dropdown here: the day selector at the top of
+                  the screen already IS the shoot day, and a second control for
+                  the same thing just invites the two to disagree.
+                  DATE stays editable, and edits flow straight through to
+                  Project Settings > Shoot days - so changing Day 2's date here
+                  changes it there, and every other camera's roll on Day 2
+                  follows. The reverse direction is handled by the shoot-day
+                  effect further up. */}
               <div>
                 <span style={metaLabel}>DATE</span>
-                <div style={{...metaInput,display:'flex',alignItems:'center',
-                  color:roll.date?T.accent:T.textDim,background:'transparent',
-                  border:`1px dashed ${T.border}`,minHeight:24}}>
-                  {roll.date?fmtDayDate(roll.date):'set by shoot day'}
-                </div>
-                <div style={{fontSize:8,color:T.textDim,fontFamily:"'Geist Mono',monospace",marginTop:2}}>
-                  edit in Settings {'>'} Shoot days
-                </div>
+                <input type="date" value={roll.date||''} onChange={e=>setRollDate(e.target.value)} style={metaInput}
+                  title={roll.shootDay?('This is Day '+roll.shootDay+"'s date - changing it updates Project Settings and every roll shot that day"):'Date for this roll'}/>
+                {roll.date&&<div style={{fontSize:9,color:T.accent,fontFamily:"'Geist Mono',monospace",marginTop:2}}>{fmtDayDate(roll.date)}</div>}
+                {roll.shootDay&&<div style={{fontSize:8,color:T.textDim,fontFamily:"'Geist Mono',monospace",marginTop:1}}>
+                  = Day {roll.shootDay} &middot; synced with Settings
+                </div>}
               </div>
               <div>
                 <span style={metaLabel}>DIRECTOR</span>
@@ -3977,6 +4037,39 @@ function CameraReport(){
                 color:T.textDim,fontSize:10,fontFamily:"'Geist Mono',monospace",cursor:'pointer',textAlign:'left',marginTop:2}}>
               {'\u21B3'} Resequence clips
             </button>
+
+            {/* Correction, not routine use - which is why it sits at the bottom
+                of a drawer rather than in the roll panel. */}
+            {allDayNums.length>0&&(allDayNums.length>1||!roll.shootDay)&&(
+              <div style={{borderTop:`1px solid ${T.rule}`,paddingTop:10,marginTop:2}}>
+                <div style={{fontSize:8,fontFamily:"'Geist Mono',monospace",color:T.textDim,letterSpacing:'0.08em',marginBottom:5}}>
+                  MOVE {roll.roll} TO ANOTHER DAY
+                </div>
+                <select value={roll.shootDay||''}
+                  onChange={e=>{
+                    const d=parseInt(e.target.value,10);
+                    if(!d||d===roll.shootDay)return;
+                    const rec=shootDays.find(x=>x.day===d);
+                    const n=(roll.takes||[]).length;
+                    if(!confirm(
+                      `Move roll ${roll.roll} to Day ${d}${rec&&rec.date?' ('+fmtDayDate(rec.date)+')':''}?\n\n`+
+                      `${n} clip${n!==1?'s':''} will move with it, and the roll's date becomes that day's date.`
+                    )){ e.target.value=String(roll.shootDay||''); return; }
+                    moveRollToDay(roll.id,d);
+                    setShowActions(false);
+                  }}
+                  style={{width:'100%',background:T.surface2,border:`1px solid ${T.border}`,borderRadius:6,
+                    padding:'8px 10px',fontSize:11,color:T.text,fontFamily:"'Geist Mono',monospace",cursor:'pointer'}}>
+                  {!roll.shootDay&&<option value="">- not assigned to a day -</option>}
+                  {allDayNums.map(d=>{
+                    const rec=shootDays.find(x=>x.day===d);
+                    return <option key={d} value={d}>
+                      Day {d}{rec&&rec.date?' \u00B7 '+fmtDayDate(rec.date):''}{d===roll.shootDay?'  (current)':''}
+                    </option>;
+                  })}
+                </select>
+              </div>
+            )}
           </div>
         </>
       )}
@@ -3991,7 +4084,7 @@ function CameraReport(){
             <div style={{padding:'14px 18px',borderBottom:`1px solid ${T.rule}`,display:'flex',alignItems:'center',gap:8}}>
               <span style={{fontSize:16}}>{'🖨'}</span>
               <span style={{fontSize:14,fontWeight:600,color:T.text,flex:1}}>
-                Print {filterDay==='all'?'all days':'Day '+filterDay}
+                Print {filterDay==='all'?'all days':filterDay==='none'?'unassigned rolls':'Day '+filterDay}
               </span>
               <button onClick={()=>setShowPrint(false)} style={{background:'transparent',border:'none',color:T.textDim,fontSize:18,cursor:'pointer',lineHeight:1}}>{'×'}</button>
             </div>
