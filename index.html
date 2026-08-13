@@ -655,18 +655,18 @@ function camRepPutPhoto(_x, _x2) {
   return _camRepPutPhoto.apply(this, arguments);
 }
 function _camRepPutPhoto() {
-  _camRepPutPhoto = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee14(projId, item) {
+  _camRepPutPhoto = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee16(projId, item) {
     var db, key, projTake;
-    return _regeneratorRuntime().wrap(function _callee14$(_context14) {
-      while (1) switch (_context14.prev = _context14.next) {
+    return _regeneratorRuntime().wrap(function _callee16$(_context16) {
+      while (1) switch (_context16.prev = _context16.next) {
         case 0:
-          _context14.next = 2;
+          _context16.next = 2;
           return openCamRepDB();
         case 2:
-          db = _context14.sent;
+          db = _context16.sent;
           key = projId + '::' + item.imgId;
           projTake = projId + '::' + item.takeId;
-          return _context14.abrupt("return", new Promise(function (resolve, reject) {
+          return _context16.abrupt("return", new Promise(function (resolve, reject) {
             var tx = db.transaction(CAMREP_STORE, 'readwrite');
             tx.objectStore(CAMREP_STORE).put(_objectSpread({
               key: key,
@@ -682,9 +682,9 @@ function _camRepPutPhoto() {
           }));
         case 6:
         case "end":
-          return _context14.stop();
+          return _context16.stop();
       }
-    }, _callee14);
+    }, _callee16);
   }));
   return _camRepPutPhoto.apply(this, arguments);
 }
@@ -692,17 +692,17 @@ function camRepGetForTake(_x3, _x4) {
   return _camRepGetForTake.apply(this, arguments);
 }
 function _camRepGetForTake() {
-  _camRepGetForTake = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee15(projId, takeId) {
+  _camRepGetForTake = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee17(projId, takeId) {
     var db, projTake;
-    return _regeneratorRuntime().wrap(function _callee15$(_context15) {
-      while (1) switch (_context15.prev = _context15.next) {
+    return _regeneratorRuntime().wrap(function _callee17$(_context17) {
+      while (1) switch (_context17.prev = _context17.next) {
         case 0:
-          _context15.next = 2;
+          _context17.next = 2;
           return openCamRepDB();
         case 2:
-          db = _context15.sent;
+          db = _context17.sent;
           projTake = projId + '::' + takeId;
-          return _context15.abrupt("return", new Promise(function (resolve, reject) {
+          return _context17.abrupt("return", new Promise(function (resolve, reject) {
             var tx = db.transaction(CAMREP_STORE, 'readonly');
             var req = tx.objectStore(CAMREP_STORE).index('projTake').getAll(projTake);
             req.onsuccess = function () {
@@ -714,9 +714,9 @@ function _camRepGetForTake() {
           }));
         case 5:
         case "end":
-          return _context15.stop();
+          return _context17.stop();
       }
-    }, _callee15);
+    }, _callee17);
   }));
   return _camRepGetForTake.apply(this, arguments);
 }
@@ -731,17 +731,17 @@ function camRepDeletePhoto(_x5, _x6) {
    eventually fill a phone. Walks the store once and drops every record whose
    projId matches (optionally narrowed to a set of take ids). */
 function _camRepDeletePhoto() {
-  _camRepDeletePhoto = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee16(projId, imgId) {
+  _camRepDeletePhoto = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee18(projId, imgId) {
     var db, key;
-    return _regeneratorRuntime().wrap(function _callee16$(_context16) {
-      while (1) switch (_context16.prev = _context16.next) {
+    return _regeneratorRuntime().wrap(function _callee18$(_context18) {
+      while (1) switch (_context18.prev = _context18.next) {
         case 0:
-          _context16.next = 2;
+          _context18.next = 2;
           return openCamRepDB();
         case 2:
-          db = _context16.sent;
+          db = _context18.sent;
           key = projId + '::' + imgId;
-          return _context16.abrupt("return", new Promise(function (resolve, reject) {
+          return _context18.abrupt("return", new Promise(function (resolve, reject) {
             var tx = db.transaction(CAMREP_STORE, 'readwrite');
             tx.objectStore(CAMREP_STORE)["delete"](key);
             tx.oncomplete = function () {
@@ -753,9 +753,9 @@ function _camRepDeletePhoto() {
           }));
         case 5:
         case "end":
-          return _context16.stop();
+          return _context18.stop();
       }
-    }, _callee16);
+    }, _callee18);
   }));
   return _camRepDeletePhoto.apply(this, arguments);
 }
@@ -763,19 +763,19 @@ function camRepDeleteMany(_x7, _x8) {
   return _camRepDeleteMany.apply(this, arguments);
 }
 function _camRepDeleteMany() {
-  _camRepDeleteMany = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee17(projId, takeIds) {
+  _camRepDeleteMany = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee19(projId, takeIds) {
     var db, wanted;
-    return _regeneratorRuntime().wrap(function _callee17$(_context17) {
-      while (1) switch (_context17.prev = _context17.next) {
+    return _regeneratorRuntime().wrap(function _callee19$(_context19) {
+      while (1) switch (_context19.prev = _context19.next) {
         case 0:
-          _context17.next = 2;
+          _context19.next = 2;
           return openCamRepDB();
         case 2:
-          db = _context17.sent;
+          db = _context19.sent;
           wanted = takeIds ? new Set(takeIds.map(function (id) {
             return projId + '::' + id;
           })) : null;
-          return _context17.abrupt("return", new Promise(function (resolve, reject) {
+          return _context19.abrupt("return", new Promise(function (resolve, reject) {
             var tx = db.transaction(CAMREP_STORE, 'readwrite');
             var req = tx.objectStore(CAMREP_STORE).openCursor();
             req.onsuccess = function () {
@@ -796,9 +796,9 @@ function _camRepDeleteMany() {
           }));
         case 5:
         case "end":
-          return _context17.stop();
+          return _context19.stop();
       }
-    }, _callee17);
+    }, _callee19);
   }));
   return _camRepDeleteMany.apply(this, arguments);
 }
@@ -845,11 +845,11 @@ function analyseCameraSlate(_x9, _x10) {
    correctly with no separate photo migration needed.
 ================================================================ */
 function _analyseCameraSlate() {
-  _analyseCameraSlate = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee18(dataUrlOrArray, existingRoll) {
+  _analyseCameraSlate = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee20(dataUrlOrArray, existingRoll) {
     var _data$content;
     var key, dataUrls, imageBlocks, rollCtx, multi, prompt, resp, _e$error, _e, data, raw, clean, parsed;
-    return _regeneratorRuntime().wrap(function _callee18$(_context18) {
-      while (1) switch (_context18.prev = _context18.next) {
+    return _regeneratorRuntime().wrap(function _callee20$(_context20) {
+      while (1) switch (_context20.prev = _context20.next) {
         case 0:
           key = getAnthropicKey(); // Accept single dataUrl or array of up to 2
           dataUrls = Array.isArray(dataUrlOrArray) ? dataUrlOrArray : [dataUrlOrArray];
@@ -868,7 +868,7 @@ function _analyseCameraSlate() {
           rollCtx = existingRoll ? ["Current roll: ".concat(existingRoll.roll || '', ", Camera: ").concat(existingRoll.camera || '', ", Codec: ").concat(existingRoll.codec || '', ", LUT: ").concat(existingRoll.lut || '', "."), "Default lens: ".concat(existingRoll.lens || '', ". Base EI: ").concat(existingRoll.baseEI || '', ".")].join(' ') : '';
           multi = dataUrls.length > 1;
           prompt = [multi ? 'You are given TWO production photos. Extract information from BOTH and combine into one JSON  -  e.g. one photo may be a camera monitor overlay (EI, WB, FPS, clip number etc.) and the other a slate/clapperboard (scene, shot, take). Merge all readable fields.' : 'You are analysing a film production photo. It may be any of these sources:', multi ? '' : '  • A camera slate / clapperboard (scene, shot, take numbers)', multi ? '' : '  • A camera monitor / EVF overlay screenshot (e.g. SmallHD, Teradek, ARRI, RED) showing live camera metadata: FPS, shutter, EI/ISO, WB, roll name, clip number, ND filter, codec, timecode etc.', multi ? '' : '  • A handwritten take sheet or label', multi ? '' : '  • Any other on-set reference material with camera/take information', 'Extract ONLY what is clearly visible. Never invent values. For monitor screenshots, read the HUD/overlay text carefully (usually displayed as white or coloured text around the image frame).', rollCtx, 'Return a single JSON object (no markdown, no explanation) with these keys (all strings, all optional  -  omit any key you cannot read clearly):', '  scene    -  scene number/ID (from slate, e.g. "S05", "05", "12A")', '  shot     -  shot letter (from slate, e.g. "A", "B"); "/" means no shot letter', '  take     -  take number as string (e.g. "1", "3")', '  tail     -  "true" if TAIL or TAIL SLATE is visible', '  clip     -  clip/card name visible on monitor (e.g. "C026", "A026") or slate', '  roll     -  roll/magazine name if visible on monitor (e.g. "A001")', '  lens     -  lens brand/series if visible (e.g. "Cooke Panchro i")', '  focal    -  focal length if visible (e.g. "32mm")', '  stop     -  aperture/T-stop if visible (e.g. "T2.8", "f4")', '  ei       -  ISO/EI value from monitor or slate (e.g. "1600")', '  fps      -  frame rate from monitor (e.g. "24.000", "25")', '  shutter  -  shutter angle/speed from monitor (e.g. "180.0", "1/50")', '  nd       -  ND filter value from monitor if visible (e.g. "0.6", "ND6")', '  intFilters  -  internal/in-camera filter if visible', '  filters  -  external filter(s) if visible (e.g. "ND1.2", "Polariser")', '  wb       -  white balance from monitor or slate (e.g. "4000K", "5600K")', '  focus    -  focus distance if visible; use cm (e.g. "180")', '  codec    -  codec/recording format from monitor (e.g. "RAW", "ProRes 4444")', '  notes    -  any other relevant text (timecode, battery, remarks etc.)', multi ? 'Example: {"scene":"S05","shot":"A","take":"2","ei":"1600","wb":"4000K","fps":"24.000","clip":"C026"}' : 'Example for monitor: {"ei":"1600","wb":"4000K","fps":"24.000","shutter":"180.0","clip":"C026","codec":"RAW"}', 'Return ONLY the JSON object.'].filter(Boolean).join('\n');
-          _context18.next = 8;
+          _context20.next = 8;
           return fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
             headers: {
@@ -890,45 +890,45 @@ function _analyseCameraSlate() {
             })
           });
         case 8:
-          resp = _context18.sent;
+          resp = _context20.sent;
           if (resp.ok) {
-            _context18.next = 14;
+            _context20.next = 14;
             break;
           }
-          _context18.next = 12;
+          _context20.next = 12;
           return resp.json()["catch"](function () {
             return {};
           });
         case 12:
-          _e = _context18.sent;
+          _e = _context20.sent;
           throw new Error((_e === null || _e === void 0 || (_e$error = _e.error) === null || _e$error === void 0 ? void 0 : _e$error.message) || 'Anthropic API error ' + resp.status);
         case 14:
-          _context18.next = 16;
+          _context20.next = 16;
           return resp.json();
         case 16:
-          data = _context18.sent;
+          data = _context20.sent;
           raw = (((_data$content = data.content) === null || _data$content === void 0 || (_data$content = _data$content.find(function (b) {
             return b.type === 'text';
           })) === null || _data$content === void 0 ? void 0 : _data$content.text) || '').trim();
           clean = raw.replace(/^```json?/, '').replace(/```$/, '').trim();
-          _context18.prev = 19;
+          _context20.prev = 19;
           parsed = JSON.parse(clean);
           if (!(_typeof(parsed) === 'object' && parsed !== null)) {
-            _context18.next = 23;
+            _context20.next = 23;
             break;
           }
-          return _context18.abrupt("return", parsed);
+          return _context20.abrupt("return", parsed);
         case 23:
           throw new Error('Unexpected response shape.');
         case 26:
-          _context18.prev = 26;
-          _context18.t0 = _context18["catch"](19);
+          _context20.prev = 26;
+          _context20.t0 = _context20["catch"](19);
           throw new Error('Could not parse AI response. Raw: ' + raw.slice(0, 200));
         case 29:
         case "end":
-          return _context18.stop();
+          return _context20.stop();
       }
-    }, _callee18, null, [[19, 26]]);
+    }, _callee20, null, [[19, 26]]);
   }));
   return _analyseCameraSlate.apply(this, arguments);
 }
@@ -1169,7 +1169,7 @@ var TAKE_COLUMNS = [{
   label: 'White balance'
 }, {
   key: 'focus',
-  label: 'Focus (ft)'
+  label: 'Focus'
 }, {
   key: 'notes',
   label: 'Notes'
@@ -1228,22 +1228,22 @@ function ensureSheetsToken(_x11) {
   return _ensureSheetsToken.apply(this, arguments);
 }
 function _ensureSheetsToken() {
-  _ensureSheetsToken = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee19(clientId) {
-    return _regeneratorRuntime().wrap(function _callee19$(_context19) {
-      while (1) switch (_context19.prev = _context19.next) {
+  _ensureSheetsToken = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee21(clientId) {
+    return _regeneratorRuntime().wrap(function _callee21$(_context21) {
+      while (1) switch (_context21.prev = _context21.next) {
         case 0:
           if (!_sheetsToken) {
-            _context19.next = 2;
+            _context21.next = 2;
             break;
           }
-          return _context19.abrupt("return", _sheetsToken);
+          return _context21.abrupt("return", _sheetsToken);
         case 2:
-          return _context19.abrupt("return", sheetsSignIn(clientId));
+          return _context21.abrupt("return", sheetsSignIn(clientId));
         case 3:
         case "end":
-          return _context19.stop();
+          return _context21.stop();
       }
-    }, _callee19);
+    }, _callee21);
   }));
   return _ensureSheetsToken.apply(this, arguments);
 }
@@ -1267,42 +1267,42 @@ function fetchGoogleEmail(_x12) {
    to defend against a motivated attacker.
 ================================================================ */
 function _fetchGoogleEmail() {
-  _fetchGoogleEmail = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee20(token) {
+  _fetchGoogleEmail = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee22(token) {
     var r, d, email;
-    return _regeneratorRuntime().wrap(function _callee20$(_context20) {
-      while (1) switch (_context20.prev = _context20.next) {
+    return _regeneratorRuntime().wrap(function _callee22$(_context22) {
+      while (1) switch (_context22.prev = _context22.next) {
         case 0:
-          _context20.next = 2;
+          _context22.next = 2;
           return fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
             headers: {
               Authorization: 'Bearer ' + token
             }
           });
         case 2:
-          r = _context20.sent;
+          r = _context22.sent;
           if (r.ok) {
-            _context20.next = 5;
+            _context22.next = 5;
             break;
           }
           throw new Error('Could not read your Google account email (HTTP ' + r.status + ').');
         case 5:
-          _context20.next = 7;
+          _context22.next = 7;
           return r.json();
         case 7:
-          d = _context20.sent;
+          d = _context22.sent;
           email = (d.email || '').trim().toLowerCase();
           if (email) {
-            _context20.next = 11;
+            _context22.next = 11;
             break;
           }
           throw new Error('Your Google account did not return an email address.');
         case 11:
-          return _context20.abrupt("return", email);
+          return _context22.abrupt("return", email);
         case 12:
         case "end":
-          return _context20.stop();
+          return _context22.stop();
       }
-    }, _callee20);
+    }, _callee22);
   }));
   return _fetchGoogleEmail.apply(this, arguments);
 }
@@ -1312,28 +1312,28 @@ function fetchAllowlist() {
   return _fetchAllowlist.apply(this, arguments);
 }
 function _fetchAllowlist() {
-  _fetchAllowlist = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee21() {
+  _fetchAllowlist = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee23() {
     var res, text;
-    return _regeneratorRuntime().wrap(function _callee21$(_context21) {
-      while (1) switch (_context21.prev = _context21.next) {
+    return _regeneratorRuntime().wrap(function _callee23$(_context23) {
+      while (1) switch (_context23.prev = _context23.next) {
         case 0:
-          _context21.next = 2;
+          _context23.next = 2;
           return fetch(ALLOWLIST_CSV_URL, {
             cache: 'no-store'
           });
         case 2:
-          res = _context21.sent;
+          res = _context23.sent;
           if (res.ok) {
-            _context21.next = 5;
+            _context23.next = 5;
             break;
           }
           throw new Error('Could not load the access list (HTTP ' + res.status + ').');
         case 5:
-          _context21.next = 7;
+          _context23.next = 7;
           return res.text();
         case 7:
-          text = _context21.sent;
-          return _context21.abrupt("return", text.split(/\r?\n/).slice(1) // drop the "Email" header row
+          text = _context23.sent;
+          return _context23.abrupt("return", text.split(/\r?\n/).slice(1) // drop the "Email" header row
           .map(function (line) {
             return line.split(',')[0];
           }).map(function (e) {
@@ -1341,9 +1341,9 @@ function _fetchAllowlist() {
           }).filter(Boolean));
         case 9:
         case "end":
-          return _context21.stop();
+          return _context23.stop();
       }
-    }, _callee21);
+    }, _callee23);
   }));
   return _fetchAllowlist.apply(this, arguments);
 }
@@ -1372,12 +1372,7 @@ function clearGateAuth() {
 /* Column set mirrors exportCSV() below (ROLL/CAM/DAY/DATE added up front
    since this backup flattens EVERY roll, not just the one on screen). */
 function flattenRollsForSheet(rolls) {
-  var head = ['ROLL', 'CAM', 'SHOOT DAY', 'DATE', 'SCENE', 'SHOT', 'TAKE', 'T/S', 'CLIP', 'LENS', 'FOCAL', 'STOP', 'SHUTTER', 'EI', 'FILTER 1', 'FILTER 2', 'FILTER 3', 'WB', 'FOCUS (ft)', 'NOTES'];
-  var fcm = function fcm(v) {
-    v = (v == null ? '' : String(v)).trim();
-    if (!v) return '';
-    return /^[\d.]+$/.test(v) ? v + "'" : v;
-  };
+  var head = ['ROLL', 'CAM', 'SHOOT DAY', 'DATE', 'SCENE', 'SHOT', 'TAKE', 'T/S', 'CLIP', 'LENS', 'FOCAL', 'STOP', 'SHUTTER', 'EI', 'FILTER 1', 'FILTER 2', 'FILTER 3', 'WB', 'FOCUS', 'NOTES'];
   var rows = [head];
   (rolls || []).slice().sort(function (a, b) {
     var ca = camOf(a),
@@ -1388,7 +1383,7 @@ function flattenRollsForSheet(rolls) {
     });
   }).forEach(function (r) {
     (r.takes || []).forEach(function (t) {
-      rows.push([r.roll || '', camOf(r), r.shootDay != null ? String(r.shootDay) : '', r.date || '', t.scene || '', t.shot || '', t.take || '', t.tail ? 'TAIL' : '', t.clip || '', t.lens || '', t.focal || '', t.stop || '', t.shutter || r.shutter || '', t.ei || '', t.intFilters || '', t.filters || '', t.filters3 || '', t.wb || '', fcm(t.focus), t.notes || ''].map(function (v) {
+      rows.push([r.roll || '', camOf(r), r.shootDay != null ? String(r.shootDay) : '', r.date || '', t.scene || '', t.shot || '', t.take || '', t.tail ? 'TAIL' : '', t.clip || '', t.lens || '', t.focal || '', t.stop || '', t.shutter || r.shutter || '', t.ei || '', t.intFilters || '', t.filters || '', t.filters3 || '', t.wb || '', t.focus || '', t.notes || ''].map(function (v) {
         return v == null ? '' : String(v);
       }));
     });
@@ -1414,27 +1409,109 @@ function colLetter(n) {
 // to Chinese gets "工作表1", not "Sheet1"), which made every write fail with
 // "Unable to parse range" for anyone not on an English-locale account.
 var GSHEETS_TAB_NAME = 'Data';
-function backupToSheets(_x13) {
+/* Second tab, written alongside the readable one. "Data" is a FLATTENED view
+   for humans - it deliberately drops roll-level fields (camera, codec, LUT,
+   crew, lens defaults...) and every scene/shoot-day setting, so it can never
+   be turned back into a project without losing most of it. This tab holds the
+   project as raw JSON instead, which makes "restore on another device" exact
+   rather than approximate. Chunked across rows because a single Google Sheets
+   cell tops out at 50,000 characters. */
+var GSHEETS_RAW_TAB = '_camrep_raw';
+var RAW_CHUNK = 40000;
+function chunkRaw(str) {
+  var out = [];
+  for (var i = 0; i < str.length; i += RAW_CHUNK) out.push([str.slice(i, i + RAW_CHUNK)]);
+  return out.length ? out : [['']];
+}
+function ensureTab(_x13, _x14, _x15) {
+  return _ensureTab.apply(this, arguments);
+}
+function _ensureTab() {
+  _ensureTab = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee24(token, sid, title) {
+    var meta, d, exists, r;
+    return _regeneratorRuntime().wrap(function _callee24$(_context24) {
+      while (1) switch (_context24.prev = _context24.next) {
+        case 0:
+          _context24.next = 2;
+          return fetch('https://sheets.googleapis.com/v4/spreadsheets/' + sid + '?fields=sheets.properties.title', {
+            headers: {
+              Authorization: 'Bearer ' + token
+            }
+          });
+        case 2:
+          meta = _context24.sent;
+          if (meta.ok) {
+            _context24.next = 5;
+            break;
+          }
+          return _context24.abrupt("return", false);
+        case 5:
+          _context24.next = 7;
+          return meta.json();
+        case 7:
+          d = _context24.sent;
+          exists = (d.sheets || []).some(function (s) {
+            return s.properties && s.properties.title === title;
+          });
+          if (!exists) {
+            _context24.next = 11;
+            break;
+          }
+          return _context24.abrupt("return", true);
+        case 11:
+          _context24.next = 13;
+          return fetch('https://sheets.googleapis.com/v4/spreadsheets/' + sid + ':batchUpdate', {
+            method: 'POST',
+            headers: {
+              Authorization: 'Bearer ' + token,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              requests: [{
+                addSheet: {
+                  properties: {
+                    title: title
+                  }
+                }
+              }]
+            })
+          });
+        case 13:
+          r = _context24.sent;
+          return _context24.abrupt("return", r.ok);
+        case 15:
+        case "end":
+          return _context24.stop();
+      }
+    }, _callee24);
+  }));
+  return _ensureTab.apply(this, arguments);
+}
+function backupToSheets(_x16) {
   return _backupToSheets.apply(this, arguments);
 }
+/* Find backups this app created, so a SECOND device (which has no stored
+   spreadsheet id) can still get at them. drive.file scope only ever exposes
+   files this OAuth client created, so this listing is naturally limited to
+   the user's own Camera Report backups - it cannot see the rest of Drive. */
 function _backupToSheets() {
-  _backupToSheets = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee22(_ref8) {
-    var rolls, projectName, clientId, spreadsheetId, token, sid, title, resp, _e2, d, rows, lastCol, range, putResp, _e3;
-    return _regeneratorRuntime().wrap(function _callee22$(_context22) {
-      while (1) switch (_context22.prev = _context22.next) {
+  _backupToSheets = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee25(_ref8) {
+    var rolls, projectName, clientId, spreadsheetId, rawProject, token, sid, title, resp, _e2, d, rows, lastCol, range, putResp, _e3, ok, payload, chunks, rr;
+    return _regeneratorRuntime().wrap(function _callee25$(_context25) {
+      while (1) switch (_context25.prev = _context25.next) {
         case 0:
-          rolls = _ref8.rolls, projectName = _ref8.projectName, clientId = _ref8.clientId, spreadsheetId = _ref8.spreadsheetId;
-          _context22.next = 3;
+          rolls = _ref8.rolls, projectName = _ref8.projectName, clientId = _ref8.clientId, spreadsheetId = _ref8.spreadsheetId, rawProject = _ref8.rawProject;
+          _context25.next = 3;
           return ensureSheetsToken(clientId);
         case 3:
-          token = _context22.sent;
+          token = _context25.sent;
           sid = spreadsheetId;
           if (sid) {
-            _context22.next = 19;
+            _context25.next = 19;
             break;
           }
           title = (projectName || 'Untitled Production') + ' - Camera Report Backup';
-          _context22.next = 9;
+          _context25.next = 9;
           return fetch('https://sheets.googleapis.com/v4/spreadsheets', {
             method: 'POST',
             headers: {
@@ -1453,29 +1530,29 @@ function _backupToSheets() {
             })
           });
         case 9:
-          resp = _context22.sent;
+          resp = _context25.sent;
           if (resp.ok) {
-            _context22.next = 15;
+            _context25.next = 15;
             break;
           }
-          _context22.next = 13;
+          _context25.next = 13;
           return resp.json()["catch"](function () {
             return {};
           });
         case 13:
-          _e2 = _context22.sent;
+          _e2 = _context25.sent;
           throw new Error(_e2 && _e2.error && _e2.error.message || 'Could not create the spreadsheet (HTTP ' + resp.status + ')');
         case 15:
-          _context22.next = 17;
+          _context25.next = 17;
           return resp.json();
         case 17:
-          d = _context22.sent;
+          d = _context25.sent;
           sid = d.spreadsheetId;
         case 19:
           rows = flattenRollsForSheet(rolls);
           lastCol = colLetter(rows[0].length);
-          _context22.prev = 21;
-          _context22.next = 24;
+          _context25.prev = 21;
+          _context25.next = 24;
           return fetch('https://sheets.googleapis.com/v4/spreadsheets/' + sid + '/values/' + encodeURIComponent(GSHEETS_TAB_NAME) + ':clear', {
             method: 'POST',
             headers: {
@@ -1484,14 +1561,14 @@ function _backupToSheets() {
             }
           });
         case 24:
-          _context22.next = 28;
+          _context25.next = 28;
           break;
         case 26:
-          _context22.prev = 26;
-          _context22.t0 = _context22["catch"](21);
+          _context25.prev = 26;
+          _context25.t0 = _context25["catch"](21);
         case 28:
           range = GSHEETS_TAB_NAME + '!A1:' + lastCol + rows.length;
-          _context22.next = 31;
+          _context25.next = 31;
           return fetch('https://sheets.googleapis.com/v4/spreadsheets/' + sid + '/values/' + encodeURIComponent(range) + '?valueInputOption=RAW', {
             method: 'PUT',
             headers: {
@@ -1505,27 +1582,196 @@ function _backupToSheets() {
             })
           });
         case 31:
-          putResp = _context22.sent;
+          putResp = _context25.sent;
           if (putResp.ok) {
-            _context22.next = 37;
+            _context25.next = 37;
             break;
           }
-          _context22.next = 35;
+          _context25.next = 35;
           return putResp.json()["catch"](function () {
             return {};
           });
         case 35:
-          _e3 = _context22.sent;
+          _e3 = _context25.sent;
           throw new Error(_e3 && _e3.error && _e3.error.message || 'Could not write to the spreadsheet (HTTP ' + putResp.status + ')');
         case 37:
-          return _context22.abrupt("return", sid);
-        case 38:
+          if (!rawProject) {
+            _context25.next = 55;
+            break;
+          }
+          _context25.prev = 38;
+          _context25.next = 41;
+          return ensureTab(token, sid, GSHEETS_RAW_TAB);
+        case 41:
+          ok = _context25.sent;
+          if (!ok) {
+            _context25.next = 50;
+            break;
+          }
+          payload = JSON.stringify({
+            v: 1,
+            savedAt: new Date().toISOString(),
+            project: rawProject
+          });
+          chunks = chunkRaw(payload);
+          _context25.next = 47;
+          return fetch('https://sheets.googleapis.com/v4/spreadsheets/' + sid + '/values/' + encodeURIComponent(GSHEETS_RAW_TAB) + ':clear', {
+            method: 'POST',
+            headers: {
+              Authorization: 'Bearer ' + token,
+              'Content-Type': 'application/json'
+            }
+          });
+        case 47:
+          rr = GSHEETS_RAW_TAB + '!A1:A' + chunks.length;
+          _context25.next = 50;
+          return fetch('https://sheets.googleapis.com/v4/spreadsheets/' + sid + '/values/' + encodeURIComponent(rr) + '?valueInputOption=RAW', {
+            method: 'PUT',
+            headers: {
+              Authorization: 'Bearer ' + token,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              range: rr,
+              majorDimension: 'ROWS',
+              values: chunks
+            })
+          });
+        case 50:
+          _context25.next = 55;
+          break;
+        case 52:
+          _context25.prev = 52;
+          _context25.t1 = _context25["catch"](38);
+          console.warn('camrep: raw restore tab could not be written', _context25.t1);
+        case 55:
+          return _context25.abrupt("return", sid);
+        case 56:
         case "end":
-          return _context22.stop();
+          return _context25.stop();
       }
-    }, _callee22, null, [[21, 26]]);
+    }, _callee25, null, [[21, 26], [38, 52]]);
   }));
   return _backupToSheets.apply(this, arguments);
+}
+function listBackupSheets(_x17) {
+  return _listBackupSheets.apply(this, arguments);
+}
+/* Read a project back out of the raw tab. Returns null when the sheet predates
+   this feature (backed up by an older build), which the caller reports as
+   "this backup is too old to restore from" rather than a hard error. */
+function _listBackupSheets() {
+  _listBackupSheets = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee26(clientId) {
+    var token, q, r, _e4, d;
+    return _regeneratorRuntime().wrap(function _callee26$(_context26) {
+      while (1) switch (_context26.prev = _context26.next) {
+        case 0:
+          _context26.next = 2;
+          return ensureSheetsToken(clientId);
+        case 2:
+          token = _context26.sent;
+          q = encodeURIComponent("mimeType='application/vnd.google-apps.spreadsheet' and trashed=false");
+          _context26.next = 6;
+          return fetch('https://www.googleapis.com/drive/v3/files?q=' + q + '&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc&pageSize=50', {
+            headers: {
+              Authorization: 'Bearer ' + token
+            }
+          });
+        case 6:
+          r = _context26.sent;
+          if (r.ok) {
+            _context26.next = 12;
+            break;
+          }
+          _context26.next = 10;
+          return r.json()["catch"](function () {
+            return {};
+          });
+        case 10:
+          _e4 = _context26.sent;
+          throw new Error(_e4 && _e4.error && _e4.error.message || 'Could not list your backups (HTTP ' + r.status + ')');
+        case 12:
+          _context26.next = 14;
+          return r.json();
+        case 14:
+          d = _context26.sent;
+          return _context26.abrupt("return", d.files || []);
+        case 16:
+        case "end":
+          return _context26.stop();
+      }
+    }, _callee26);
+  }));
+  return _listBackupSheets.apply(this, arguments);
+}
+function loadProjectFromSheet(_x18, _x19) {
+  return _loadProjectFromSheet.apply(this, arguments);
+}
+function _loadProjectFromSheet() {
+  _loadProjectFromSheet = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee27(clientId, sid) {
+    var token, r, d, joined, parsed, p;
+    return _regeneratorRuntime().wrap(function _callee27$(_context27) {
+      while (1) switch (_context27.prev = _context27.next) {
+        case 0:
+          _context27.next = 2;
+          return ensureSheetsToken(clientId);
+        case 2:
+          token = _context27.sent;
+          _context27.next = 5;
+          return fetch('https://sheets.googleapis.com/v4/spreadsheets/' + sid + '/values/' + encodeURIComponent(GSHEETS_RAW_TAB) + '!A1:A1000', {
+            headers: {
+              Authorization: 'Bearer ' + token
+            }
+          });
+        case 5:
+          r = _context27.sent;
+          if (r.ok) {
+            _context27.next = 8;
+            break;
+          }
+          return _context27.abrupt("return", null);
+        case 8:
+          _context27.next = 10;
+          return r.json();
+        case 10:
+          d = _context27.sent;
+          joined = (d.values || []).map(function (row) {
+            return row && row[0] || '';
+          }).join('');
+          if (joined.trim()) {
+            _context27.next = 14;
+            break;
+          }
+          return _context27.abrupt("return", null);
+        case 14:
+          parsed = null;
+          _context27.prev = 15;
+          parsed = JSON.parse(joined);
+          _context27.next = 22;
+          break;
+        case 19:
+          _context27.prev = 19;
+          _context27.t0 = _context27["catch"](15);
+          return _context27.abrupt("return", null);
+        case 22:
+          p = parsed && parsed.project;
+          if (!(!p || _typeof(p) !== 'object')) {
+            _context27.next = 25;
+            break;
+          }
+          return _context27.abrupt("return", null);
+        case 25:
+          return _context27.abrupt("return", {
+            savedAt: parsed.savedAt || '',
+            project: p
+          });
+        case 26:
+        case "end":
+          return _context27.stop();
+      }
+    }, _callee27, null, [[15, 19]]);
+  }));
+  return _loadProjectFromSheet.apply(this, arguments);
 }
 var SB_NOTE_PRESETS_KEY = 'sb_camrep_note_presets';
 var SB_FOCAL_PRESETS_KEY = 'sb_camrep_focal_presets';
@@ -1552,18 +1798,18 @@ var CAM_CONFIG = {
   // blue
   C: {
     label: 'C',
+    header: '#6b5a1a',
+    accent: '#e5c04d',
+    tint: 'rgba(229,192,77,0.14)'
+  },
+  // yellow
+  D: {
+    label: 'D',
     header: '#1f5f3a',
     accent: '#3ec17a',
     tint: 'rgba(62,193,122,0.14)'
   },
   // green
-  D: {
-    label: 'D',
-    header: '#7a4a1f',
-    accent: '#e5934d',
-    tint: 'rgba(229,147,77,0.14)'
-  },
-  // orange
   E: {
     label: 'E',
     header: '#4a1f6b',
@@ -2330,6 +2576,9 @@ function SearchInputAC(_ref13) {
     }, s);
   })));
 }
+/* normalize (optional): tidies the value once the user is DONE with the field -
+   on blur, or when they pick from the dropdown - never on each keystroke, which
+   would move the caret while they type. WB uses it to append the trailing K. */
 function LensFocalPicker(_ref14) {
   var value = _ref14.value,
     _onChange4 = _ref14.onChange,
@@ -2337,7 +2586,8 @@ function LensFocalPicker(_ref14) {
     placeholder = _ref14.placeholder,
     inputStyle = _ref14.inputStyle,
     align = _ref14.align,
-    noFilter = _ref14.noFilter;
+    noFilter = _ref14.noFilter,
+    normalize = _ref14.normalize;
   var _React$useState21 = React.useState(false),
     _React$useState22 = _slicedToArray(_React$useState21, 2),
     open = _React$useState22[0],
@@ -2429,6 +2679,12 @@ function LensFocalPicker(_ref14) {
       setOpen(true);
     },
     onFocus: openPicker,
+    onBlur: function onBlur(e) {
+      if (normalize) {
+        var n = normalize(e.target.value);
+        if (n !== e.target.value) _onChange4(n);
+      }
+    },
     style: _objectSpread(_objectSpread({
       flex: 1,
       minWidth: 0,
@@ -2592,7 +2848,7 @@ function TakePhotoCell(_ref15) {
       return !o;
     });
   }
-  function handleFile(_x14) {
+  function handleFile(_x20) {
     return _handleFile.apply(this, arguments);
   }
   function _handleFile() {
@@ -2642,7 +2898,7 @@ function TakePhotoCell(_ref15) {
     }));
     return _handleFile.apply(this, arguments);
   }
-  function removePhoto(_x15) {
+  function removePhoto(_x21) {
     return _removePhoto.apply(this, arguments);
   }
   function _removePhoto() {
@@ -2903,7 +3159,7 @@ function AIFillModal(_ref16) {
     setHasKey = _React$useState46[1];
   var fileRefs = [React.useRef(null), React.useRef(null)];
   var camRefs = [React.useRef(null), React.useRef(null)];
-  function handleFile(_x16, _x17) {
+  function handleFile(_x22, _x23) {
     return _handleFile2.apply(this, arguments);
   }
   function _handleFile2() {
@@ -3082,7 +3338,7 @@ function AIFillModal(_ref16) {
     l: 'WB'
   }, {
     k: 'focus',
-    l: "FOCUS (ft)"
+    l: "FOCUS"
   }, {
     k: 'codec',
     l: 'CODEC'
@@ -3510,9 +3766,18 @@ function CameraReport() {
   // WB 3200K..7000K in 50K steps
   var WB_OPTIONS = function () {
     var a = [];
-    for (var k = 3200; k <= 7000; k += 50) a.push(k + '');
+    for (var k = 3200; k <= 7000; k += 50) a.push(k + 'K');
     return a;
   }();
+  /* Colour temperature is always written with a trailing K on a camera report,
+     so add it for the user instead of making them type it every row. Applied
+     on COMMIT (dropdown pick / leaving the field), never on every keystroke -
+     appending mid-typing would fight the cursor. Anything that isn't a bare
+     number is left exactly as typed, so notes like "5600K mixed" survive. */
+  var withK = function withK(v) {
+    var s = String(v == null ? '' : v).trim();
+    return /^\d+(\.\d+)?$/.test(s) ? s + 'K' : s;
+  };
   var DEFAULT_LENS = ['Cooke Panchro i', 'Cooke S4', 'Cooke S7', 'Zeiss Master Prime', 'Zeiss Ultra Prime', 'Zeiss Supreme', 'Arri Signature Prime', 'Leica Summilux-C', 'Angenieux Zoom', 'Canon CN-E'];
   var DEFAULT_FOCAL = ['21mm', '27mm', '32mm', '40mm', '50mm', '65mm', '75mm', '85mm', '100mm', '110mm'];
   var DEFAULT_STOP = ['T1.4', 'T2', 'T2.2', 'T2.5', 'T2.8', 'T3.2', 'T3.5', 'T4', 'T4.5', 'T5.6', 'T6.3', 'T7.1', 'T8', 'T9', 'T11', 'T13', 'T16', 'T22'];
@@ -3731,9 +3996,15 @@ function CameraReport() {
       return ie ? "".concat(id, " ").concat(ie) : id;
     }).join(', ');
   }
+  /* Newest day first. On a running production the day you want is almost
+     always the most recent one, so it should be the one under your thumb -
+     not at the bottom of a list you have to scroll past 20 finished days to
+     reach. Anything that needs a specific day looks it up by number, so the
+     ordering here only affects what the crew sees. */
   var shootDays = (proj.shootDays || []).slice().sort(function (a, b) {
-    return a.day - b.day;
+    return b.day - a.day;
   });
+  var latestShootDay = shootDays[0] || null; // highest day number
 
   // Local-only load: rolls live in the standalone JSON blob (localStorage),
   // loaded once on mount. There is no remote server, so there is nothing to
@@ -3829,7 +4100,7 @@ function CameraReport() {
         }
       }, _callee5);
     }));
-    return function persist(_x18) {
+    return function persist(_x24) {
       return _ref18.apply(this, arguments);
     };
   }();
@@ -3860,7 +4131,7 @@ function CameraReport() {
         }
       }, _callee6);
     }));
-    return function saveRolls(_x19) {
+    return function saveRolls(_x25) {
       return _ref19.apply(this, arguments);
     };
   }();
@@ -3957,16 +4228,17 @@ function CameraReport() {
         takes: []
       };
     } else {
-      var _shootDays$2;
-      // Blank: minimal system defaults. Shutter intentionally left empty  - 
+      // Blank: minimal system defaults. Shutter intentionally left empty  -
       // every take fills its own, so a roll-level default isn't needed.
+      // Defaults to the LATEST shoot day (shootDays is newest-first) with that
+      // day's own date, so the two never disagree out of the box.
       newRoll = {
         id: id,
         roll: nextRollNo(c),
         cam: c,
         mag: '',
-        date: today,
-        shootDay: ((_shootDays$2 = shootDays[0]) === null || _shootDays$2 === void 0 ? void 0 : _shootDays$2.day) || '',
+        date: latestShootDay && latestShootDay.date || today,
+        shootDay: latestShootDay ? latestShootDay.day : '',
         location: '',
         director: DEFAULTS.director,
         dop: DEFAULTS.dop,
@@ -4156,6 +4428,26 @@ function CameraReport() {
   var roll = rolls.find(function (r) {
     return r.id === activeRoll;
   });
+
+  /* Roll numbers must be unique within a production. Auto-generated ones never
+     clash, but the field is hand-editable and a duplicate is genuinely
+     dangerous: two different mags both labelled A003 means the edit assistant
+     cannot tell which card a clip came from. Deliberately a WARNING, not a
+     block - if a DIT is mid-correction we must not fight them or refuse the
+     keystroke; we just make the clash impossible to miss. Compared across the
+     whole project (every camera), case- and space-insensitively. */
+  var rollDupe = React.useMemo(function () {
+    if (!roll) return null;
+    var mine = String(roll.roll || '').trim().toLowerCase();
+    if (!mine) return null;
+    var clash = rolls.find(function (r) {
+      return r.id !== roll.id && String(r.roll || '').trim().toLowerCase() === mine;
+    });
+    return clash ? {
+      cam: camOf(clash),
+      takes: (clash.takes || []).length
+    } : null;
+  }, [rolls, roll]);
   // Shot letters A, B, C ... AA, AB ...
   // Shot sequence follows US convention: a scene's FIRST shot has no letter
   // (shown as "/"), then subsequent shots advance A, B, C ... AA, AB ...
@@ -4338,12 +4630,17 @@ function CameraReport() {
         photoIds: []
       });
     }
+    // New shot / new scene: FOCAL is deliberately left blank. A new setup means
+    // the lens has been re-framed, so carrying the previous focal length over
+    // just invites it being left wrong. Exposure settings (shutter, stop, WB,
+    // EI) usually DO stay put between setups, so those still carry over and
+    // only get touched when they actually change.
     return _objectSpread(_objectSpread({}, base), {}, {
       lens: rk.lens || '',
-      focal: last.focal || '',
+      focal: '',
       stop: last.stop || '',
       shutter: last.shutter || rk.shutter || '',
-      ei: rk.baseEI || '',
+      ei: last.ei || rk.baseEI || '',
       intFilters: last.intFilters || '',
       filters: last.filters || '',
       filters3: last.filters3 || '',
@@ -4548,7 +4845,7 @@ function CameraReport() {
   // saves the source image to IndexedDB as the take's reference photo.
   // If the photo was a monitor screenshot, also updates roll-level fields
   // (fps, shutter, ei, wb, codec) that are more reliably read from the HUD.
-  function applyAITake(_x20) {
+  function applyAITake(_x26) {
     return _applyAITake.apply(this, arguments);
   } // Scene changed manually -> shot back to "/" (new-scene convention), take recomputed.
   function _applyAITake() {
@@ -4736,7 +5033,7 @@ function CameraReport() {
       takes: next
     });
   }
-  function deleteTake(_x21) {
+  function deleteTake(_x27) {
     return _deleteTake.apply(this, arguments);
   } // Resequence all clips in the current roll: starting from the first
   // parseable clip, fill every take with a contiguous number sequence.
@@ -4843,7 +5140,7 @@ function CameraReport() {
   }
   function _exportReport() {
     _exportReport = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee11() {
-      var preOpened, dayD, rawDate, dateStr, camCfg, camHeaderColor, camRollTag, fcm, esc, hasAnyPhoto, photoMap, pairs, rows, html, blob, blobUrl, iframe;
+      var preOpened, dayD, rawDate, dateStr, camCfg, camHeaderColor, camRollTag, esc, hasAnyPhoto, photoMap, pairs, rows, html, blob, blobUrl, iframe;
       return _regeneratorRuntime().wrap(function _callee11$(_context11) {
         while (1) switch (_context11.prev = _context11.next) {
           case 0:
@@ -4882,14 +5179,10 @@ function CameraReport() {
             camRollTag = {
               A: '#f3b0b0',
               B: '#b0c8f3',
-              C: '#b0f3c8',
-              D: '#f3d4b0'
-            }[camOf(roll)] || '#f3b0b0';
-            fcm = function fcm(v) {
-              v = (v == null ? '' : String(v)).trim();
-              if (!v) return '';
-              return /^[\d.]+$/.test(v) ? v + "'" : v;
-            }; // EVERY user-entered value below goes through esc() before it is
+              C: '#f0e0a0',
+              D: '#b0f3c8',
+              E: '#dcc0f3'
+            }[camOf(roll)] || '#f3b0b0'; // EVERY user-entered value below goes through esc() before it is
             // interpolated into the report HTML. Without this, an ampersand or a
             // quote in a lens name / location / note silently mangles the printed
             // layout, and anything script-shaped typed into a field would actually
@@ -4902,11 +5195,11 @@ function CameraReport() {
             });
             photoMap = {};
             if (!hasAnyPhoto) {
-              _context11.next = 27;
+              _context11.next = 26;
               break;
             }
-            _context11.prev = 17;
-            _context11.next = 20;
+            _context11.prev = 16;
+            _context11.next = 19;
             return Promise.all(roll.takes.map( /*#__PURE__*/function () {
               var _ref31 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee10(t) {
                 var pids, rows, local;
@@ -4936,11 +5229,11 @@ function CameraReport() {
                   }
                 }, _callee10);
               }));
-              return function (_x22) {
+              return function (_x28) {
                 return _ref31.apply(this, arguments);
               };
             }()));
-          case 20:
+          case 19:
             pairs = _context11.sent;
             pairs.forEach(function (_ref32) {
               var _ref33 = _slicedToArray(_ref32, 2),
@@ -4948,32 +5241,32 @@ function CameraReport() {
                 url = _ref33[1];
               if (url) photoMap[id] = url;
             });
-            _context11.next = 27;
+            _context11.next = 26;
             break;
-          case 24:
-            _context11.prev = 24;
-            _context11.t0 = _context11["catch"](17);
+          case 23:
+            _context11.prev = 23;
+            _context11.t0 = _context11["catch"](16);
             console.warn('print photo gather failed', _context11.t0);
-          case 27:
+          case 26:
             rows = roll.takes.map(function (t) {
-              return "<tr>\n      <td>".concat(esc(sceneWithIE(t.scene)), "</td><td style=\"text-align:center\">").concat(esc(t.shot), "</td><td style=\"text-align:center\">").concat(esc(t.take), "</td>\n      <td style=\"text-align:center\">").concat(t.tail ? "\u2705" : '', "</td><td>").concat(esc(t.clip), "</td>\n      <td>").concat(esc(t.lens), "</td><td>").concat(esc(t.focal), "</td><td>").concat(esc(t.stop), "</td><td>").concat(esc(t.shutter || roll.shutter), "</td><td>").concat(esc(t.ei), "</td>\n      <td>").concat(esc(t.intFilters), "</td><td>").concat(esc(t.filters), "</td><td>").concat(esc(t.filters3), "</td><td>").concat(esc(t.wb), "</td><td>").concat(esc(fcm(t.focus)), "</td>\n      <td>").concat(esc(t.notes), "</td>\n      ").concat(hasAnyPhoto ? "<td>".concat(photoMap[t.id] ? "<img src=\"".concat(esc(photoMap[t.id]), "\" style=\"width:46px;height:34px;object-fit:cover;border-radius:2px;border:1px solid #999;\">") : '', "</td>") : '', "\n      </tr>");
+              return "<tr>\n      <td>".concat(esc(sceneWithIE(t.scene)), "</td><td style=\"text-align:center\">").concat(esc(t.shot), "</td><td style=\"text-align:center\">").concat(esc(t.take), "</td>\n      <td style=\"text-align:center\">").concat(t.tail ? "\u2705" : '', "</td><td>").concat(esc(t.clip), "</td>\n      <td>").concat(esc(t.lens), "</td><td>").concat(esc(t.focal), "</td><td>").concat(esc(t.stop), "</td><td>").concat(esc(t.shutter || roll.shutter), "</td><td>").concat(esc(t.ei), "</td>\n      <td>").concat(esc(t.intFilters), "</td><td>").concat(esc(t.filters), "</td><td>").concat(esc(t.filters3), "</td><td>").concat(esc(t.wb), "</td><td>").concat(esc(t.focus), "</td>\n      <td>").concat(esc(t.notes), "</td>\n      ").concat(hasAnyPhoto ? "<td>".concat(photoMap[t.id] ? "<img src=\"".concat(esc(photoMap[t.id]), "\" style=\"width:46px;height:34px;object-fit:cover;border-radius:2px;border:1px solid #999;\">") : '', "</td>") : '', "\n      </tr>");
             }).join('');
-            html = "<!doctype html><html><head><meta charset=\"utf-8\"><title>".concat(esc(proj.projectName || 'Camera Report'), " ").concat(esc(roll.roll), "</title>\n    <style>\n      body{font-family:Arial,Helvetica,sans-serif;margin:18px;color:#111;}\n      .hdr{background:#1a1a1a;color:#fff;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;}\n      .hdr .title{font-size:24px;font-weight:bold;letter-spacing:2px;text-align:center;flex:1;}\n      .hdr .roll{background:").concat(camRollTag, ";color:#111;font-weight:bold;font-size:20px;padding:4px 14px;border-radius:3px;}\n      .crew{font-size:10px;line-height:1.5;}\n      .meta{display:flex;flex-wrap:wrap;border:1px solid #000;border-top:none;font-size:11px;}\n      .meta div{padding:4px 8px;border-right:1px solid #ccc;}\n      .meta b{color:#000;}\n      table{width:100%;border-collapse:collapse;margin-top:0;font-size:10px;table-layout:fixed;}\n      th{background:").concat(camHeaderColor, ";color:#fff;padding:4px;text-align:left;font-size:10px;overflow:hidden;word-wrap:break-word;line-height:1.15;vertical-align:middle;}\n      td{border:1px solid #ccc;padding:3px 4px;overflow:hidden;word-wrap:break-word;vertical-align:top;}\n      tr:nth-child(even) td{background:#f7f7f7;}\n      .toolbar{position:fixed;top:0;left:0;right:0;background:#1a1a1a;color:#fff;padding:8px 14px;display:flex;gap:10px;align-items:center;justify-content:flex-end;box-shadow:0 2px 8px rgba(0,0,0,0.3);z-index:9999;}\n      .toolbar button{font-family:Arial,sans-serif;font-size:13px;padding:7px 16px;border-radius:6px;border:none;cursor:pointer;}\n      .toolbar .close{background:#444;color:#fff;}\n      .toolbar .print{background:#c98a3a;color:#111;font-weight:bold;}\n      .toolbar .spacer-note{flex:1;font-size:11px;color:#aaa;text-align:left;}\n      .content{margin-top:52px;}\n      @media print{ .toolbar{display:none!important;} .content{margin-top:0;} }\n    </style></head><body>\n    <div class=\"toolbar\">\n      <span class=\"spacer-note\">").concat(esc(roll.roll), " camera report &middot; use Print to save as PDF</span>\n      <button class=\"close\" onclick=\"window.close()\">&times; Close</button>\n      <button class=\"print\" onclick=\"window.print()\">&#128424; Print / Save PDF</button>\n    </div>\n    <div class=\"content\">\n    <div class=\"hdr\">\n      <div class=\"crew\">DIRECTOR: ").concat(esc(roll.director || DEFAULTS.director), "<br>DOP: ").concat(esc(roll.dop || DEFAULTS.dop), "<br>1ST AC: ").concat(esc(roll.ac || DEFAULTS.ac), "</div>\n      <div class=\"title\">").concat(esc((proj.projectName || 'CAMERA REPORT').toUpperCase()), "</div>\n      <div><div class=\"roll\">").concat(esc(roll.roll), "</div><div style=\"color:#fff;font-size:10px;margin-top:4px\">MAG # ").concat(esc(roll.mag), "</div></div>\n    </div>\n    <div class=\"meta\">\n      <div><b>DATE:</b> ").concat(esc(dateStr), "</div><div><b>SHOOT DAY:</b> ").concat(esc(roll.shootDay), "</div>\n      <div><b>CODEC:</b> ").concat(esc(roll.codec), "</div><div><b>CAMERA:</b> ").concat(esc(roll.camera), "</div><div><b>LUT:</b> ").concat(esc(roll.lut), "</div>\n      <div><b>FPS:</b> ").concat(esc(roll.fps), "</div><div><b>LOCATION:</b> ").concat(esc(roll.location), "</div>\n    </div>\n    <table>\n    <colgroup>\n      <col style=\"width:8.5%\"/>  <!-- SCENE (fits \"S57 INT, S60 INT, S46 INT\" on one line at 10px) -->\n      <col style=\"width:3.5%\"/>  <!-- SHOT -->\n      <col style=\"width:3.5%\"/>  <!-- TAKE -->\n      <col style=\"width:3%\"/>    <!-- T/S -->\n      <col style=\"width:5%\"/>    <!-- CLIP -->\n      <col style=\"width:8%\"/>    <!-- LENS -->\n      <col style=\"width:4.5%\"/>  <!-- FOCAL -->\n      <col style=\"width:3.5%\"/>  <!-- STOP -->\n      <col style=\"width:5%\"/>    <!-- SHUTTER (was ~8-9%) -->\n      <col style=\"width:3.5%\"/>  <!-- EI -->\n      <col style=\"width:8%\"/>    <!-- FILTER 1 -->\n      <col style=\"width:5%\"/>    <!-- FILTER 2 (was ~7%) -->\n      <col style=\"width:5%\"/>    <!-- FILTER 3 -->\n      <col style=\"width:4%\"/>    <!-- WB -->\n      <col style=\"width:5%\"/>    <!-- FOCUS (ft) -->\n      <col/>                     <!-- NOTES takes remaining space -->\n      ").concat(hasAnyPhoto ? '<col style="width:5%"/>' : '', "\n    </colgroup>\n    <thead><tr>\n      <th>SCENE</th><th>SHOT</th><th>TAKE</th><th>T/S</th><th>CLIP</th><th>LENS</th><th>FOCAL</th><th>STOP</th><th>SHUTTER</th><th>EI</th>\n      <th>FILTER 1</th><th>FILTER 2</th><th>FILTER 3</th><th>WB</th><th>FOCUS<br/>(ft)</th><th>NOTES</th>").concat(hasAnyPhoto ? '<th>PHOTO</th>' : '', "\n    </tr></thead><tbody>").concat(rows, "</tbody></table>\n    </div>\n    </body></html>"); // Write the finished report into the tab we opened synchronously above  - 
+            html = "<!doctype html><html><head><meta charset=\"utf-8\"><title>".concat(esc(proj.projectName || 'Camera Report'), " ").concat(esc(roll.roll), "</title>\n    <style>\n      /* THE colour fix. By default Safari (and Chrome) strip background colours\n         when printing unless the user happens to tick \"Print backgrounds\" in\n         the print dialog - which is why this report came out plain white. These\n         two properties override that and force backgrounds to render, so the\n         black title bar and the coloured header row survive into the PDF with\n         no checkbox hunting on an iPad. Both spellings are needed: WebKit still\n         wants the -webkit- prefix, the unprefixed one is the standard. */\n      *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }\n      @page{ size:A4 landscape; margin:8mm; }\n      body{font-family:Arial,Helvetica,sans-serif;margin:14px;color:#111;}\n      .sheet{border:2px solid #999;}\n      .hdr{background:#111;color:#fff;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;gap:12px;}\n      .hdr .title{font-size:26px;font-weight:bold;text-align:center;flex:1;line-height:1.1;}\n      .crew{font-size:10px;line-height:1.6;white-space:nowrap;}\n      .crew b{display:inline-block;min-width:58px;text-align:right;margin-right:5px;font-weight:bold;}\n      .rollbox{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:bold;}\n      .rollbox .lbl{text-align:right;line-height:1.9;}\n      .rollbox .val{text-align:center;}\n      .rollbox .roll{background:").concat(camRollTag, ";color:#111;font-weight:bold;font-size:21px;padding:2px 16px;}\n      .rollbox .mag{background:#fff;color:#111;font-weight:bold;font-size:15px;padding:1px 16px;margin-top:3px;}\n      /* Meta block: two rows, mirroring the paper report it replaces. */\n      table.meta{width:100%;border-collapse:collapse;font-size:10.5px;}\n      table.meta td{border:1px solid #111;padding:3px 6px;vertical-align:middle;}\n      table.meta td.k{background:#e9e9e9;font-weight:bold;white-space:nowrap;width:1%;}\n      table.main{width:100%;border-collapse:collapse;font-size:9.5px;table-layout:fixed;margin-top:0;}\n      /* Every cell fully bordered, header included. */\n      table.main th{background:").concat(camHeaderColor, ";color:#fff;padding:4px 3px;text-align:left;font-size:9.5px;\n        border:1px solid #111;word-wrap:break-word;line-height:1.15;vertical-align:middle;}\n      table.main td{border:1px solid #444;padding:3px 4px;word-wrap:break-word;vertical-align:top;height:15px;}\n      table.main tr:nth-child(even) td{background:#f4f4f4;}\n      .foot td{border:1px solid #111;background:#e9e9e9;font-size:10px;padding:4px 6px;text-align:center;font-weight:bold;}\n      .foot td.k{text-align:left;width:1%;white-space:nowrap;}\n      .toolbar{position:fixed;top:0;left:0;right:0;background:#1a1a1a;color:#fff;padding:8px 14px;display:flex;gap:10px;align-items:center;justify-content:flex-end;box-shadow:0 2px 8px rgba(0,0,0,0.3);z-index:9999;}\n      .toolbar button{font-family:Arial,sans-serif;font-size:13px;padding:7px 16px;border-radius:6px;border:none;cursor:pointer;}\n      .toolbar .close{background:#444;color:#fff;}\n      .toolbar .print{background:#c98a3a;color:#111;font-weight:bold;}\n      .toolbar .spacer-note{flex:1;font-size:11px;color:#aaa;text-align:left;}\n      .content{margin-top:52px;}\n      @media print{ .toolbar{display:none!important;} .content{margin-top:0;} body{margin:0;} }\n    </style></head><body>\n    <div class=\"toolbar\">\n      <span class=\"spacer-note\">").concat(esc(roll.roll), " camera report &middot; use Print to save as PDF</span>\n      <button class=\"close\" onclick=\"window.close()\">&times; Close</button>\n      <button class=\"print\" onclick=\"window.print()\">&#128424; Print / Save PDF</button>\n    </div>\n    <div class=\"content\">\n    <div class=\"sheet\">\n    <div class=\"hdr\">\n      <div class=\"crew\">\n        <b>DIRECTOR:</b>").concat(esc(roll.director || DEFAULTS.director), "<br>\n        <b>DOP:</b>").concat(esc(roll.dop || DEFAULTS.dop), "<br>\n        <b>1ST AC:</b>").concat(esc(roll.ac || DEFAULTS.ac), "\n      </div>\n      <div class=\"title\">").concat(esc(proj.projectName || 'CAMERA REPORT'), "</div>\n      <div class=\"rollbox\">\n        <div class=\"lbl\">ROLL #<br>MAG #</div>\n        <div class=\"val\"><div class=\"roll\">").concat(esc(roll.roll), "</div><div class=\"mag\">").concat(esc(roll.mag) || '&nbsp;', "</div></div>\n      </div>\n    </div>\n    <table class=\"meta\"><tbody>\n      <tr>\n        <td class=\"k\">DATE:</td><td>").concat(esc(dateStr), "</td>\n        <td class=\"k\">SHOOT DAY:</td><td>").concat(esc(roll.shootDay), "</td>\n        <td class=\"k\">CODEC:</td><td>").concat(esc(roll.codec), "</td>\n        <td class=\"k\">CAMERA:</td><td>").concat(esc(roll.camera), "</td>\n        <td class=\"k\">LUT:</td><td>").concat(esc(roll.lut), "</td>\n      </tr>\n      <tr>\n        <td class=\"k\">FPS:</td><td>").concat(esc(roll.fps), "</td>\n        <td class=\"k\">SHUTTER:</td><td>").concat(esc(roll.shutter), "</td>\n        <td class=\"k\">LOCATION:</td><td colspan=\"5\">").concat(esc(roll.location), "</td>\n      </tr>\n    </tbody></table>\n    <table class=\"main\">\n    <colgroup>\n      <col style=\"width:8.5%\"/>  <!-- SCENE (fits \"S57 INT, S60 INT, S46 INT\" on one line at 10px) -->\n      <col style=\"width:3.5%\"/>  <!-- SHOT -->\n      <col style=\"width:3.5%\"/>  <!-- TAKE -->\n      <col style=\"width:3%\"/>    <!-- T/S -->\n      <col style=\"width:5%\"/>    <!-- CLIP -->\n      <col style=\"width:8%\"/>    <!-- LENS -->\n      <col style=\"width:4.5%\"/>  <!-- FOCAL -->\n      <col style=\"width:3.5%\"/>  <!-- STOP -->\n      <col style=\"width:5%\"/>    <!-- SHUTTER (was ~8-9%) -->\n      <col style=\"width:3.5%\"/>  <!-- EI -->\n      <col style=\"width:8%\"/>    <!-- FILTER 1 -->\n      <col style=\"width:5%\"/>    <!-- FILTER 2 (was ~7%) -->\n      <col style=\"width:5%\"/>    <!-- FILTER 3 -->\n      <col style=\"width:4.5%\"/>  <!-- WB -->\n      <col style=\"width:5.5%\"/>  <!-- FOCUS -->\n      <col/>                     <!-- NOTES takes remaining space -->\n      ").concat(hasAnyPhoto ? '<col style="width:5%"/>' : '', "\n    </colgroup>\n    <thead><tr>\n      <th>SCENE</th><th>SHOT</th><th>TAKE</th><th>T/S</th><th>CLIP</th><th>LENS</th><th>FOCAL</th><th>STOP</th><th>SHUTTER</th><th>EI</th>\n      <th>FILTER 1</th><th>FILTER 2</th><th>FILTER 3</th><th>WB</th><th>FOCUS</th><th>NOTES</th>").concat(hasAnyPhoto ? '<th>PHOTO</th>' : '', "\n    </tr></thead><tbody>").concat(rows, "</tbody></table>\n    <table class=\"meta\"><tbody><tr class=\"foot\">\n      <td class=\"k\">NOTES:</td><td>End of ").concat(esc(roll.roll)).concat(roll.shootDay ? ' &middot; SD ' + esc(String(roll.shootDay).padStart(2, '0')) : '', "</td>\n    </tr></tbody></table>\n    </div>\n    </div>\n    </body></html>"); // Write the finished report into the tab we opened synchronously above  - 
             // this works even on Safari/iPad because that tab was opened in direct
             // response to the click, before any async work happened.
             if (!(preOpened && !preOpened.closed)) {
-              _context11.next = 39;
+              _context11.next = 38;
               break;
             }
-            _context11.prev = 30;
+            _context11.prev = 29;
             preOpened.document.open();
             preOpened.document.write(html);
             preOpened.document.close();
             return _context11.abrupt("return");
-          case 37:
-            _context11.prev = 37;
-            _context11.t1 = _context11["catch"](30);
-          case 39:
+          case 36:
+            _context11.prev = 36;
+            _context11.t1 = _context11["catch"](29);
+          case 38:
             // Fallback (pre-open was blocked, e.g. some in-app browsers): print via a
             // hidden iframe on the current page  -  no new window/tab involved at all.
             blob = new Blob([html], {
@@ -5003,28 +5296,23 @@ function CameraReport() {
             setTimeout(function () {
               return URL.revokeObjectURL(blobUrl);
             }, 60000);
-          case 53:
+          case 52:
           case "end":
             return _context11.stop();
         }
-      }, _callee11, null, [[17, 24], [30, 37]]);
+      }, _callee11, null, [[16, 23], [29, 36]]);
     }));
     return _exportReport.apply(this, arguments);
   }
   function exportCSV() {
     if (!roll) return;
-    var head = ['SCENE', 'SHOT', 'TAKE', 'T/S', 'CLIP', 'LENS', 'FOCAL', 'STOP', 'SHUTTER', 'EI', 'FILTER 1', 'FILTER 2', 'FILTER 3', 'WB', "FOCUS (ft)", 'NOTES'];
-    var fcm = function fcm(v) {
-      v = (v == null ? '' : String(v)).trim();
-      if (!v) return '';
-      return /^[\d.]+$/.test(v) ? v + "'" : v;
-    };
+    var head = ['SCENE', 'SHOT', 'TAKE', 'T/S', 'CLIP', 'LENS', 'FOCAL', 'STOP', 'SHUTTER', 'EI', 'FILTER 1', 'FILTER 2', 'FILTER 3', 'WB', 'FOCUS', 'NOTES'];
     var esc = function esc(v) {
       return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
     };
     var lines = [head.join(',')];
     roll.takes.forEach(function (t) {
-      lines.push([t.scene, t.shot, t.take, t.tail ? 'TAIL' : '', t.clip, t.lens, t.focal, t.stop, t.shutter || roll.shutter || '', t.ei, t.intFilters, t.filters, t.filters3, t.wb, fcm(t.focus), t.notes].map(esc).join(','));
+      lines.push([t.scene, t.shot, t.take, t.tail ? 'TAIL' : '', t.clip, t.lens, t.focal, t.stop, t.shutter || roll.shutter || '', t.ei, t.intFilters, t.filters, t.filters3, t.wb, t.focus, t.notes].map(esc).join(','));
     });
     var blob = new Blob([lines.join('\n')], {
       type: 'text/csv'
@@ -5163,11 +5451,9 @@ function CameraReport() {
   }, "WB"), !hiddenCols.has('focus') && /*#__PURE__*/React.createElement("th", {
     style: _objectSpread(_objectSpread({}, th), {}, {
       width: 46,
-      whiteSpace: 'normal',
-      lineHeight: 1.15,
-      verticalAlign: 'middle'
+      whiteSpace: 'nowrap'
     })
-  }, "FOCUS", /*#__PURE__*/React.createElement("br", null), "(ft)"), !hiddenCols.has('notes') && /*#__PURE__*/React.createElement("th", {
+  }, "FOCUS"), !hiddenCols.has('notes') && /*#__PURE__*/React.createElement("th", {
     style: _objectSpread(_objectSpread({}, th), {}, {
       minWidth: 180
     })
@@ -5563,8 +5849,8 @@ function CameraReport() {
     var dayNums = _toConsumableArray(new Set(rolls.map(function (r) {
       return r.shootDay;
     }).filter(Boolean))).sort(function (a, b) {
-      return a - b;
-    });
+      return b - a;
+    }); // newest day first
     if (dayNums.length < 2) return null; // only show selector if there are multiple days
     return /*#__PURE__*/React.createElement("div", {
       style: {
@@ -6063,6 +6349,12 @@ function CameraReport() {
           wb: e.target.value
         });
       },
+      onBlur: function onBlur(e) {
+        var n = withK(e.target.value);
+        if (n !== e.target.value) patch({
+          wb: n
+        });
+      },
       style: ci
     })), !hiddenCols.has('intFilters') && /*#__PURE__*/React.createElement("td", {
       style: _objectSpread({
@@ -6203,12 +6495,14 @@ function CameraReport() {
         roll: e.target.value
       });
     },
+    title: rollDupe ? 'This roll number is already used by another roll in this project' : 'Roll number',
     style: _objectSpread(_objectSpread({}, metaInput), {}, {
       width: 74,
       fontSize: 13,
-      color: CAM.accent,
+      color: rollDupe ? T.danger : CAM.accent,
       fontWeight: 600,
-      padding: '4px 6px'
+      padding: '4px 6px',
+      border: "1px solid ".concat(rollDupe ? T.danger : T.border)
     })
   })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
     style: metaLabel
@@ -6287,7 +6581,19 @@ function CameraReport() {
       color: T.danger,
       cursor: 'pointer'
     }
-  }, "Delete roll")), !metaCollapsed && /*#__PURE__*/React.createElement("div", {
+  }, "Delete roll")), rollDupe && /*#__PURE__*/React.createElement("div", {
+    style: {
+      margin: '0 0 6px',
+      padding: '6px 9px',
+      borderRadius: 5,
+      background: T.danger + '18',
+      border: "1px solid ".concat(T.danger, "55"),
+      fontSize: 10,
+      color: T.danger,
+      fontFamily: "'Geist Mono',monospace",
+      lineHeight: 1.45
+    }
+  }, '⚠', " Roll ", /*#__PURE__*/React.createElement("b", null, roll.roll), " already exists in this project (Cam ", rollDupe.cam, ", ", rollDupe.takes, " clip", rollDupe.takes !== 1 ? 's' : '', "). Two mags with the same number will confuse the edit - give this one a different number."), !metaCollapsed && /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'grid',
       gridTemplateColumns: mob ? 'repeat(3,1fr)' : 'repeat(7,1fr)',
@@ -6300,12 +6606,10 @@ function CameraReport() {
     onChange: function onChange(e) {
       var v = e.target.value;
       if (v === '__add__') {
-        var nums = shootDays.map(function (d) {
-          return d.day;
-        });
-        var nextDay = (nums.length ? Math.max.apply(Math, _toConsumableArray(nums)) : 0) + 1;
-        var lastDay = shootDays[shootDays.length - 1];
-        var nextDate = lastDay ? addOneDay(lastDay.date) : '';
+        // shootDays is newest-first, so the day to continue from is
+        // the FIRST entry, not the last.
+        var nextDay = (latestShootDay ? latestShootDay.day : 0) + 1;
+        var nextDate = latestShootDay ? addOneDay(latestShootDay.date) : '';
         updateData({
           shootDays: [].concat(_toConsumableArray(shootDays), [{
             day: nextDay,
@@ -6796,39 +7100,21 @@ function CameraReport() {
         });
       },
       options: WB_OPTIONS,
-      inputStyle: cellInput
+      inputStyle: cellInput,
+      normalize: withK
     })), !hiddenCols.has('focus') && /*#__PURE__*/React.createElement("td", {
       style: _objectSpread(_objectSpread({}, gb), {}, {
         borderRight: "1px solid ".concat(T.rule)
       })
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 1
-      }
     }, /*#__PURE__*/React.createElement("input", {
       value: t.focus || '',
-      placeholder: "e.g. 6",
       onChange: function onChange(e) {
         return patchTake(t.id, {
           focus: e.target.value
         });
       },
-      style: _objectSpread(_objectSpread({}, cellInput), {}, {
-        padding: '8px 0 8px 3px',
-        textAlign: 'right',
-        width: '100%'
-      })
-    }), String(t.focus || '').trim() && /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 12,
-        color: T.text,
-        flexShrink: 0,
-        paddingRight: 2
-      }
-    }, "'"))), !hiddenCols.has('notes') && /*#__PURE__*/React.createElement("td", {
+      style: cellInput
+    })), !hiddenCols.has('notes') && /*#__PURE__*/React.createElement("td", {
       style: _objectSpread(_objectSpread({}, gb), {}, {
         borderRight: "1px solid ".concat(T.rule)
       })
@@ -7821,9 +8107,10 @@ function ShootDaysEditorModal(_ref37) {
   // _k: stable per-row render key, never persisted - see the ScenesEditorModal
   // note above for why array indices are the wrong key for an editable list.
   var keySeq = React.useRef(0);
+  // Newest day at the top, matching the day pickers elsewhere in the app.
   var _React$useState109 = React.useState(function () {
       return (data.shootDays || []).slice().sort(function (a, b) {
-        return a.day - b.day;
+        return b.day - a.day;
       }).map(function (d) {
         return _objectSpread(_objectSpread({}, d), {}, {
           _k: keySeq.current++
@@ -7849,14 +8136,20 @@ function ShootDaysEditorModal(_ref37) {
   }
   function addRow() {
     setRows(function (rs) {
-      var last = rs[rs.length - 1];
-      var nextDay = (last ? last.day : 0) + 1;
-      var nextDate = last ? addOneDay(last.date) : '';
-      return [].concat(_toConsumableArray(rs), [{
-        day: nextDay,
-        date: nextDate,
+      // Continue from the highest day number present, whatever order the rows
+      // are currently in (the user can retype any day number by hand), and put
+      // the new day on top where the list is newest-first.
+      var maxDay = rs.reduce(function (m, r) {
+        return Math.max(m, parseInt(r.day, 10) || 0);
+      }, 0);
+      var from = rs.find(function (r) {
+        return (parseInt(r.day, 10) || 0) === maxDay;
+      });
+      return [{
+        day: maxDay + 1,
+        date: from ? addOneDay(from.date) : '',
         _k: keySeq.current++
-      }]);
+      }].concat(_toConsumableArray(rs));
     });
   }
   function save() {
@@ -8251,6 +8544,16 @@ function BackupModal(_ref39) {
       return n + (r.takes || []).length;
     }, 0);
   }, [data.rolls]);
+
+  // Restore state
+  var _React$useState117 = React.useState(null),
+    _React$useState118 = _slicedToArray(_React$useState117, 2),
+    sheets = _React$useState118[0],
+    setSheets = _React$useState118[1]; // null = not looked yet
+  var _React$useState119 = React.useState(false),
+    _React$useState120 = _slicedToArray(_React$useState119, 2),
+    restoring = _React$useState120[0],
+    setRestoring = _React$useState120[1];
   function runBackup() {
     return _runBackup.apply(this, arguments);
   }
@@ -8268,7 +8571,16 @@ function BackupModal(_ref39) {
               rolls: data.rolls || [],
               projectName: data.projectName,
               clientId: effectiveClientId,
-              spreadsheetId: data.gsheetsSpreadsheetId || null
+              spreadsheetId: data.gsheetsSpreadsheetId || null,
+              // Everything needed to rebuild this project exactly, including the
+              // roll-level and settings fields the flat "Data" tab cannot carry.
+              rawProject: {
+                projectName: data.projectName || '',
+                scenes: data.scenes || [],
+                shootDays: data.shootDays || [],
+                rolls: data.rolls || [],
+                hiddenColumns: data.hiddenColumns || []
+              }
             });
           case 5:
             sid = _context12.sent;
@@ -8291,6 +8603,125 @@ function BackupModal(_ref39) {
     }));
     return _runBackup.apply(this, arguments);
   }
+  function findBackups() {
+    return _findBackups.apply(this, arguments);
+  }
+  /* Restore is guarded twice over, because it destroys local work:
+     1. the backup's project NAME must match this project's, so you can never
+        drop "The Greatest Game" on top of "Fractured Mind" by tapping the
+        wrong row in the list;
+     2. an explicit confirm() spelling out exactly what is about to be
+        replaced and with how much. */
+  function _findBackups() {
+    _findBackups = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee13() {
+      return _regeneratorRuntime().wrap(function _callee13$(_context13) {
+        while (1) switch (_context13.prev = _context13.next) {
+          case 0:
+            setRestoring(true);
+            setErrMsg('');
+            _context13.prev = 2;
+            _context13.t0 = setSheets;
+            _context13.next = 6;
+            return listBackupSheets(effectiveClientId);
+          case 6:
+            _context13.t1 = _context13.sent;
+            (0, _context13.t0)(_context13.t1);
+            _context13.next = 14;
+            break;
+          case 10:
+            _context13.prev = 10;
+            _context13.t2 = _context13["catch"](2);
+            setErrMsg(_context13.t2 && _context13.t2.message || 'Could not list your backups.');
+            setStatus('error');
+          case 14:
+            _context13.prev = 14;
+            setRestoring(false);
+            return _context13.finish(14);
+          case 17:
+          case "end":
+            return _context13.stop();
+        }
+      }, _callee13, null, [[2, 10, 14, 17]]);
+    }));
+    return _findBackups.apply(this, arguments);
+  }
+  function restoreFrom(_x29) {
+    return _restoreFrom.apply(this, arguments);
+  }
+  function _restoreFrom() {
+    _restoreFrom = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee14(file) {
+      var found, incoming, mine, theirs, nRolls, nTakes, curTakes;
+      return _regeneratorRuntime().wrap(function _callee14$(_context14) {
+        while (1) switch (_context14.prev = _context14.next) {
+          case 0:
+            setRestoring(true);
+            setErrMsg('');
+            _context14.prev = 2;
+            _context14.next = 5;
+            return loadProjectFromSheet(effectiveClientId, file.id);
+          case 5:
+            found = _context14.sent;
+            if (found) {
+              _context14.next = 10;
+              break;
+            }
+            setErrMsg('That sheet has no restorable copy in it. It was probably backed up by an older version of this app - run "Backup Now" from the device that has the data, then try again.');
+            setStatus('error');
+            return _context14.abrupt("return");
+          case 10:
+            incoming = found.project;
+            mine = (data.projectName || '').trim().toLowerCase();
+            theirs = (incoming.projectName || '').trim().toLowerCase();
+            if (!(mine !== theirs)) {
+              _context14.next = 17;
+              break;
+            }
+            setErrMsg("That backup is for a different production (\"".concat(incoming.projectName || 'Untitled', "\") - this project is \"").concat(data.projectName || 'Untitled', "\". Rename this project to match, or switch to the right project first."));
+            setStatus('error');
+            return _context14.abrupt("return");
+          case 17:
+            nRolls = (incoming.rolls || []).length;
+            nTakes = (incoming.rolls || []).reduce(function (n, r) {
+              return n + (r.takes || []).length;
+            }, 0);
+            curTakes = totalTakes;
+            if (confirm("Replace this project with the backup?\n\n" + "From sheet: ".concat(nRolls, " roll(s), ").concat(nTakes, " take(s)") + (found.savedAt ? "\nBacked up: ".concat(new Date(found.savedAt).toLocaleString()) : '') + "\n\nOn this device right now: ".concat((data.rolls || []).length, " roll(s), ").concat(curTakes, " take(s)") + "\n\nThis device's copy will be overwritten and cannot be undone.")) {
+              _context14.next = 22;
+              break;
+            }
+            return _context14.abrupt("return");
+          case 22:
+            updateData({
+              projectName: incoming.projectName || data.projectName,
+              scenes: incoming.scenes || [],
+              shootDays: incoming.shootDays || [],
+              rolls: incoming.rolls || [],
+              hiddenColumns: incoming.hiddenColumns || [],
+              gsheetsSpreadsheetId: file.id
+            });
+            // CameraReport reads rolls into its own state once on mount, so a plain
+            // data update would leave the table showing the pre-restore rolls.
+            alert('Restored ' + nRolls + ' roll(s). Reloading to show the restored data.');
+            window.location.reload();
+            _context14.next = 31;
+            break;
+          case 27:
+            _context14.prev = 27;
+            _context14.t0 = _context14["catch"](2);
+            setErrMsg(_context14.t0 && _context14.t0.message || 'Restore failed.');
+            setStatus('error');
+          case 31:
+            _context14.prev = 31;
+            setRestoring(false);
+            return _context14.finish(31);
+          case 34:
+          case "end":
+            return _context14.stop();
+        }
+      }, _callee14, null, [[2, 27, 31, 34]]);
+    }));
+    return _restoreFrom.apply(this, arguments);
+  }
   function disconnect() {
     sheetsSignOut();
     updateData({
@@ -8298,6 +8729,7 @@ function BackupModal(_ref39) {
     });
     setStatus('idle');
     setErrMsg('');
+    setSheets(null);
   }
   var sheetUrl = hasSpreadsheet ? 'https://docs.google.com/spreadsheets/d/' + data.gsheetsSpreadsheetId + '/edit' : '';
   return /*#__PURE__*/React.createElement("div", {
@@ -8341,7 +8773,7 @@ function BackupModal(_ref39) {
       color: T.text,
       flex: 1
     }
-  }, "Backup to Google Sheets"), /*#__PURE__*/React.createElement("button", {
+  }, "Backup & restore (Google Sheets)"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     style: {
       background: 'transparent',
@@ -8432,7 +8864,99 @@ function BackupModal(_ref39) {
       fontSize: 12,
       cursor: 'pointer'
     }
-  }, "Backup again now")), hasSpreadsheet && /*#__PURE__*/React.createElement("button", {
+  }, "Backup again now")), hasClientId && /*#__PURE__*/React.createElement("div", {
+    style: {
+      borderTop: "1px solid ".concat(T.rule),
+      paddingTop: 12,
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 9
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 600,
+      color: T.text
+    }
+  }, '⤓', " Restore onto this device"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: T.textDim,
+      lineHeight: 1.55
+    }
+  }, "Pulls a backup back down - use this to pick up on a second device. Only a backup of a project with the ", /*#__PURE__*/React.createElement("b", null, "same name"), " can be restored here, and it replaces this device's copy entirely."), sheets === null ? /*#__PURE__*/React.createElement("button", {
+    onClick: findBackups,
+    disabled: restoring,
+    style: {
+      padding: '9px 0',
+      borderRadius: 6,
+      border: "1px solid ".concat(T.border),
+      background: 'transparent',
+      color: T.text,
+      fontSize: 12,
+      cursor: restoring ? 'default' : 'pointer',
+      opacity: restoring ? 0.6 : 1
+    }
+  }, restoring ? 'Looking...' : 'Find my backups') : sheets.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: T.textDim,
+      fontStyle: 'italic'
+    }
+  }, "No backups found on this Google account yet.") : /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 6,
+      maxHeight: '30vh',
+      overflow: 'auto'
+    }
+  }, sheets.map(function (f) {
+    return /*#__PURE__*/React.createElement("button", {
+      key: f.id,
+      onClick: function onClick() {
+        return restoreFrom(f);
+      },
+      disabled: restoring,
+      style: {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'flex-start',
+        gap: 2,
+        padding: '9px 11px',
+        borderRadius: 6,
+        border: "1px solid ".concat(T.border),
+        background: T.surface2,
+        color: T.text,
+        fontSize: 11,
+        textAlign: 'left',
+        cursor: restoring ? 'default' : 'pointer',
+        opacity: restoring ? 0.6 : 1
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontFamily: "'Geist Mono',monospace"
+      }
+    }, f.name), f.modifiedTime && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 9,
+        color: T.textDim
+      }
+    }, "updated ", new Date(f.modifiedTime).toLocaleString()));
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: findBackups,
+    disabled: restoring,
+    style: {
+      alignSelf: 'flex-start',
+      padding: '5px 10px',
+      borderRadius: 5,
+      border: 'none',
+      background: 'transparent',
+      color: T.textDim,
+      fontSize: 10,
+      cursor: 'pointer'
+    }
+  }, '↻', " Refresh list"))), hasSpreadsheet && /*#__PURE__*/React.createElement("button", {
     onClick: disconnect,
     style: {
       padding: '7px 0',
@@ -8456,43 +8980,43 @@ function App() {
   var _useAuth2 = useAuth(),
     unlocked = _useAuth2.unlocked,
     requireUnlock = _useAuth2.requireUnlock;
-  var _React$useState117 = React.useState(ensureProjectsSetup),
-    _React$useState118 = _slicedToArray(_React$useState117, 2),
-    projectIds = _React$useState118[0],
-    setProjectIds = _React$useState118[1];
-  var _React$useState119 = React.useState(function () {
+  var _React$useState121 = React.useState(ensureProjectsSetup),
+    _React$useState122 = _slicedToArray(_React$useState121, 2),
+    projectIds = _React$useState122[0],
+    setProjectIds = _React$useState122[1];
+  var _React$useState123 = React.useState(function () {
       return loadCurrentProjectId(projectIds);
     }),
-    _React$useState120 = _slicedToArray(_React$useState119, 2),
-    projectId = _React$useState120[0],
-    setProjectId = _React$useState120[1];
-  var _React$useState121 = React.useState(function () {
+    _React$useState124 = _slicedToArray(_React$useState123, 2),
+    projectId = _React$useState124[0],
+    setProjectId = _React$useState124[1];
+  var _React$useState125 = React.useState(function () {
       return loadProjectData(projectId);
     }),
-    _React$useState122 = _slicedToArray(_React$useState121, 2),
-    data = _React$useState122[0],
-    setData = _React$useState122[1];
-  var _React$useState123 = React.useState(false),
-    _React$useState124 = _slicedToArray(_React$useState123, 2),
-    showSettings = _React$useState124[0],
-    setShowSettings = _React$useState124[1];
-  var _React$useState125 = React.useState(false),
     _React$useState126 = _slicedToArray(_React$useState125, 2),
-    showBackup = _React$useState126[0],
-    setShowBackup = _React$useState126[1];
+    data = _React$useState126[0],
+    setData = _React$useState126[1];
   var _React$useState127 = React.useState(false),
     _React$useState128 = _slicedToArray(_React$useState127, 2),
-    showProjects = _React$useState128[0],
-    setShowProjects = _React$useState128[1];
+    showSettings = _React$useState128[0],
+    setShowSettings = _React$useState128[1];
+  var _React$useState129 = React.useState(false),
+    _React$useState130 = _slicedToArray(_React$useState129, 2),
+    showBackup = _React$useState130[0],
+    setShowBackup = _React$useState130[1];
+  var _React$useState131 = React.useState(false),
+    _React$useState132 = _slicedToArray(_React$useState131, 2),
+    showProjects = _React$useState132[0],
+    setShowProjects = _React$useState132[1];
   // True once a localStorage write has actually FAILED (quota full, private
   // browsing, storage blocked). Previously saveProjectData's false return was
   // discarded here, so the status pill kept saying "SAVED LOCALLY" while
   // nothing was being written - the worst possible failure mode for a camera
   // report you're relying on mid-shoot.
-  var _React$useState129 = React.useState(false),
-    _React$useState130 = _slicedToArray(_React$useState129, 2),
-    storageFailed = _React$useState130[0],
-    setStorageFailed = _React$useState130[1];
+  var _React$useState133 = React.useState(false),
+    _React$useState134 = _slicedToArray(_React$useState133, 2),
+    storageFailed = _React$useState134[0],
+    setStorageFailed = _React$useState134[1];
 
   // Pure state update - no side effects. It stays a functional updater because
   // two updateData calls can land in the same tick (e.g. adding a shoot day,
@@ -8735,28 +9259,28 @@ function ProjectSwitcherModal(_ref40) {
     switchProject = _useStandaloneData7.switchProject,
     createProject = _useStandaloneData7.createProject,
     deleteProject = _useStandaloneData7.deleteProject;
-  var _React$useState131 = React.useState(function () {
+  var _React$useState135 = React.useState(function () {
       var m = {};
       projectIds.forEach(function (id) {
         m[id] = id === projectId ? data.projectName : loadProjectData(id).projectName;
       });
       return m;
     }),
-    _React$useState132 = _slicedToArray(_React$useState131, 2),
-    names = _React$useState132[0],
-    setNames = _React$useState132[1];
-  var _React$useState133 = React.useState(null),
-    _React$useState134 = _slicedToArray(_React$useState133, 2),
-    editingId = _React$useState134[0],
-    setEditingId = _React$useState134[1];
-  var _React$useState135 = React.useState(''),
     _React$useState136 = _slicedToArray(_React$useState135, 2),
-    editName = _React$useState136[0],
-    setEditName = _React$useState136[1];
-  var _React$useState137 = React.useState(''),
+    names = _React$useState136[0],
+    setNames = _React$useState136[1];
+  var _React$useState137 = React.useState(null),
     _React$useState138 = _slicedToArray(_React$useState137, 2),
-    newName = _React$useState138[0],
-    setNewName = _React$useState138[1];
+    editingId = _React$useState138[0],
+    setEditingId = _React$useState138[1];
+  var _React$useState139 = React.useState(''),
+    _React$useState140 = _slicedToArray(_React$useState139, 2),
+    editName = _React$useState140[0],
+    setEditName = _React$useState140[1];
+  var _React$useState141 = React.useState(''),
+    _React$useState142 = _slicedToArray(_React$useState141, 2),
+    newName = _React$useState142[0],
+    setNewName = _React$useState142[1];
   function startEdit(id) {
     setEditingId(id);
     setEditName(names[id] || '');
@@ -9005,24 +9529,24 @@ var TRIAL_LIMITS = {
 };
 function AccessGate(_ref41) {
   var children = _ref41.children;
-  var _React$useState139 = React.useState(function () {
+  var _React$useState143 = React.useState(function () {
       return loadGateAuth() ? 'allowed' : 'trial';
     }),
-    _React$useState140 = _slicedToArray(_React$useState139, 2),
-    state = _React$useState140[0],
-    setState = _React$useState140[1]; // trial | working | denied | allowed | error
-  var _React$useState141 = React.useState(''),
-    _React$useState142 = _slicedToArray(_React$useState141, 2),
-    errMsg = _React$useState142[0],
-    setErrMsg = _React$useState142[1];
-  var _React$useState143 = React.useState(false),
     _React$useState144 = _slicedToArray(_React$useState143, 2),
-    showUnlock = _React$useState144[0],
-    setShowUnlock = _React$useState144[1];
+    state = _React$useState144[0],
+    setState = _React$useState144[1]; // trial | working | denied | allowed | error
   var _React$useState145 = React.useState(''),
     _React$useState146 = _slicedToArray(_React$useState145, 2),
-    unlockReason = _React$useState146[0],
-    setUnlockReason = _React$useState146[1];
+    errMsg = _React$useState146[0],
+    setErrMsg = _React$useState146[1];
+  var _React$useState147 = React.useState(false),
+    _React$useState148 = _slicedToArray(_React$useState147, 2),
+    showUnlock = _React$useState148[0],
+    setShowUnlock = _React$useState148[1];
+  var _React$useState149 = React.useState(''),
+    _React$useState150 = _slicedToArray(_React$useState149, 2),
+    unlockReason = _React$useState150[0],
+    setUnlockReason = _React$useState150[1];
   var checkedOnce = React.useRef(false);
   React.useEffect(function () {
     if (checkedOnce.current) return;
@@ -9040,14 +9564,14 @@ function AccessGate(_ref41) {
     return _signIn.apply(this, arguments);
   }
   function _signIn() {
-    _signIn = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee13() {
+    _signIn = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee15() {
       var data, clientId, token, email, list;
-      return _regeneratorRuntime().wrap(function _callee13$(_context13) {
-        while (1) switch (_context13.prev = _context13.next) {
+      return _regeneratorRuntime().wrap(function _callee15$(_context15) {
+        while (1) switch (_context15.prev = _context15.next) {
           case 0:
             setState('working');
             setErrMsg('');
-            _context13.prev = 2;
+            _context15.prev = 2;
             // The Client ID override (Settings) is per-project, but the gate runs
             // before any project is even selected - 'default' is the one project
             // every device has always had (see the multi-project storage
@@ -9055,18 +9579,18 @@ function AccessGate(_ref41) {
             // override if this deployment was forked to a different hosting URL.
             data = loadProjectData('default');
             clientId = getEffectiveClientId(data);
-            _context13.next = 7;
+            _context15.next = 7;
             return ensureSheetsToken(clientId);
           case 7:
-            token = _context13.sent;
-            _context13.next = 10;
+            token = _context15.sent;
+            _context15.next = 10;
             return fetchGoogleEmail(token);
           case 10:
-            email = _context13.sent;
-            _context13.next = 13;
+            email = _context15.sent;
+            _context15.next = 13;
             return fetchAllowlist();
           case 13:
-            list = _context13.sent;
+            list = _context15.sent;
             if (list.includes(email)) {
               saveGateAuth(email);
               setState('allowed');
@@ -9075,18 +9599,18 @@ function AccessGate(_ref41) {
               sheetsSignOut();
               setState('denied');
             }
-            _context13.next = 21;
+            _context15.next = 21;
             break;
           case 17:
-            _context13.prev = 17;
-            _context13.t0 = _context13["catch"](2);
-            setErrMsg(_context13.t0 && _context13.t0.message || 'Sign-in failed.');
+            _context15.prev = 17;
+            _context15.t0 = _context15["catch"](2);
+            setErrMsg(_context15.t0 && _context15.t0.message || 'Sign-in failed.');
             setState('error');
           case 21:
           case "end":
-            return _context13.stop();
+            return _context15.stop();
         }
-      }, _callee13, null, [[2, 17]]);
+      }, _callee15, null, [[2, 17]]);
     }));
     return _signIn.apply(this, arguments);
   }

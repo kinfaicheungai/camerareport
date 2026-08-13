@@ -801,7 +801,7 @@ const TAKE_COLUMNS=[
   {key:'filters', label:'Filter 2'},
   {key:'filters3',label:'Filter 3'},
   {key:'wb',      label:'White balance'},
-  {key:'focus',   label:'Focus (ft)'},
+  {key:'focus',   label:'Focus'},
   {key:'notes',   label:'Notes'},
   {key:'photo',   label:'Reference photo'},
 ];
@@ -896,8 +896,7 @@ function clearGateAuth(){
 /* Column set mirrors exportCSV() below (ROLL/CAM/DAY/DATE added up front
    since this backup flattens EVERY roll, not just the one on screen). */
 function flattenRollsForSheet(rolls){
-  const head=['ROLL','CAM','SHOOT DAY','DATE','SCENE','SHOT','TAKE','T/S','CLIP','LENS','FOCAL','STOP','SHUTTER','EI','FILTER 1','FILTER 2','FILTER 3','WB','FOCUS (ft)','NOTES'];
-  const fcm=(v)=>{ v=(v==null?'':String(v)).trim(); if(!v)return ''; return /^[\d.]+$/.test(v)?v+"'":v; };
+  const head=['ROLL','CAM','SHOOT DAY','DATE','SCENE','SHOT','TAKE','T/S','CLIP','LENS','FOCAL','STOP','SHUTTER','EI','FILTER 1','FILTER 2','FILTER 3','WB','FOCUS','NOTES'];
   const rows=[head];
   (rolls||[]).slice().sort((a,b)=>{
     const ca=camOf(a), cb=camOf(b);
@@ -909,7 +908,7 @@ function flattenRollsForSheet(rolls){
         r.roll||'', camOf(r), r.shootDay!=null?String(r.shootDay):'', r.date||'',
         t.scene||'', t.shot||'', t.take||'', t.tail?'TAIL':'', t.clip||'',
         t.lens||'', t.focal||'', t.stop||'', t.shutter||r.shutter||'', t.ei||'',
-        t.intFilters||'', t.filters||'', t.filters3||'', t.wb||'', fcm(t.focus), t.notes||''
+        t.intFilters||'', t.filters||'', t.filters3||'', t.wb||'', t.focus||'', t.notes||''
       ].map(v=>v==null?'':String(v)));
     });
   });
@@ -929,8 +928,37 @@ function colLetter(n){
 // to Chinese gets "工作表1", not "Sheet1"), which made every write fail with
 // "Unable to parse range" for anyone not on an English-locale account.
 const GSHEETS_TAB_NAME='Data';
+/* Second tab, written alongside the readable one. "Data" is a FLATTENED view
+   for humans - it deliberately drops roll-level fields (camera, codec, LUT,
+   crew, lens defaults...) and every scene/shoot-day setting, so it can never
+   be turned back into a project without losing most of it. This tab holds the
+   project as raw JSON instead, which makes "restore on another device" exact
+   rather than approximate. Chunked across rows because a single Google Sheets
+   cell tops out at 50,000 characters. */
+const GSHEETS_RAW_TAB='_camrep_raw';
+const RAW_CHUNK=40000;
 
-async function backupToSheets({rolls, projectName, clientId, spreadsheetId}){
+function chunkRaw(str){
+  const out=[];
+  for(let i=0;i<str.length;i+=RAW_CHUNK) out.push([str.slice(i,i+RAW_CHUNK)]);
+  return out.length?out:[['']];
+}
+
+async function ensureTab(token,sid,title){
+  const meta=await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+sid+'?fields=sheets.properties.title',
+    {headers:{Authorization:'Bearer '+token}});
+  if(!meta.ok)return false;
+  const d=await meta.json();
+  const exists=(d.sheets||[]).some(s=>s.properties&&s.properties.title===title);
+  if(exists)return true;
+  const r=await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+sid+':batchUpdate',{
+    method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+    body:JSON.stringify({requests:[{addSheet:{properties:{title:title}}}]})
+  });
+  return r.ok;
+}
+
+async function backupToSheets({rolls, projectName, clientId, spreadsheetId, rawProject}){
   const token=await ensureSheetsToken(clientId);
   let sid=spreadsheetId;
   if(!sid){
@@ -964,7 +992,64 @@ async function backupToSheets({rolls, projectName, clientId, spreadsheetId}){
     const e=await putResp.json().catch(()=>({}));
     throw new Error((e&&e.error&&e.error.message)||('Could not write to the spreadsheet (HTTP '+putResp.status+')'));
   }
+
+  /* Raw restore tab. Non-fatal on failure: the human-readable backup above has
+     already succeeded by this point, and losing the ability to restore is a
+     much smaller problem than telling the user their backup failed when it
+     didn't. */
+  if(rawProject){
+    try{
+      const ok=await ensureTab(token,sid,GSHEETS_RAW_TAB);
+      if(ok){
+        const payload=JSON.stringify({v:1,savedAt:new Date().toISOString(),project:rawProject});
+        const chunks=chunkRaw(payload);
+        await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+sid+'/values/'+encodeURIComponent(GSHEETS_RAW_TAB)+':clear',
+          {method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'}});
+        const rr=GSHEETS_RAW_TAB+'!A1:A'+chunks.length;
+        await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+sid+'/values/'+encodeURIComponent(rr)+'?valueInputOption=RAW',{
+          method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+          body:JSON.stringify({range:rr,majorDimension:'ROWS',values:chunks})
+        });
+      }
+    }catch(e){ console.warn('camrep: raw restore tab could not be written',e); }
+  }
   return sid;
+}
+
+/* Find backups this app created, so a SECOND device (which has no stored
+   spreadsheet id) can still get at them. drive.file scope only ever exposes
+   files this OAuth client created, so this listing is naturally limited to
+   the user's own Camera Report backups - it cannot see the rest of Drive. */
+async function listBackupSheets(clientId){
+  const token=await ensureSheetsToken(clientId);
+  const q=encodeURIComponent("mimeType='application/vnd.google-apps.spreadsheet' and trashed=false");
+  const r=await fetch('https://www.googleapis.com/drive/v3/files?q='+q+
+    '&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc&pageSize=50',
+    {headers:{Authorization:'Bearer '+token}});
+  if(!r.ok){
+    const e=await r.json().catch(()=>({}));
+    throw new Error((e&&e.error&&e.error.message)||('Could not list your backups (HTTP '+r.status+')'));
+  }
+  const d=await r.json();
+  return (d.files||[]);
+}
+
+/* Read a project back out of the raw tab. Returns null when the sheet predates
+   this feature (backed up by an older build), which the caller reports as
+   "this backup is too old to restore from" rather than a hard error. */
+async function loadProjectFromSheet(clientId,sid){
+  const token=await ensureSheetsToken(clientId);
+  const r=await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+sid+'/values/'+
+    encodeURIComponent(GSHEETS_RAW_TAB)+'!A1:A1000',{headers:{Authorization:'Bearer '+token}});
+  if(!r.ok)return null;
+  const d=await r.json();
+  const joined=(d.values||[]).map(row=>(row&&row[0])||'').join('');
+  if(!joined.trim())return null;
+  let parsed=null;
+  try{ parsed=JSON.parse(joined); }catch(e){ return null; }
+  const p=parsed&&parsed.project;
+  if(!p||typeof p!=='object')return null;
+  return {savedAt:parsed.savedAt||'', project:p};
 }
 
 const SB_NOTE_PRESETS_KEY='sb_camrep_note_presets';
@@ -978,8 +1063,8 @@ const SB_LENS_PRESETS_KEY='sb_camrep_lens_presets';
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
   B:{label:'B', header:'#1e3a6b', accent:'#4d8ee5', tint:'rgba(77,142,229,0.14)'},  // blue
-  C:{label:'C', header:'#1f5f3a', accent:'#3ec17a', tint:'rgba(62,193,122,0.14)'},  // green
-  D:{label:'D', header:'#7a4a1f', accent:'#e5934d', tint:'rgba(229,147,77,0.14)'},  // orange
+  C:{label:'C', header:'#6b5a1a', accent:'#e5c04d', tint:'rgba(229,192,77,0.14)'},  // yellow
+  D:{label:'D', header:'#1f5f3a', accent:'#3ec17a', tint:'rgba(62,193,122,0.14)'},  // green
   E:{label:'E', header:'#4a1f6b', accent:'#a866e5', tint:'rgba(168,102,229,0.14)'}, // purple
 };
 const CAM_ORDER=['A','B','C','D','E'];
@@ -1281,7 +1366,10 @@ function SearchInputAC({value,onChange,suggestions,placeholder}){
     </div>
   );
 }
-function LensFocalPicker({value,onChange,options,placeholder,inputStyle,align,noFilter}){
+/* normalize (optional): tidies the value once the user is DONE with the field -
+   on blur, or when they pick from the dropdown - never on each keystroke, which
+   would move the caret while they type. WB uses it to append the trailing K. */
+function LensFocalPicker({value,onChange,options,placeholder,inputStyle,align,noFilter,normalize}){
   const [open,setOpen]=React.useState(false);
   const [fixPos,setFixPos]=React.useState({top:0,left:0,width:150,up:false});
   const wrapRef=React.useRef(null);
@@ -1342,6 +1430,7 @@ function LensFocalPicker({value,onChange,options,placeholder,inputStyle,align,no
       <div style={{display:'flex',alignItems:'center',gap:1}}>
         <input value={value||''} placeholder={placeholder||''} onChange={e=>{onChange(e.target.value);setOpen(true);}}
           onFocus={openPicker}
+          onBlur={e=>{ if(normalize){ const n=normalize(e.target.value); if(n!==e.target.value) onChange(n); } }}
           style={{flex:1,minWidth:0,fontFamily:"'Geist Mono',monospace",
             background:'transparent',border:'none',padding:'4px 2px',fontSize:11,color:T.text,
             ...(inputStyle||{}),flex:1,minWidth:0}}/>
@@ -1575,7 +1664,7 @@ function AIFillModal({roll, projId, scenes, onApply, onClose}){
     {k:'clip',l:'CLIP'},{k:'lens',l:'LENS'},{k:'focal',l:'FOCAL'},
     {k:'stop',l:'STOP'},{k:'ei',l:'EI'},{k:'intFilters',l:'FILTER 1'},
     {k:'filters',l:'FILTER 2'},{k:'filters3',l:'FILTER 3'},{k:'nd',l:'ND'},{k:'wb',l:'WB'},
-    {k:'focus',l:"FOCUS (ft)"},{k:'codec',l:'CODEC'},{k:'notes',l:'NOTES'}
+    {k:'focus',l:"FOCUS"},{k:'codec',l:'CODEC'},{k:'notes',l:'NOTES'}
   ];
 
   const slotLabel=['📷 Monitor / Slate photo','📷 Second photo (optional  -  e.g. slate if first was monitor)'];
@@ -1764,7 +1853,16 @@ function CameraReport(){
   const DEFAULTS={camera:'ALEXA MINI LF',codec:'5K 1.7:1',fps:'24',shutter:'180',baseEI:'1600',lut:'Rec 709',director:'',dop:'',ac:''};
   const SHUTTER_OPTIONS=['180','172.8'];
   // WB 3200K..7000K in 50K steps
-  const WB_OPTIONS=(()=>{const a=[];for(let k=3200;k<=7000;k+=50)a.push(k+'');return a;})();
+  const WB_OPTIONS=(()=>{const a=[];for(let k=3200;k<=7000;k+=50)a.push(k+'K');return a;})();
+  /* Colour temperature is always written with a trailing K on a camera report,
+     so add it for the user instead of making them type it every row. Applied
+     on COMMIT (dropdown pick / leaving the field), never on every keystroke -
+     appending mid-typing would fight the cursor. Anything that isn't a bare
+     number is left exactly as typed, so notes like "5600K mixed" survive. */
+  const withK=(v)=>{
+    const s=String(v==null?'':v).trim();
+    return /^\d+(\.\d+)?$/.test(s) ? s+'K' : s;
+  };
   const DEFAULT_LENS=['Cooke Panchro i','Cooke S4','Cooke S7','Zeiss Master Prime','Zeiss Ultra Prime','Zeiss Supreme','Arri Signature Prime','Leica Summilux-C','Angenieux Zoom','Canon CN-E'];
   const DEFAULT_FOCAL=['21mm','27mm','32mm','40mm','50mm','65mm','75mm','85mm','100mm','110mm'];
   const DEFAULT_STOP=['T1.4','T2','T2.2','T2.5','T2.8','T3.2','T3.5','T4','T4.5','T5.6','T6.3','T7.1','T8','T9','T11','T13','T16','T22'];
@@ -1837,7 +1935,13 @@ function CameraReport(){
       return ie?`${id} ${ie}`:id;
     }).join(', ');
   }
-  const shootDays=(proj.shootDays||[]).slice().sort((a,b)=>a.day-b.day);
+  /* Newest day first. On a running production the day you want is almost
+     always the most recent one, so it should be the one under your thumb -
+     not at the bottom of a list you have to scroll past 20 finished days to
+     reach. Anything that needs a specific day looks it up by number, so the
+     ordering here only affects what the crew sees. */
+  const shootDays=(proj.shootDays||[]).slice().sort((a,b)=>b.day-a.day);
+  const latestShootDay=shootDays[0]||null;   // highest day number
 
   // Local-only load: rolls live in the standalone JSON blob (localStorage),
   // loaded once on mount. There is no remote server, so there is nothing to
@@ -1985,9 +2089,13 @@ function CameraReport(){
         lens:prevRoll?.lens||LENS_OPTIONS[0],
         takes:[]};
     }else{
-      // Blank: minimal system defaults. Shutter intentionally left empty  - 
+      // Blank: minimal system defaults. Shutter intentionally left empty  -
       // every take fills its own, so a roll-level default isn't needed.
-      newRoll={id, roll:nextRollNo(c), cam:c, mag:'', date:today, shootDay:shootDays[0]?.day||'', location:'',
+      // Defaults to the LATEST shoot day (shootDays is newest-first) with that
+      // day's own date, so the two never disagree out of the box.
+      newRoll={id, roll:nextRollNo(c), cam:c, mag:'',
+        date:(latestShootDay&&latestShootDay.date)||today,
+        shootDay:latestShootDay?latestShootDay.day:'', location:'',
         director:DEFAULTS.director, dop:DEFAULTS.dop, ac:DEFAULTS.ac,
         camera:DEFAULTS.camera, codec:DEFAULTS.codec, fps:DEFAULTS.fps, shutter:'',
         baseEI:DEFAULTS.baseEI, lut:DEFAULTS.lut, lens:LENS_OPTIONS[0], takes:[]};
@@ -2100,6 +2208,21 @@ function CameraReport(){
   },[activeRoll,activeCam]); // eslint-disable-line
 
   const roll=rolls.find(r=>r.id===activeRoll);
+
+  /* Roll numbers must be unique within a production. Auto-generated ones never
+     clash, but the field is hand-editable and a duplicate is genuinely
+     dangerous: two different mags both labelled A003 means the edit assistant
+     cannot tell which card a clip came from. Deliberately a WARNING, not a
+     block - if a DIT is mid-correction we must not fight them or refuse the
+     keystroke; we just make the clash impossible to miss. Compared across the
+     whole project (every camera), case- and space-insensitively. */
+  const rollDupe=React.useMemo(()=>{
+    if(!roll)return null;
+    const mine=String(roll.roll||'').trim().toLowerCase();
+    if(!mine)return null;
+    const clash=rolls.find(r=>r.id!==roll.id&&String(r.roll||'').trim().toLowerCase()===mine);
+    return clash?{cam:camOf(clash),takes:(clash.takes||[]).length}:null;
+  },[rolls,roll]);
   // Shot letters A, B, C ... AA, AB ...
   // Shot sequence follows US convention: a scene's FIRST shot has no letter
   // (shown as "/"), then subsequent shots advance A, B, C ... AA, AB ...
@@ -2223,9 +2346,14 @@ function CameraReport(){
         intFilters:'', filters:'', filters3:'',
         wb:'', focus:'', notes:'', photoIds:[]};
     }
+    // New shot / new scene: FOCAL is deliberately left blank. A new setup means
+    // the lens has been re-framed, so carrying the previous focal length over
+    // just invites it being left wrong. Exposure settings (shutter, stop, WB,
+    // EI) usually DO stay put between setups, so those still carry over and
+    // only get touched when they actually change.
     return {...base,
-      lens:rk.lens||'', focal:last.focal||'', stop:last.stop||'',
-      shutter:last.shutter||rk.shutter||'', ei:rk.baseEI||'',
+      lens:rk.lens||'', focal:'', stop:last.stop||'',
+      shutter:last.shutter||rk.shutter||'', ei:last.ei||rk.baseEI||'',
       intFilters:last.intFilters||'', filters:last.filters||'', filters3:last.filters3||'',
       wb:last.wb||'', focus:'', notes:'', photoIds:[]};
   }
@@ -2515,8 +2643,7 @@ function CameraReport(){
     const camCfg=CAM_CONFIG[camOf(roll)]||CAM_CONFIG.A;
     const camHeaderColor=camCfg.header;
     // Light tint of the camera accent for the corner roll tag.
-    const camRollTag={A:'#f3b0b0',B:'#b0c8f3',C:'#b0f3c8',D:'#f3d4b0'}[camOf(roll)]||'#f3b0b0';
-    const fcm=(v)=>{v=(v==null?'':String(v)).trim();if(!v)return '';return /^[\d.]+$/.test(v)?v+"'":v;};
+    const camRollTag={A:'#f3b0b0',B:'#b0c8f3',C:'#f0e0a0',D:'#b0f3c8',E:'#dcc0f3'}[camOf(roll)]||'#f3b0b0';
     // EVERY user-entered value below goes through esc() before it is
     // interpolated into the report HTML. Without this, an ampersand or a
     // quote in a lens name / location / note silently mangles the printed
@@ -2545,31 +2672,51 @@ function CameraReport(){
       <td>${esc(sceneWithIE(t.scene))}</td><td style="text-align:center">${esc(t.shot)}</td><td style="text-align:center">${esc(t.take)}</td>
       <td style="text-align:center">${t.tail?'\u2705':''}</td><td>${esc(t.clip)}</td>
       <td>${esc(t.lens)}</td><td>${esc(t.focal)}</td><td>${esc(t.stop)}</td><td>${esc(t.shutter||roll.shutter)}</td><td>${esc(t.ei)}</td>
-      <td>${esc(t.intFilters)}</td><td>${esc(t.filters)}</td><td>${esc(t.filters3)}</td><td>${esc(t.wb)}</td><td>${esc(fcm(t.focus))}</td>
+      <td>${esc(t.intFilters)}</td><td>${esc(t.filters)}</td><td>${esc(t.filters3)}</td><td>${esc(t.wb)}</td><td>${esc(t.focus)}</td>
       <td>${esc(t.notes)}</td>
       ${hasAnyPhoto?`<td>${photoMap[t.id]?`<img src="${esc(photoMap[t.id])}" style="width:46px;height:34px;object-fit:cover;border-radius:2px;border:1px solid #999;">`:''}</td>`:''}
       </tr>`).join('');
     const html=`<!doctype html><html><head><meta charset="utf-8"><title>${esc(proj.projectName||'Camera Report')} ${esc(roll.roll)}</title>
     <style>
-      body{font-family:Arial,Helvetica,sans-serif;margin:18px;color:#111;}
-      .hdr{background:#1a1a1a;color:#fff;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;}
-      .hdr .title{font-size:24px;font-weight:bold;letter-spacing:2px;text-align:center;flex:1;}
-      .hdr .roll{background:${camRollTag};color:#111;font-weight:bold;font-size:20px;padding:4px 14px;border-radius:3px;}
-      .crew{font-size:10px;line-height:1.5;}
-      .meta{display:flex;flex-wrap:wrap;border:1px solid #000;border-top:none;font-size:11px;}
-      .meta div{padding:4px 8px;border-right:1px solid #ccc;}
-      .meta b{color:#000;}
-      table{width:100%;border-collapse:collapse;margin-top:0;font-size:10px;table-layout:fixed;}
-      th{background:${camHeaderColor};color:#fff;padding:4px;text-align:left;font-size:10px;overflow:hidden;word-wrap:break-word;line-height:1.15;vertical-align:middle;}
-      td{border:1px solid #ccc;padding:3px 4px;overflow:hidden;word-wrap:break-word;vertical-align:top;}
-      tr:nth-child(even) td{background:#f7f7f7;}
+      /* THE colour fix. By default Safari (and Chrome) strip background colours
+         when printing unless the user happens to tick "Print backgrounds" in
+         the print dialog - which is why this report came out plain white. These
+         two properties override that and force backgrounds to render, so the
+         black title bar and the coloured header row survive into the PDF with
+         no checkbox hunting on an iPad. Both spellings are needed: WebKit still
+         wants the -webkit- prefix, the unprefixed one is the standard. */
+      *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+      @page{ size:A4 landscape; margin:8mm; }
+      body{font-family:Arial,Helvetica,sans-serif;margin:14px;color:#111;}
+      .sheet{border:2px solid #999;}
+      .hdr{background:#111;color:#fff;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;gap:12px;}
+      .hdr .title{font-size:26px;font-weight:bold;text-align:center;flex:1;line-height:1.1;}
+      .crew{font-size:10px;line-height:1.6;white-space:nowrap;}
+      .crew b{display:inline-block;min-width:58px;text-align:right;margin-right:5px;font-weight:bold;}
+      .rollbox{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:bold;}
+      .rollbox .lbl{text-align:right;line-height:1.9;}
+      .rollbox .val{text-align:center;}
+      .rollbox .roll{background:${camRollTag};color:#111;font-weight:bold;font-size:21px;padding:2px 16px;}
+      .rollbox .mag{background:#fff;color:#111;font-weight:bold;font-size:15px;padding:1px 16px;margin-top:3px;}
+      /* Meta block: two rows, mirroring the paper report it replaces. */
+      table.meta{width:100%;border-collapse:collapse;font-size:10.5px;}
+      table.meta td{border:1px solid #111;padding:3px 6px;vertical-align:middle;}
+      table.meta td.k{background:#e9e9e9;font-weight:bold;white-space:nowrap;width:1%;}
+      table.main{width:100%;border-collapse:collapse;font-size:9.5px;table-layout:fixed;margin-top:0;}
+      /* Every cell fully bordered, header included. */
+      table.main th{background:${camHeaderColor};color:#fff;padding:4px 3px;text-align:left;font-size:9.5px;
+        border:1px solid #111;word-wrap:break-word;line-height:1.15;vertical-align:middle;}
+      table.main td{border:1px solid #444;padding:3px 4px;word-wrap:break-word;vertical-align:top;height:15px;}
+      table.main tr:nth-child(even) td{background:#f4f4f4;}
+      .foot td{border:1px solid #111;background:#e9e9e9;font-size:10px;padding:4px 6px;text-align:center;font-weight:bold;}
+      .foot td.k{text-align:left;width:1%;white-space:nowrap;}
       .toolbar{position:fixed;top:0;left:0;right:0;background:#1a1a1a;color:#fff;padding:8px 14px;display:flex;gap:10px;align-items:center;justify-content:flex-end;box-shadow:0 2px 8px rgba(0,0,0,0.3);z-index:9999;}
       .toolbar button{font-family:Arial,sans-serif;font-size:13px;padding:7px 16px;border-radius:6px;border:none;cursor:pointer;}
       .toolbar .close{background:#444;color:#fff;}
       .toolbar .print{background:#c98a3a;color:#111;font-weight:bold;}
       .toolbar .spacer-note{flex:1;font-size:11px;color:#aaa;text-align:left;}
       .content{margin-top:52px;}
-      @media print{ .toolbar{display:none!important;} .content{margin-top:0;} }
+      @media print{ .toolbar{display:none!important;} .content{margin-top:0;} body{margin:0;} }
     </style></head><body>
     <div class="toolbar">
       <span class="spacer-note">${esc(roll.roll)} camera report &middot; use Print to save as PDF</span>
@@ -2577,17 +2724,34 @@ function CameraReport(){
       <button class="print" onclick="window.print()">&#128424; Print / Save PDF</button>
     </div>
     <div class="content">
+    <div class="sheet">
     <div class="hdr">
-      <div class="crew">DIRECTOR: ${esc(roll.director||DEFAULTS.director)}<br>DOP: ${esc(roll.dop||DEFAULTS.dop)}<br>1ST AC: ${esc(roll.ac||DEFAULTS.ac)}</div>
-      <div class="title">${esc((proj.projectName||'CAMERA REPORT').toUpperCase())}</div>
-      <div><div class="roll">${esc(roll.roll)}</div><div style="color:#fff;font-size:10px;margin-top:4px">MAG # ${esc(roll.mag)}</div></div>
+      <div class="crew">
+        <b>DIRECTOR:</b>${esc(roll.director||DEFAULTS.director)}<br>
+        <b>DOP:</b>${esc(roll.dop||DEFAULTS.dop)}<br>
+        <b>1ST AC:</b>${esc(roll.ac||DEFAULTS.ac)}
+      </div>
+      <div class="title">${esc(proj.projectName||'CAMERA REPORT')}</div>
+      <div class="rollbox">
+        <div class="lbl">ROLL #<br>MAG #</div>
+        <div class="val"><div class="roll">${esc(roll.roll)}</div><div class="mag">${esc(roll.mag)||'&nbsp;'}</div></div>
+      </div>
     </div>
-    <div class="meta">
-      <div><b>DATE:</b> ${esc(dateStr)}</div><div><b>SHOOT DAY:</b> ${esc(roll.shootDay)}</div>
-      <div><b>CODEC:</b> ${esc(roll.codec)}</div><div><b>CAMERA:</b> ${esc(roll.camera)}</div><div><b>LUT:</b> ${esc(roll.lut)}</div>
-      <div><b>FPS:</b> ${esc(roll.fps)}</div><div><b>LOCATION:</b> ${esc(roll.location)}</div>
-    </div>
-    <table>
+    <table class="meta"><tbody>
+      <tr>
+        <td class="k">DATE:</td><td>${esc(dateStr)}</td>
+        <td class="k">SHOOT DAY:</td><td>${esc(roll.shootDay)}</td>
+        <td class="k">CODEC:</td><td>${esc(roll.codec)}</td>
+        <td class="k">CAMERA:</td><td>${esc(roll.camera)}</td>
+        <td class="k">LUT:</td><td>${esc(roll.lut)}</td>
+      </tr>
+      <tr>
+        <td class="k">FPS:</td><td>${esc(roll.fps)}</td>
+        <td class="k">SHUTTER:</td><td>${esc(roll.shutter)}</td>
+        <td class="k">LOCATION:</td><td colspan="5">${esc(roll.location)}</td>
+      </tr>
+    </tbody></table>
+    <table class="main">
     <colgroup>
       <col style="width:8.5%"/>  <!-- SCENE (fits "S57 INT, S60 INT, S46 INT" on one line at 10px) -->
       <col style="width:3.5%"/>  <!-- SHOT -->
@@ -2602,15 +2766,19 @@ function CameraReport(){
       <col style="width:8%"/>    <!-- FILTER 1 -->
       <col style="width:5%"/>    <!-- FILTER 2 (was ~7%) -->
       <col style="width:5%"/>    <!-- FILTER 3 -->
-      <col style="width:4%"/>    <!-- WB -->
-      <col style="width:5%"/>    <!-- FOCUS (ft) -->
+      <col style="width:4.5%"/>  <!-- WB -->
+      <col style="width:5.5%"/>  <!-- FOCUS -->
       <col/>                     <!-- NOTES takes remaining space -->
       ${hasAnyPhoto?'<col style="width:5%"/>':''}
     </colgroup>
     <thead><tr>
       <th>SCENE</th><th>SHOT</th><th>TAKE</th><th>T/S</th><th>CLIP</th><th>LENS</th><th>FOCAL</th><th>STOP</th><th>SHUTTER</th><th>EI</th>
-      <th>FILTER 1</th><th>FILTER 2</th><th>FILTER 3</th><th>WB</th><th>FOCUS<br/>(ft)</th><th>NOTES</th>${hasAnyPhoto?'<th>PHOTO</th>':''}
+      <th>FILTER 1</th><th>FILTER 2</th><th>FILTER 3</th><th>WB</th><th>FOCUS</th><th>NOTES</th>${hasAnyPhoto?'<th>PHOTO</th>':''}
     </tr></thead><tbody>${rows}</tbody></table>
+    <table class="meta"><tbody><tr class="foot">
+      <td class="k">NOTES:</td><td>End of ${esc(roll.roll)}${roll.shootDay?' &middot; SD '+esc(String(roll.shootDay).padStart(2,'0')):''}</td>
+    </tr></tbody></table>
+    </div>
     </div>
     </body></html>`;
 
@@ -2642,12 +2810,11 @@ function CameraReport(){
 
   function exportCSV(){
     if(!roll)return;
-    const head=['SCENE','SHOT','TAKE','T/S','CLIP','LENS','FOCAL','STOP','SHUTTER','EI','FILTER 1','FILTER 2','FILTER 3','WB',"FOCUS (ft)",'NOTES'];
-    const fcm=(v)=>{v=(v==null?'':String(v)).trim();if(!v)return '';return /^[\d.]+$/.test(v)?v+"'":v;};
+    const head=['SCENE','SHOT','TAKE','T/S','CLIP','LENS','FOCAL','STOP','SHUTTER','EI','FILTER 1','FILTER 2','FILTER 3','WB','FOCUS','NOTES'];
     const esc=(v)=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
     const lines=[head.join(',')];
     roll.takes.forEach(t=>{
-      lines.push([t.scene,t.shot,t.take,t.tail?'TAIL':'',t.clip,t.lens,t.focal,t.stop,t.shutter||roll.shutter||'',t.ei,t.intFilters,t.filters,t.filters3,t.wb,fcm(t.focus),t.notes].map(esc).join(','));
+      lines.push([t.scene,t.shot,t.take,t.tail?'TAIL':'',t.clip,t.lens,t.focal,t.stop,t.shutter||roll.shutter||'',t.ei,t.intFilters,t.filters,t.filters3,t.wb,t.focus,t.notes].map(esc).join(','));
     });
     const blob=new Blob([lines.join('\n')],{type:'text/csv'});
     const url=URL.createObjectURL(blob);
@@ -2690,7 +2857,7 @@ function CameraReport(){
       {!hiddenCols.has('filters')&&<th style={{...th,width:80}}>FILTER 2</th>}
       {!hiddenCols.has('filters3')&&<th style={{...th,width:70}}>FILTER 3</th>}
       {!hiddenCols.has('wb')&&<th style={{...th,width:76}}>WB</th>}
-      {!hiddenCols.has('focus')&&<th style={{...th,width:46,whiteSpace:'normal',lineHeight:1.15,verticalAlign:'middle'}}>FOCUS<br/>(ft)</th>}
+      {!hiddenCols.has('focus')&&<th style={{...th,width:46,whiteSpace:'nowrap'}}>FOCUS</th>}
       {!hiddenCols.has('notes')&&<th style={{...th,minWidth:180}}>NOTES</th>}
       {!hiddenCols.has('photo')&&<th style={{...th,width:44}}>{'📷'}</th>}
       <th style={{...th,width:78,whiteSpace:'normal',lineHeight:1.15,textAlign:'center'}}>INSERT<br/>ROW</th>
@@ -2831,7 +2998,7 @@ function CameraReport(){
 
       {/* Shoot Day filter  -  shows all unique shoot days across rolls */}
       {showToolbar&&rolls.length>0&&(()=>{
-        const dayNums=[...new Set(rolls.map(r=>r.shootDay).filter(Boolean))].sort((a,b)=>a-b);
+        const dayNums=[...new Set(rolls.map(r=>r.shootDay).filter(Boolean))].sort((a,b)=>b-a); // newest day first
         if(dayNums.length<2)return null; // only show selector if there are multiple days
         return(
           <div style={{padding:'6px 16px',borderBottom:`1px solid ${T.rule}`,display:'flex',gap:6,flexShrink:0,alignItems:'center',flexWrap:'wrap'}}>
@@ -3008,7 +3175,8 @@ function CameraReport(){
                         <input value={t.shutter||''} placeholder={r.shutter||''} onChange={e=>patch({shutter:e.target.value})} style={ci}/>
                       </td>}
                       {!hiddenCols.has('wb')&&<td style={{borderRight:`1px solid ${T.rule}`,...hl('wb')}}>
-                        <input value={t.wb||''} onChange={e=>patch({wb:e.target.value})} style={ci}/>
+                        <input value={t.wb||''} onChange={e=>patch({wb:e.target.value})}
+                          onBlur={e=>{const n=withK(e.target.value); if(n!==e.target.value)patch({wb:n});}} style={ci}/>
                       </td>}
                       {!hiddenCols.has('intFilters')&&<td style={{borderRight:`1px solid ${T.rule}`,...hl('intFilters')}}>
                         <input value={t.intFilters||''} onChange={e=>patch({intFilters:e.target.value})} style={ci}/>
@@ -3057,7 +3225,10 @@ function CameraReport(){
             <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:metaCollapsed?0:6,flexWrap:'wrap'}}>
               <div>
                 <span style={metaLabel}>ROLL #</span>
-                <input value={roll.roll||''} onChange={e=>patchRoll(roll.id,{roll:e.target.value})} style={{...metaInput,width:74,fontSize:13,color:CAM.accent,fontWeight:600,padding:'4px 6px'}}/>
+                <input value={roll.roll||''} onChange={e=>patchRoll(roll.id,{roll:e.target.value})}
+                  title={rollDupe?'This roll number is already used by another roll in this project':'Roll number'}
+                  style={{...metaInput,width:74,fontSize:13,color:rollDupe?T.danger:CAM.accent,fontWeight:600,padding:'4px 6px',
+                    border:`1px solid ${rollDupe?T.danger:T.border}`}}/>
               </div>
               <div>
                 <span style={metaLabel}>MAG #</span>
@@ -3080,16 +3251,24 @@ function CameraReport(){
               <button onClick={()=>deleteRoll(roll.id)} style={{padding:'3px 9px',borderRadius:5,fontSize:9,fontFamily:"'Geist Mono',monospace",background:'transparent',border:`1px solid ${T.danger}55`,color:T.danger,cursor:'pointer'}}>Delete roll</button>
             </div>
 
+            {rollDupe&&(
+              <div style={{margin:'0 0 6px',padding:'6px 9px',borderRadius:5,
+                background:T.danger+'18',border:`1px solid ${T.danger}55`,
+                fontSize:10,color:T.danger,fontFamily:"'Geist Mono',monospace",lineHeight:1.45}}>
+                {'⚠'} Roll <b>{roll.roll}</b> already exists in this project (Cam {rollDupe.cam}, {rollDupe.takes} clip{rollDupe.takes!==1?'s':''}). Two mags with the same number will confuse the edit - give this one a different number.
+              </div>
+            )}
+
             {!metaCollapsed&&<div style={{display:'grid',gridTemplateColumns:mob?'repeat(3,1fr)':'repeat(7,1fr)',gap:'5px 7px'}}>
               <div>
                 <span style={metaLabel}>SHOOT DAY</span>
                 <select value={roll.shootDay||''} onChange={e=>{
                   const v=e.target.value;
                   if(v==='__add__'){
-                    const nums=shootDays.map(d=>d.day);
-                    const nextDay=(nums.length?Math.max(...nums):0)+1;
-                    const lastDay=shootDays[shootDays.length-1];
-                    const nextDate=lastDay?addOneDay(lastDay.date):'';
+                    // shootDays is newest-first, so the day to continue from is
+                    // the FIRST entry, not the last.
+                    const nextDay=(latestShootDay?latestShootDay.day:0)+1;
+                    const nextDate=latestShootDay?addOneDay(latestShootDay.date):'';
                     updateData({shootDays:[...shootDays,{day:nextDay,date:nextDate}]});
                     patchRoll(roll.id,{shootDay:nextDay, date:nextDate||roll.date});
                     return;
@@ -3244,17 +3423,13 @@ function CameraReport(){
                   {!hiddenCols.has('intFilters')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.intFilters||''} onChange={e=>patchTake(t.id,{intFilters:e.target.value})} style={cellInput}/></td>}
                   {!hiddenCols.has('filters')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.filters||''} onChange={v=>patchTake(t.id,{filters:v})} options={FILTER2_OPTIONS} inputStyle={cellInput}/></td>}
                   {!hiddenCols.has('filters3')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.filters3||''} onChange={e=>patchTake(t.id,{filters3:e.target.value})} style={cellInput}/></td>}
-                  {!hiddenCols.has('wb')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.wb||''} onChange={v=>patchTake(t.id,{wb:v})} options={WB_OPTIONS} inputStyle={cellInput}/></td>}
+                  {!hiddenCols.has('wb')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.wb||''} onChange={v=>patchTake(t.id,{wb:v})} options={WB_OPTIONS} inputStyle={cellInput} normalize={withK}/></td>}
+                  {/* Focus is plain free text now - no feet mark. ACs write
+                      distances in whatever form the shot needs ("5'6", "4'6-4'",
+                      "20'-8'"), so a blanket auto-suffix got in the way more
+                      often than it helped. */}
                   {!hiddenCols.has('focus')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}>
-                    {/* Underlying value stays a plain number (that's what print/CSV/Sheets
-                        export expect) - the trailing feet mark is just a visual suffix shown
-                        next to the input, so typing "6" reads as 6' without any cursor-jump
-                        weirdness from stuffing the quote mark into the editable text itself. */}
-                    <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:1}}>
-                      <input value={t.focus||''} placeholder="e.g. 6" onChange={e=>patchTake(t.id,{focus:e.target.value})}
-                        style={{...cellInput,padding:'8px 0 8px 3px',textAlign:'right',width:'100%'}}/>
-                      {String(t.focus||'').trim()&&<span style={{fontSize:12,color:T.text,flexShrink:0,paddingRight:2}}>{"'"}</span>}
-                    </div>
+                    <input value={t.focus||''} onChange={e=>patchTake(t.id,{focus:e.target.value})} style={cellInput}/>
                   </td>}
                   {!hiddenCols.has('notes')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><NotesPicker value={t.notes||''} onChange={v=>patchTake(t.id,{notes:v})}/></td>}
                   {!hiddenCols.has('photo')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,padding:'4px 2px'}}>
@@ -3611,16 +3786,19 @@ function ShootDaysEditorModal({onClose}){
   // _k: stable per-row render key, never persisted - see the ScenesEditorModal
   // note above for why array indices are the wrong key for an editable list.
   const keySeq=React.useRef(0);
-  const [rows,setRows]=React.useState(()=>(data.shootDays||[]).slice().sort((a,b)=>a.day-b.day).map(d=>({...d,_k:keySeq.current++})));
+  // Newest day at the top, matching the day pickers elsewhere in the app.
+  const [rows,setRows]=React.useState(()=>(data.shootDays||[]).slice().sort((a,b)=>b.day-a.day).map(d=>({...d,_k:keySeq.current++})));
 
   function patchRow(i,patch){ setRows(rs=>rs.map((r,idx)=>idx===i?{...r,...patch}:r)); }
   function removeRow(i){ setRows(rs=>rs.filter((_,idx)=>idx!==i)); }
   function addRow(){
     setRows(rs=>{
-      const last=rs[rs.length-1];
-      const nextDay=(last?last.day:0)+1;
-      const nextDate=last?addOneDay(last.date):'';
-      return [...rs,{day:nextDay,date:nextDate,_k:keySeq.current++}];
+      // Continue from the highest day number present, whatever order the rows
+      // are currently in (the user can retype any day number by hand), and put
+      // the new day on top where the list is newest-first.
+      const maxDay=rs.reduce((m,r)=>Math.max(m,parseInt(r.day,10)||0),0);
+      const from=rs.find(r=>(parseInt(r.day,10)||0)===maxDay);
+      return [{day:maxDay+1,date:from?addOneDay(from.date):'',_k:keySeq.current++},...rs];
     });
   }
   function save(){
@@ -3749,6 +3927,10 @@ function BackupModal({onClose}){
   const hasSpreadsheet=!!(data.gsheetsSpreadsheetId&&data.gsheetsSpreadsheetId.trim());
   const totalTakes=React.useMemo(()=>(data.rolls||[]).reduce((n,r)=>n+((r.takes||[]).length),0),[data.rolls]);
 
+  // Restore state
+  const [sheets,setSheets]=React.useState(null);   // null = not looked yet
+  const [restoring,setRestoring]=React.useState(false);
+
   async function runBackup(){
     setStatus('working'); setErrMsg('');
     try{
@@ -3756,7 +3938,16 @@ function BackupModal({onClose}){
         rolls: data.rolls||[],
         projectName: data.projectName,
         clientId: effectiveClientId,
-        spreadsheetId: data.gsheetsSpreadsheetId||null
+        spreadsheetId: data.gsheetsSpreadsheetId||null,
+        // Everything needed to rebuild this project exactly, including the
+        // roll-level and settings fields the flat "Data" tab cannot carry.
+        rawProject: {
+          projectName:data.projectName||'',
+          scenes:data.scenes||[],
+          shootDays:data.shootDays||[],
+          rolls:data.rolls||[],
+          hiddenColumns:data.hiddenColumns||[]
+        }
       });
       updateData({gsheetsSpreadsheetId:sid});
       setStatus('done');
@@ -3766,10 +3957,65 @@ function BackupModal({onClose}){
     }
   }
 
+  async function findBackups(){
+    setRestoring(true); setErrMsg('');
+    try{ setSheets(await listBackupSheets(effectiveClientId)); }
+    catch(e){ setErrMsg((e&&e.message)||'Could not list your backups.'); setStatus('error'); }
+    finally{ setRestoring(false); }
+  }
+
+  /* Restore is guarded twice over, because it destroys local work:
+     1. the backup's project NAME must match this project's, so you can never
+        drop "The Greatest Game" on top of "Fractured Mind" by tapping the
+        wrong row in the list;
+     2. an explicit confirm() spelling out exactly what is about to be
+        replaced and with how much. */
+  async function restoreFrom(file){
+    setRestoring(true); setErrMsg('');
+    try{
+      const found=await loadProjectFromSheet(effectiveClientId,file.id);
+      if(!found){
+        setErrMsg('That sheet has no restorable copy in it. It was probably backed up by an older version of this app - run "Backup Now" from the device that has the data, then try again.');
+        setStatus('error'); return;
+      }
+      const incoming=found.project;
+      const mine=(data.projectName||'').trim().toLowerCase();
+      const theirs=(incoming.projectName||'').trim().toLowerCase();
+      if(mine!==theirs){
+        setErrMsg(`That backup is for a different production ("${incoming.projectName||'Untitled'}") - this project is "${data.projectName||'Untitled'}". Rename this project to match, or switch to the right project first.`);
+        setStatus('error'); return;
+      }
+      const nRolls=(incoming.rolls||[]).length;
+      const nTakes=(incoming.rolls||[]).reduce((n,r)=>n+((r.takes||[]).length),0);
+      const curTakes=totalTakes;
+      if(!confirm(
+        `Replace this project with the backup?\n\n`+
+        `From sheet: ${nRolls} roll(s), ${nTakes} take(s)`+
+        (found.savedAt?`\nBacked up: ${new Date(found.savedAt).toLocaleString()}`:'')+
+        `\n\nOn this device right now: ${(data.rolls||[]).length} roll(s), ${curTakes} take(s)`+
+        `\n\nThis device's copy will be overwritten and cannot be undone.`
+      )) return;
+      updateData({
+        projectName:incoming.projectName||data.projectName,
+        scenes:incoming.scenes||[],
+        shootDays:incoming.shootDays||[],
+        rolls:incoming.rolls||[],
+        hiddenColumns:incoming.hiddenColumns||[],
+        gsheetsSpreadsheetId:file.id
+      });
+      // CameraReport reads rolls into its own state once on mount, so a plain
+      // data update would leave the table showing the pre-restore rolls.
+      alert('Restored '+nRolls+' roll(s). Reloading to show the restored data.');
+      window.location.reload();
+    }catch(e){
+      setErrMsg((e&&e.message)||'Restore failed.'); setStatus('error');
+    }finally{ setRestoring(false); }
+  }
+
   function disconnect(){
     sheetsSignOut();
     updateData({gsheetsSpreadsheetId:''});
-    setStatus('idle'); setErrMsg('');
+    setStatus('idle'); setErrMsg(''); setSheets(null);
   }
 
   const sheetUrl=hasSpreadsheet?('https://docs.google.com/spreadsheets/d/'+data.gsheetsSpreadsheetId+'/edit'):'';
@@ -3781,7 +4027,7 @@ function BackupModal({onClose}){
         width:'100%',maxWidth:440,boxShadow:'0 20px 60px rgba(0,0,0,0.7)',display:'flex',flexDirection:'column'}}>
         <div style={{padding:'14px 18px',borderBottom:`1px solid ${T.rule}`,display:'flex',alignItems:'center',gap:8}}>
           <span style={{fontSize:16}}>{'☁️'}</span>
-          <span style={{fontSize:14,fontWeight:600,color:T.text,flex:1}}>Backup to Google Sheets</span>
+          <span style={{fontSize:14,fontWeight:600,color:T.text,flex:1}}>Backup &amp; restore (Google Sheets)</span>
           <button onClick={onClose} style={{background:'transparent',border:'none',color:T.textDim,fontSize:18,cursor:'pointer',lineHeight:1}}>{'×'}</button>
         </div>
         <div style={{padding:'16px 18px',display:'flex',flexDirection:'column',gap:12}}>
@@ -3821,6 +4067,51 @@ function BackupModal({onClose}){
               <button onClick={runBackup} style={{padding:'8px 0',borderRadius:6,border:`1px solid ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,cursor:'pointer'}}>
                 Backup again now
               </button>
+            </div>
+          )}
+
+          {/* ── Restore ────────────────────────────────────────────────
+              The other half of the round trip. A second device has no stored
+              spreadsheet id, so it asks Drive which backups this app made and
+              lets the user pick one. */}
+          {hasClientId&&(
+            <div style={{borderTop:`1px solid ${T.rule}`,paddingTop:12,display:'flex',flexDirection:'column',gap:9}}>
+              <div style={{fontSize:12,fontWeight:600,color:T.text}}>{'⤓'} Restore onto this device</div>
+              <div style={{fontSize:11,color:T.textDim,lineHeight:1.55}}>
+                Pulls a backup back down - use this to pick up on a second device.
+                Only a backup of a project with the <b>same name</b> can be restored here,
+                and it replaces this device's copy entirely.
+              </div>
+
+              {sheets===null
+                ?<button onClick={findBackups} disabled={restoring}
+                  style={{padding:'9px 0',borderRadius:6,border:`1px solid ${T.border}`,background:'transparent',
+                    color:T.text,fontSize:12,cursor:restoring?'default':'pointer',opacity:restoring?0.6:1}}>
+                  {restoring?'Looking...':'Find my backups'}
+                </button>
+                :sheets.length===0
+                  ?<div style={{fontSize:11,color:T.textDim,fontStyle:'italic'}}>
+                    No backups found on this Google account yet.
+                  </div>
+                  :<div style={{display:'flex',flexDirection:'column',gap:6,maxHeight:'30vh',overflow:'auto'}}>
+                    {sheets.map(f=>(
+                      <button key={f.id} onClick={()=>restoreFrom(f)} disabled={restoring}
+                        style={{display:'flex',flexDirection:'column',alignItems:'flex-start',gap:2,
+                          padding:'9px 11px',borderRadius:6,border:`1px solid ${T.border}`,
+                          background:T.surface2,color:T.text,fontSize:11,textAlign:'left',
+                          cursor:restoring?'default':'pointer',opacity:restoring?0.6:1}}>
+                        <span style={{fontFamily:"'Geist Mono',monospace"}}>{f.name}</span>
+                        {f.modifiedTime&&<span style={{fontSize:9,color:T.textDim}}>
+                          updated {new Date(f.modifiedTime).toLocaleString()}
+                        </span>}
+                      </button>
+                    ))}
+                    <button onClick={findBackups} disabled={restoring}
+                      style={{alignSelf:'flex-start',padding:'5px 10px',borderRadius:5,border:'none',
+                        background:'transparent',color:T.textDim,fontSize:10,cursor:'pointer'}}>
+                      {'↻'} Refresh list
+                    </button>
+                  </div>}
             </div>
           )}
 
