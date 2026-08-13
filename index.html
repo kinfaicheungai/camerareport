@@ -1789,7 +1789,7 @@ var SB_LENS_PRESETS_KEY = 'sb_camrep_lens_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-var APP_VERSION = 'v2.5';
+var APP_VERSION = 'v2.6';
 var CAM_CONFIG = {
   A: {
     label: 'A',
@@ -2628,6 +2628,7 @@ function LensFocalPicker(_ref14) {
   // clipped by overflow:auto/hidden on any ancestor (e.g. the table wrapper).
   function openPicker() {
     if (!wrapRef.current) return;
+    if (!(options && options.length)) return; // nothing to suggest yet
     var r = wrapRef.current.getBoundingClientRect();
     var spaceBelow = window.innerHeight - r.bottom;
     var up = spaceBelow < 240 && r.top > spaceBelow;
@@ -2707,7 +2708,7 @@ function LensFocalPicker(_ref14) {
       flex: 1,
       minWidth: 0
     })
-  }), /*#__PURE__*/React.createElement("button", {
+  }), filteredOptions.length > 0 && /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: function onClick() {
       if (open) {
@@ -4265,22 +4266,53 @@ function CameraReport() {
      A-camera ALEXA's settings, which the old shared DEFAULTS block did.
      `dayNum` pins the roll to the shoot day the user is currently looking at,
      since day is now the top level of the hierarchy. */
+  /* Most recent non-empty value of a roll field ACROSS THE WHOLE PROJECT
+     (rolls are newest-first), regardless of camera. */
+  function anyRollValue(field) {
+    var _iterator = _createForOfIteratorHelper(rolls),
+      _step;
+    try {
+      for (_iterator.s(); !(_step = _iterator.n()).done;) {
+        var r = _step.value;
+        var v = r[field];
+        if (v != null && String(v).trim() !== '') return v;
+      }
+    } catch (err) {
+      _iterator.e(err);
+    } finally {
+      _iterator.f();
+    }
+    return '';
+  }
   function camSetupFrom(cam) {
     var prev = rolls.find(function (r) {
       return camOf(r) === cam;
     }); // rolls are newest-first
+    var same = function same(f) {
+      var v = prev && prev[f];
+      return v != null && String(v).trim() !== '' ? v : '';
+    };
+    /* Two different scopes here, on purpose:
+       - DIRECTOR / DOP / FPS belong to the PRODUCTION. They're the same
+         whichever camera you're on, so a brand-new B camera inherits them from
+         anywhere in the project rather than starting blank.
+       - CAMERA / CODEC / LUT / BASE EI / LENS / 1ST AC belong to the CAMERA.
+         B cam might be a RED while A is an ALEXA, and each camera has its own
+         assistant, so these only ever inherit from that camera's own last roll
+         - cross-camera inheritance would quietly write the wrong body or the
+         wrong name onto a report. */
     return {
-      location: (prev === null || prev === void 0 ? void 0 : prev.location) || '',
-      director: (prev === null || prev === void 0 ? void 0 : prev.director) || '',
-      dop: (prev === null || prev === void 0 ? void 0 : prev.dop) || '',
-      ac: (prev === null || prev === void 0 ? void 0 : prev.ac) || '',
-      camera: (prev === null || prev === void 0 ? void 0 : prev.camera) || '',
-      codec: (prev === null || prev === void 0 ? void 0 : prev.codec) || '',
-      fps: (prev === null || prev === void 0 ? void 0 : prev.fps) || '',
-      shutter: (prev === null || prev === void 0 ? void 0 : prev.shutter) || '',
-      baseEI: (prev === null || prev === void 0 ? void 0 : prev.baseEI) || '',
-      lut: (prev === null || prev === void 0 ? void 0 : prev.lut) || '',
-      lens: (prev === null || prev === void 0 ? void 0 : prev.lens) || ''
+      location: same('location') || anyRollValue('location'),
+      director: same('director') || anyRollValue('director'),
+      dop: same('dop') || anyRollValue('dop'),
+      fps: same('fps') || anyRollValue('fps'),
+      ac: same('ac'),
+      camera: same('camera'),
+      codec: same('codec'),
+      shutter: same('shutter'),
+      baseEI: same('baseEI'),
+      lut: same('lut'),
+      lens: same('lens')
     };
   }
   function addRoll(cam, dayNum) {
@@ -4578,6 +4610,25 @@ function CameraReport() {
     return r.id === activeRoll;
   });
 
+  /* Quick-pick lists for the roll-info fields. Everything anyone has already
+     typed into a given box anywhere in this project becomes a suggestion for
+     that same box - so the second camera's report offers the same crew names
+     and codecs as the first, without anyone maintaining a settings page.
+     Most-recently-used first, since rolls are stored newest-first. */
+  var rollFieldOptions = React.useMemo(function () {
+    var fields = ['director', 'dop', 'ac', 'camera', 'codec', 'fps', 'baseEI', 'lut', 'location'];
+    var out = {};
+    fields.forEach(function (f) {
+      var seen = [];
+      rolls.forEach(function (r) {
+        var v = String(r[f] == null ? '' : r[f]).trim();
+        if (v && !seen.includes(v)) seen.push(v);
+      });
+      out[f] = seen;
+    });
+    return out;
+  }, [rolls]);
+
   /* Roll numbers must be unique within a production. Auto-generated ones never
      clash, but the field is hand-editable and a duplicate is genuinely
      dangerous: two different mags both labelled A003 means the edit assistant
@@ -4730,6 +4781,20 @@ function CameraReport() {
   // clip stays per-roll.
   function buildTake(rk, mode, ref) {
     var last = rk.takes[rk.takes.length - 1] || {};
+    /* Inheritance must skip BLANK rows. "+ Add take" deliberately produces an
+       empty row (the AC only writes what changed), so if you then start a new
+       shot, the row immediately above is blank and the old code inherited all
+       of that emptiness - which is why a new shot came out with only the lens
+       filled in. Scan backwards for the last row that actually carried a value
+       for each field instead: the setup in force is the last one anybody
+       wrote down, not whatever happens to sit on the previous line. */
+    var carried = function carried(field) {
+      for (var i = rk.takes.length - 1; i >= 0; i--) {
+        var v = rk.takes[i][field];
+        if (v != null && String(v).trim() !== '') return v;
+      }
+      return '';
+    };
     var scene, shot, take;
     if (ref) {
       scene = ref.scene;
@@ -4788,15 +4853,15 @@ function CameraReport() {
        leaving it blank forces it to be entered rather than silently inheriting
        a length that is now wrong. */
     return _objectSpread(_objectSpread({}, base), {}, {
-      lens: last.lens || rk.lens || '',
+      lens: carried('lens') || rk.lens || '',
       focal: '',
-      stop: last.stop || '',
-      shutter: last.shutter || rk.shutter || '',
-      ei: last.ei || rk.baseEI || '',
-      intFilters: last.intFilters || '',
-      filters: last.filters || '',
-      filters3: last.filters3 || '',
-      wb: last.wb || '',
+      stop: carried('stop'),
+      shutter: carried('shutter') || rk.shutter || '',
+      ei: carried('ei') || rk.baseEI || '',
+      intFilters: carried('intFilters'),
+      filters: carried('filters'),
+      filters3: carried('filters3'),
+      wb: carried('wb'),
       focus: '',
       notes: '',
       photoIds: []
@@ -7053,98 +7118,107 @@ function CameraReport() {
     }
   }, fmtDayDate(roll.date))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
     style: metaLabel
-  }, "DIRECTOR"), /*#__PURE__*/React.createElement("input", {
+  }, "DIRECTOR"), /*#__PURE__*/React.createElement(LensFocalPicker, {
     value: roll.director || '',
-    onChange: function onChange(e) {
+    onChange: function onChange(v) {
       return patchRoll(roll.id, {
-        director: e.target.value
+        director: v
       });
     },
-    style: metaInput
+    options: rollFieldOptions.director,
+    inputStyle: metaInput
   })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
     style: metaLabel
-  }, "DOP"), /*#__PURE__*/React.createElement("input", {
+  }, "DOP"), /*#__PURE__*/React.createElement(LensFocalPicker, {
     value: roll.dop || '',
-    onChange: function onChange(e) {
+    onChange: function onChange(v) {
       return patchRoll(roll.id, {
-        dop: e.target.value
+        dop: v
       });
     },
-    style: metaInput
+    options: rollFieldOptions.dop,
+    inputStyle: metaInput
   })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
     style: metaLabel
-  }, "1ST AC"), /*#__PURE__*/React.createElement("input", {
+  }, "1ST AC"), /*#__PURE__*/React.createElement(LensFocalPicker, {
     value: roll.ac || '',
-    onChange: function onChange(e) {
+    onChange: function onChange(v) {
       return patchRoll(roll.id, {
-        ac: e.target.value
+        ac: v
       });
     },
-    style: metaInput
+    options: rollFieldOptions.ac,
+    inputStyle: metaInput
   })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
     style: metaLabel
-  }, "CAMERA"), /*#__PURE__*/React.createElement("input", {
+  }, "CAMERA"), /*#__PURE__*/React.createElement(LensFocalPicker, {
     value: roll.camera || '',
-    onChange: function onChange(e) {
+    onChange: function onChange(v) {
       return patchRoll(roll.id, {
-        camera: e.target.value
+        camera: v
       });
     },
-    style: metaInput
+    options: rollFieldOptions.camera,
+    inputStyle: metaInput
   })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
     style: metaLabel
-  }, "CODEC"), /*#__PURE__*/React.createElement("input", {
+  }, "CODEC"), /*#__PURE__*/React.createElement(LensFocalPicker, {
     value: roll.codec || '',
-    onChange: function onChange(e) {
+    onChange: function onChange(v) {
       return patchRoll(roll.id, {
-        codec: e.target.value
+        codec: v
       });
     },
-    style: metaInput
+    options: rollFieldOptions.codec,
+    inputStyle: metaInput
   })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
     style: metaLabel
-  }, "FPS"), /*#__PURE__*/React.createElement("input", {
+  }, "FPS"), /*#__PURE__*/React.createElement(LensFocalPicker, {
     value: roll.fps || '',
-    onChange: function onChange(e) {
+    onChange: function onChange(v) {
       return patchRoll(roll.id, {
-        fps: e.target.value
+        fps: v
       });
     },
-    style: metaInput
+    options: rollFieldOptions.fps,
+    inputStyle: metaInput
   })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
     style: metaLabel
-  }, "BASE EI"), /*#__PURE__*/React.createElement("input", {
+  }, "BASE EI"), /*#__PURE__*/React.createElement(LensFocalPicker, {
     value: roll.baseEI || '',
-    onChange: function onChange(e) {
+    onChange: function onChange(v) {
       return patchRoll(roll.id, {
-        baseEI: e.target.value
+        baseEI: v
       });
     },
-    style: metaInput
+    options: rollFieldOptions.baseEI,
+    inputStyle: metaInput
   })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
     style: metaLabel
-  }, "LUT"), /*#__PURE__*/React.createElement("input", {
+  }, "LUT"), /*#__PURE__*/React.createElement(LensFocalPicker, {
     value: roll.lut || '',
-    onChange: function onChange(e) {
+    onChange: function onChange(v) {
       return patchRoll(roll.id, {
-        lut: e.target.value
+        lut: v
       });
     },
-    style: metaInput
+    options: rollFieldOptions.lut,
+    inputStyle: metaInput
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       gridColumn: mob ? 'span 2' : 'span 2'
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: metaLabel
-  }, "LOCATION"), /*#__PURE__*/React.createElement("input", {
+  }, "LOCATION"), /*#__PURE__*/React.createElement(LensFocalPicker, {
     value: roll.location || '',
-    onChange: function onChange(e) {
+    onChange: function onChange(v) {
       return patchRoll(roll.id, {
-        location: e.target.value
+        location: v
       });
     },
-    style: metaInput
+    options: rollFieldOptions.location,
+    inputStyle: metaInput
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       gridColumn: 'span 2'
@@ -9694,11 +9768,11 @@ function App() {
   function findProjectByName(name) {
     var target = String(name || '').trim().toLowerCase();
     if (!target) return null;
-    var _iterator = _createForOfIteratorHelper(projectIds),
-      _step;
+    var _iterator2 = _createForOfIteratorHelper(projectIds),
+      _step2;
     try {
-      for (_iterator.s(); !(_step = _iterator.n()).done;) {
-        var pid = _step.value;
+      for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+        var pid = _step2.value;
         var d = loadProjectData(pid);
         if (String(d.projectName || '').trim().toLowerCase() === target) return {
           id: pid,
@@ -9706,9 +9780,9 @@ function App() {
         };
       }
     } catch (err) {
-      _iterator.e(err);
+      _iterator2.e(err);
     } finally {
-      _iterator.f();
+      _iterator2.f();
     }
     return null;
   }

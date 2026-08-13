@@ -1067,7 +1067,7 @@ const SB_LENS_PRESETS_KEY='sb_camrep_lens_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-const APP_VERSION='v2.5';
+const APP_VERSION='v2.6';
 
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
@@ -1399,6 +1399,7 @@ function LensFocalPicker({value,onChange,options,placeholder,inputStyle,align,no
   // clipped by overflow:auto/hidden on any ancestor (e.g. the table wrapper).
   function openPicker(){
     if(!wrapRef.current)return;
+    if(!(options&&options.length))return;   // nothing to suggest yet
     const r=wrapRef.current.getBoundingClientRect();
     const spaceBelow=window.innerHeight-r.bottom;
     const up=spaceBelow<240&&r.top>spaceBelow;
@@ -1443,8 +1444,14 @@ function LensFocalPicker({value,onChange,options,placeholder,inputStyle,align,no
           style={{flex:1,minWidth:0,fontFamily:"'Geist Mono',monospace",
             background:'transparent',border:'none',padding:'4px 2px',fontSize:11,color:T.text,
             ...(inputStyle||{}),flex:1,minWidth:0}}/>
-        <button type="button" onClick={()=>{ if(open){setOpen(false);}else{openPicker();} }} title="Show options"
-          style={{flexShrink:0,background:'transparent',border:'none',color:T.accent,cursor:'pointer',fontSize:11,padding:'0 4px'}}>{'\u25BC'}</button>
+        {/* No arrow when there is nothing to suggest yet - on a brand-new
+            production most of these boxes have no history behind them, and an
+            arrow that opens an empty list is just noise. It appears by itself
+            the moment a value has been typed once. */}
+        {filteredOptions.length>0&&(
+          <button type="button" onClick={()=>{ if(open){setOpen(false);}else{openPicker();} }} title="Show options"
+            style={{flexShrink:0,background:'transparent',border:'none',color:T.accent,cursor:'pointer',fontSize:11,padding:'0 4px'}}>{'\u25BC'}</button>
+        )}
       </div>
       {open&&(
         <div ref={listRef} style={{
@@ -2100,14 +2107,37 @@ function CameraReport(){
      A-camera ALEXA's settings, which the old shared DEFAULTS block did.
      `dayNum` pins the roll to the shoot day the user is currently looking at,
      since day is now the top level of the hierarchy. */
+  /* Most recent non-empty value of a roll field ACROSS THE WHOLE PROJECT
+     (rolls are newest-first), regardless of camera. */
+  function anyRollValue(field){
+    for(const r of rolls){
+      const v=r[field];
+      if(v!=null&&String(v).trim()!=='')return v;
+    }
+    return '';
+  }
+
   function camSetupFrom(cam){
     const prev=rolls.find(r=>camOf(r)===cam);  // rolls are newest-first
+    const same=(f)=>{ const v=prev&&prev[f]; return (v!=null&&String(v).trim()!=='')?v:''; };
+    /* Two different scopes here, on purpose:
+       - DIRECTOR / DOP / FPS belong to the PRODUCTION. They're the same
+         whichever camera you're on, so a brand-new B camera inherits them from
+         anywhere in the project rather than starting blank.
+       - CAMERA / CODEC / LUT / BASE EI / LENS / 1ST AC belong to the CAMERA.
+         B cam might be a RED while A is an ALEXA, and each camera has its own
+         assistant, so these only ever inherit from that camera's own last roll
+         - cross-camera inheritance would quietly write the wrong body or the
+         wrong name onto a report. */
     return {
-      location:prev?.location||'',
-      director:prev?.director||'', dop:prev?.dop||'', ac:prev?.ac||'',
-      camera:prev?.camera||'', codec:prev?.codec||'', fps:prev?.fps||'',
-      shutter:prev?.shutter||'', baseEI:prev?.baseEI||'', lut:prev?.lut||'',
-      lens:prev?.lens||''
+      location:same('location')||anyRollValue('location'),
+      director:same('director')||anyRollValue('director'),
+      dop:same('dop')||anyRollValue('dop'),
+      fps:same('fps')||anyRollValue('fps'),
+      ac:same('ac'),
+      camera:same('camera'), codec:same('codec'),
+      shutter:same('shutter'), baseEI:same('baseEI'), lut:same('lut'),
+      lens:same('lens')
     };
   }
 
@@ -2316,6 +2346,25 @@ function CameraReport(){
 
   const roll=rolls.find(r=>r.id===activeRoll);
 
+  /* Quick-pick lists for the roll-info fields. Everything anyone has already
+     typed into a given box anywhere in this project becomes a suggestion for
+     that same box - so the second camera's report offers the same crew names
+     and codecs as the first, without anyone maintaining a settings page.
+     Most-recently-used first, since rolls are stored newest-first. */
+  const rollFieldOptions=React.useMemo(()=>{
+    const fields=['director','dop','ac','camera','codec','fps','baseEI','lut','location'];
+    const out={};
+    fields.forEach(f=>{
+      const seen=[];
+      rolls.forEach(r=>{
+        const v=String(r[f]==null?'':r[f]).trim();
+        if(v&&!seen.includes(v))seen.push(v);
+      });
+      out[f]=seen;
+    });
+    return out;
+  },[rolls]);
+
   /* Roll numbers must be unique within a production. Auto-generated ones never
      clash, but the field is hand-editable and a duplicate is genuinely
      dangerous: two different mags both labelled A003 means the edit assistant
@@ -2429,6 +2478,20 @@ function CameraReport(){
   // clip stays per-roll.
   function buildTake(rk,mode,ref){
     const last=rk.takes[rk.takes.length-1]||{};
+    /* Inheritance must skip BLANK rows. "+ Add take" deliberately produces an
+       empty row (the AC only writes what changed), so if you then start a new
+       shot, the row immediately above is blank and the old code inherited all
+       of that emptiness - which is why a new shot came out with only the lens
+       filled in. Scan backwards for the last row that actually carried a value
+       for each field instead: the setup in force is the last one anybody
+       wrote down, not whatever happens to sit on the previous line. */
+    const carried=(field)=>{
+      for(let i=rk.takes.length-1;i>=0;i--){
+        const v=rk.takes[i][field];
+        if(v!=null&&String(v).trim()!=='')return v;
+      }
+      return '';
+    };
     let scene,shot,take;
     if(ref){
       scene=ref.scene; shot=ref.shot; take=ref.take;
@@ -2462,10 +2525,10 @@ function CameraReport(){
        leaving it blank forces it to be entered rather than silently inheriting
        a length that is now wrong. */
     return {...base,
-      lens:last.lens||rk.lens||'', focal:'', stop:last.stop||'',
-      shutter:last.shutter||rk.shutter||'', ei:last.ei||rk.baseEI||'',
-      intFilters:last.intFilters||'', filters:last.filters||'', filters3:last.filters3||'',
-      wb:last.wb||'', focus:'', notes:'', photoIds:[]};
+      lens:carried('lens')||rk.lens||'', focal:'', stop:carried('stop'),
+      shutter:carried('shutter')||rk.shutter||'', ei:carried('ei')||rk.baseEI||'',
+      intFilters:carried('intFilters'), filters:carried('filters'), filters3:carried('filters3'),
+      wb:carried('wb'), focus:'', notes:'', photoIds:[]};
   }
 
   // Resolve target rolls for a sync-add: the last roll used for each
@@ -3577,39 +3640,48 @@ function CameraReport(){
               </div>
               <div>
                 <span style={metaLabel}>DIRECTOR</span>
-                <input value={roll.director||''} onChange={e=>patchRoll(roll.id,{director:e.target.value})} style={metaInput}/>
+                <LensFocalPicker value={roll.director||''} onChange={v=>patchRoll(roll.id,{director:v})}
+                  options={rollFieldOptions.director} inputStyle={metaInput}/>
               </div>
               <div>
                 <span style={metaLabel}>DOP</span>
-                <input value={roll.dop||''} onChange={e=>patchRoll(roll.id,{dop:e.target.value})} style={metaInput}/>
+                <LensFocalPicker value={roll.dop||''} onChange={v=>patchRoll(roll.id,{dop:v})}
+                  options={rollFieldOptions.dop} inputStyle={metaInput}/>
               </div>
               <div>
                 <span style={metaLabel}>1ST AC</span>
-                <input value={roll.ac||''} onChange={e=>patchRoll(roll.id,{ac:e.target.value})} style={metaInput}/>
+                <LensFocalPicker value={roll.ac||''} onChange={v=>patchRoll(roll.id,{ac:v})}
+                  options={rollFieldOptions.ac} inputStyle={metaInput}/>
               </div>
               <div>
                 <span style={metaLabel}>CAMERA</span>
-                <input value={roll.camera||''} onChange={e=>patchRoll(roll.id,{camera:e.target.value})} style={metaInput}/>
+                <LensFocalPicker value={roll.camera||''} onChange={v=>patchRoll(roll.id,{camera:v})}
+                  options={rollFieldOptions.camera} inputStyle={metaInput}/>
               </div>
               <div>
                 <span style={metaLabel}>CODEC</span>
-                <input value={roll.codec||''} onChange={e=>patchRoll(roll.id,{codec:e.target.value})} style={metaInput}/>
+                <LensFocalPicker value={roll.codec||''} onChange={v=>patchRoll(roll.id,{codec:v})}
+                  options={rollFieldOptions.codec} inputStyle={metaInput}/>
               </div>
               <div>
                 <span style={metaLabel}>FPS</span>
-                <input value={roll.fps||''} onChange={e=>patchRoll(roll.id,{fps:e.target.value})} style={metaInput}/>
+                <LensFocalPicker value={roll.fps||''} onChange={v=>patchRoll(roll.id,{fps:v})}
+                  options={rollFieldOptions.fps} inputStyle={metaInput}/>
               </div>
               <div>
                 <span style={metaLabel}>BASE EI</span>
-                <input value={roll.baseEI||''} onChange={e=>patchRoll(roll.id,{baseEI:e.target.value})} style={metaInput}/>
+                <LensFocalPicker value={roll.baseEI||''} onChange={v=>patchRoll(roll.id,{baseEI:v})}
+                  options={rollFieldOptions.baseEI} inputStyle={metaInput}/>
               </div>
               <div>
                 <span style={metaLabel}>LUT</span>
-                <input value={roll.lut||''} onChange={e=>patchRoll(roll.id,{lut:e.target.value})} style={metaInput}/>
+                <LensFocalPicker value={roll.lut||''} onChange={v=>patchRoll(roll.id,{lut:v})}
+                  options={rollFieldOptions.lut} inputStyle={metaInput}/>
               </div>
               <div style={{gridColumn:mob?'span 2':'span 2'}}>
                 <span style={metaLabel}>LOCATION</span>
-                <input value={roll.location||''} onChange={e=>patchRoll(roll.id,{location:e.target.value})} style={metaInput}/>
+                <LensFocalPicker value={roll.location||''} onChange={v=>patchRoll(roll.id,{location:v})}
+                  options={rollFieldOptions.location} inputStyle={metaInput}/>
               </div>
               <div style={{gridColumn:'span 2'}}>
                 <span style={metaLabel}>DEFAULT LENS</span>
