@@ -1067,7 +1067,7 @@ const SB_LENS_PRESETS_KEY='sb_camrep_lens_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-const APP_VERSION='v2.4';
+const APP_VERSION='v2.5';
 
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
@@ -2080,7 +2080,17 @@ function CameraReport(){
     const c=cam||activeCam||'A';
     let max=0;
     rolls.filter(r=>camOf(r)===c).forEach(r=>{const m=(r.roll||'').match(/(\d+)/);if(m){const n=parseInt(m[1],10);if(n>max)max=n;}});
-    return c+String(max+1).padStart(3,'0');
+    /* Then step past anything already taken. Highest-number-plus-one alone is
+       not enough to guarantee uniqueness: a roll can be renamed by hand, or
+       moved in from another camera, leaving a gap that the max no longer
+       reflects (that is how two C001s ended up side by side). Checking the
+       actual set of names means auto-numbering can never hand out a duplicate,
+       whatever state the list is in. */
+    const taken=new Set(rolls.map(r=>String(r.roll||'').trim().toLowerCase()));
+    let n=max+1, candidate;
+    do{ candidate=c+String(n).padStart(3,'0'); n++; }
+    while(taken.has(candidate.toLowerCase())&&n<max+1000);
+    return candidate;
   }
 
   /* A new roll copies its setup from the most recent roll of the SAME camera.
@@ -2102,8 +2112,24 @@ function CameraReport(){
   }
 
   function addRoll(cam,dayNum){
-    if(rolls.length>=TRIAL_LIMITS.rolls&&!requireUnlock(`Free preview is limited to ${TRIAL_LIMITS.rolls} rolls. Sign in to add more.`))return;
     const c=cam||activeCam||'A';
+    /* Opening a second roll while the current one is still completely empty is
+       almost always a mis-tap - and it is how duplicate-looking pairs like
+       "C001 · 1 clips / C001 · 0 clips" appear in the roll list. Offer to just
+       rename the empty roll instead of stacking another one behind it. */
+    const cur=dayRolls.find(r=>camOf(r)===c&&r.id===activeRoll)
+      ||dayRolls.find(r=>camOf(r)===c);
+    if(cur&&(cur.takes||[]).length===0){
+      if(!confirm(
+        `Roll ${cur.roll||'(unnamed)'} has no clips logged yet.\n\n`+
+        `Start another roll anyway?\n\n`+
+        `If you just want a different roll number, cancel and edit the ROLL # field instead.`
+      )){
+        setActiveCam(c); setActiveRoll(cur.id);
+        return;
+      }
+    }
+    if(rolls.length>=TRIAL_LIMITS.rolls&&!requireUnlock(`Free preview is limited to ${TRIAL_LIMITS.rolls} rolls. Sign in to add more.`))return;
     // Bringing a camera into the production for the first time is what the
     // trial's camera cap governs (adding another roll to an existing camera is
     // covered by the roll cap above).
@@ -2460,8 +2486,22 @@ function CameraReport(){
   // Core add: applies to the active roll, or (when the active camera is part
   // of a sync group) to every camera in that group's current roll at once.
   // The active/primary roll determines the shared scene/shot/take.
+  /* Hard stop while the roll number clashes. A warning line was not enough:
+     clips logged against an ambiguous roll number are the one kind of damage
+     this app cannot undo later, because nothing in the data says which of the
+     two identically-named mags a take actually belongs to. Better to refuse
+     for the few seconds it takes to correct the number. */
+  function blockedByDupe(){
+    if(!rollDupe)return false;
+    alert('Roll "'+(roll?roll.roll:'')+'" is already used by another roll in this project'+
+      ' (Cam '+rollDupe.cam+').\n\nChange this roll number first - otherwise there is no way to tell'+
+      ' which mag these clips came from.');
+    return true;
+  }
+
   function doAdd(mode){
     if(!roll)return;
+    if(blockedByDupe())return;
     if(roll.takes.length>=TRIAL_LIMITS.takesPerRoll&&!requireUnlock(`Free preview is limited to ${TRIAL_LIMITS.takesPerRoll} clips per roll. Sign in to log more.`))return;
     const syncing=syncCams.includes(activeCam)&&syncCams.length>1;
     if(syncing){
@@ -2641,6 +2681,7 @@ function CameraReport(){
   // B05→B06 etc.) so the sequence stays contiguous.
   function insertTakeAfter(anchorId){
     if(!roll)return;
+    if(blockedByDupe())return;
     if(roll.takes.length>=TRIAL_LIMITS.takesPerRoll&&!requireUnlock(`Free preview is limited to ${TRIAL_LIMITS.takesPerRoll} clips per roll. Sign in to log more.`))return;
     const anchor=roll.takes.find(t=>t.id===anchorId);
     const anchorIdx=roll.takes.findIndex(t=>t.id===anchorId);
@@ -3501,7 +3542,8 @@ function CameraReport(){
               <div style={{margin:'0 0 6px',padding:'6px 9px',borderRadius:5,
                 background:T.danger+'18',border:`1px solid ${T.danger}55`,
                 fontSize:10,color:T.danger,fontFamily:"'Geist Mono',monospace",lineHeight:1.45}}>
-                {'⚠'} Roll <b>{roll.roll}</b> already exists in this project (Cam {rollDupe.cam}, {rollDupe.takes} clip{rollDupe.takes!==1?'s':''}). Two mags with the same number will confuse the edit - give this one a different number.
+                {'⚠'} Roll <b>{roll.roll}</b> already exists in this project (Cam {rollDupe.cam}, {rollDupe.takes} clip{rollDupe.takes!==1?'s':''}).
+                {' '}<b>Logging is paused</b> until this roll gets a different number - otherwise there'd be no way to tell which mag a clip came from.
               </div>
             )}
 
@@ -3733,9 +3775,16 @@ function CameraReport(){
             {!unlocked&&<span style={{fontSize:9,fontFamily:"'Geist Mono',monospace",color:roll.takes.length>=TRIAL_LIMITS.takesPerRoll?T.danger:T.textDim}}>
               {roll.takes.length}/{TRIAL_LIMITS.takesPerRoll} clips (free preview)
             </span>}
-            <button onClick={addTake} style={{padding:'9px 14px',borderRadius:6,border:`1px dashed ${CAM.accent}66`,background:CAM.tint,color:CAM.accent,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:'pointer',textAlign:'left'}}>+ Add take</button>
-            <button onClick={addShot} style={{padding:'9px 14px',borderRadius:6,border:`1px dashed ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:'pointer',textAlign:'left'}}>+ New shot</button>
-            <button onClick={addNewScene} style={{padding:'9px 14px',borderRadius:6,border:`1px dashed ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:'pointer',textAlign:'left'}}>+ New scene</button>
+            {/* While the roll number clashes, logging is closed off entirely -
+                the buttons are disabled AND doAdd refuses, so there is no route
+                to a clip that cannot be traced back to a specific mag. */}
+            {rollDupe&&<div style={{fontSize:9,lineHeight:1.5,color:T.danger,background:T.danger+'18',
+              border:`1px solid ${T.danger}55`,borderRadius:5,padding:'7px 9px',fontFamily:"'Geist Mono',monospace"}}>
+              {'\u26A0'} Duplicate roll number - fix ROLL # before logging clips.
+            </div>}
+            <button onClick={addTake} disabled={!!rollDupe} style={{padding:'9px 14px',borderRadius:6,border:`1px dashed ${CAM.accent}66`,background:CAM.tint,color:CAM.accent,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:rollDupe?'not-allowed':'pointer',textAlign:'left',opacity:rollDupe?0.4:1}}>+ Add take</button>
+            <button onClick={addShot} disabled={!!rollDupe} style={{padding:'9px 14px',borderRadius:6,border:`1px dashed ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:rollDupe?'not-allowed':'pointer',textAlign:'left',opacity:rollDupe?0.4:1}}>+ New shot</button>
+            <button onClick={addNewScene} disabled={!!rollDupe} style={{padding:'9px 14px',borderRadius:6,border:`1px dashed ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:rollDupe?'not-allowed':'pointer',textAlign:'left',opacity:rollDupe?0.4:1}}>+ New scene</button>
             {existingCams.length>1&&(()=>{
               const active=syncCams.includes(activeCam)&&syncCams.length>1;
               const label=syncCams.length>1?syncCams.join('+'):'off';
