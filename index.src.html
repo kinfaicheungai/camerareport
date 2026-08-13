@@ -1067,7 +1067,7 @@ const SB_LENS_PRESETS_KEY='sb_camrep_lens_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-const APP_VERSION='v2.3';
+const APP_VERSION='v2.4';
 
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
@@ -1924,6 +1924,8 @@ function CameraReport(){
   const [filterDay,setFilterDay]=React.useState('all');
   const [showDayMenu,setShowDayMenu]=React.useState(false);  // day dropdown
   const [showAddCam,setShowAddCam]=React.useState(false);    // "add camera to this day" picker
+  const [showPrint,setShowPrint]=React.useState(false);      // print-scope picker
+  const [printCams,setPrintCams]=React.useState([]);         // cams ticked for printing
   const [selTakeIds,setSelTakeIds]=React.useState([]); // multi-selected clip rows (for moving)
   const [showSearch,setShowSearch]=React.useState(false);
   const [searchQ,setSearchQ]=React.useState({});  // field -> search string
@@ -2722,16 +2724,34 @@ function CameraReport(){
     patchRoll(roll.id,{takes:updated});
   }
 
-  // ---- Export to template-style printable HTML ----
-  // async: gathers one representative photo per take from IndexedDB first
-  // (thumbnail only, embedded directly in the print HTML  -  never sent to CSV).
-  async function exportReport(){
-    if(!roll)return;
+  /* The print button no longer prints the one roll on screen. Wrap paperwork
+     is per shoot DAY, so it defaults to every camera that rolled today and
+     lets the user untick any they don't want. */
+  function openPrintPicker(){
+    setPrintCams(dayCams.length?dayCams:[activeCam]);
+    setShowPrint(true);
+  }
+  // Rolls that the current print selection covers, day-scoped.
+  const printRolls=React.useMemo(()=>
+    dayRolls.filter(r=>printCams.includes(camOf(r))),
+  [dayRolls,printCams]);
+
+  /* ---- Printable report ------------------------------------------------
+     Prints a whole SHOOT DAY, not just one roll: on a real production the
+     paperwork that goes out at wrap is "everything shot today", across every
+     camera. `rollList` is whatever the print dialog selected; each roll gets
+     its own page, and cameras stay grouped together (all of A's rolls, then
+     all of B's) so the stack can be split by camera afterwards.
+     async: gathers one representative photo per take from IndexedDB first
+     (thumbnail only, embedded directly in the print HTML - never in CSV). */
+  async function exportReport(rollList){
+    const list=(rollList&&rollList.length)?rollList:(roll?[roll]:[]);
+    if(!list.length)return;
     if(!requireUnlock('PDF export needs the full version. Sign in to unlock.'))return;
     // CRITICAL for Safari/iPad: window.open() must be called synchronously,
     // in the same tick as the click, before any `await`. Once we cross an
     // await boundary, Safari no longer considers the call "user-initiated"
-    // and silently blocks it  -  regardless of window.open vs anchor-click vs
+    // and silently blocks it - regardless of window.open vs anchor-click vs
     // blob URLs. So we open a blank tab RIGHT NOW and write into it later,
     // once the (async) HTML is ready.
     const preOpened=window.open('','_blank');
@@ -2742,46 +2762,111 @@ function CameraReport(){
       }catch(e){}
     }
 
-    const dayD=shootDays.find(d=>d.day===roll.shootDay);
-    const rawDate=roll.date||(dayD&&dayD.date)||'';
-    const dateStr=fmtDayDate(rawDate);
-    const camCfg=CAM_CONFIG[camOf(roll)]||CAM_CONFIG.A;
-    const camHeaderColor=camCfg.header;
-    // Light tint of the camera accent for the corner roll tag.
-    const camRollTag={A:'#f3b0b0',B:'#b0c8f3',C:'#f0e0a0',D:'#b0f3c8',E:'#dcc0f3'}[camOf(roll)]||'#f3b0b0';
     // EVERY user-entered value below goes through esc() before it is
     // interpolated into the report HTML. Without this, an ampersand or a
     // quote in a lens name / location / note silently mangles the printed
     // layout, and anything script-shaped typed into a field would actually
-    // run in the report tab. Notes used to get a half-measure (< only).
+    // run in the report tab.
     const esc=(v)=>String(v==null?'':v)
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
       .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
-    const hasAnyPhoto=roll.takes.some(t=>(t.photoIds||[]).length>0);
-    let photoMap={};
-    if(hasAnyPhoto){
-      try{
-        const pairs=await Promise.all(roll.takes.map(async t=>{
-          const pids=t.photoIds||[];
-          if(!pids.length)return [t.id,null];
-          const rows=await camRepGetForTake(projId,t.id).catch(()=>[]);
-          const local=rows.find(r=>r.dataUrl);
-          return [t.id, local?local.dataUrl:null];
-        }));
-        pairs.forEach(([id,url])=>{ if(url)photoMap[id]=url; });
-      }catch(e){ console.warn('print photo gather failed',e); }
+    // Photos for every take across every roll being printed, fetched once.
+    const photoMap={};
+    try{
+      const jobs=[];
+      list.forEach(rk=>(rk.takes||[]).forEach(t=>{
+        if((t.photoIds||[]).length) jobs.push(
+          camRepGetForTake(projId,t.id).then(rowsF=>{
+            const local=(rowsF||[]).find(x=>x.dataUrl);
+            if(local)photoMap[t.id]=local.dataUrl;
+          }).catch(()=>{})
+        );
+      }));
+      await Promise.all(jobs);
+    }catch(e){ console.warn('print photo gather failed',e); }
+
+    // Sort: camera A-E, then roll number within each camera.
+    const ordered=list.slice().sort((a,b)=>{
+      const ca=CAM_ORDER.indexOf(camOf(a)), cb=CAM_ORDER.indexOf(camOf(b));
+      if(ca!==cb)return ca-cb;
+      return String(a.roll||'').localeCompare(String(b.roll||''),undefined,{numeric:true});
+    });
+
+    function sheetFor(rk){
+      const dayD=shootDays.find(d=>d.day===rk.shootDay);
+      const dateStr=fmtDayDate(rk.date||(dayD&&dayD.date)||'');
+      const cfg=CAM_CONFIG[camOf(rk)]||CAM_CONFIG.A;
+      const tag={A:'#f3b0b0',B:'#b0c8f3',C:'#f0e0a0',D:'#b0f3c8',E:'#dcc0f3'}[camOf(rk)]||'#f3b0b0';
+      const hasPhoto=(rk.takes||[]).some(t=>(t.photoIds||[]).length>0);
+      const rows=(rk.takes||[]).map(t=>`<tr>
+        <td>${esc(sceneWithIE(t.scene))}</td><td style="text-align:center">${esc(t.shot)}</td><td style="text-align:center">${esc(t.take)}</td>
+        <td style="text-align:center">${t.tail?'✅':''}</td><td>${esc(t.clip)}</td>
+        <td>${esc(t.lens)}</td><td>${esc(t.focal)}</td><td>${esc(t.stop)}</td><td>${esc(t.shutter||rk.shutter)}</td><td>${esc(t.ei)}</td>
+        <td>${esc(t.intFilters)}</td><td>${esc(t.filters)}</td><td>${esc(t.filters3)}</td><td>${esc(t.wb)}</td><td>${esc(t.focus)}</td>
+        <td>${esc(t.notes)}</td>
+        ${hasPhoto?`<td>${photoMap[t.id]?`<img src="${esc(photoMap[t.id])}" style="width:46px;height:34px;object-fit:cover;border-radius:2px;border:1px solid #999;">`:''}</td>`:''}
+        </tr>`).join('');
+      return `<div class="sheet" style="--cam:${cfg.header}">
+      <div class="hdr">
+        <div class="crew">
+          <b>DIRECTOR:</b>${esc(rk.director)}<br>
+          <b>DOP:</b>${esc(rk.dop)}<br>
+          <b>1ST AC:</b>${esc(rk.ac)}
+        </div>
+        <div class="title">
+          <span class="plate">${esc(proj.projectName||'Camera Report')}</span>
+          <span class="sub">Camera Report</span>
+        </div>
+        <div class="rollbox">
+          <div class="lbl">ROLL #<br>MAG #</div>
+          <div class="val"><div class="roll" style="background:${tag}">${esc(rk.roll)}</div><div class="mag">${esc(rk.mag)||'&nbsp;'}</div></div>
+        </div>
+      </div>
+      <table class="meta"><tbody>
+        <tr>
+          <td class="k">DATE:</td><td>${esc(dateStr)}</td>
+          <td class="k">SHOOT DAY:</td><td>${esc(rk.shootDay)}</td>
+          <td class="k">CODEC:</td><td>${esc(rk.codec)}</td>
+          <td class="k">CAMERA:</td><td>${esc(rk.camera)}</td>
+          <td class="k">LUT:</td><td>${esc(rk.lut)}</td>
+        </tr>
+        <tr>
+          <td class="k">FPS:</td><td>${esc(rk.fps)}</td>
+          <td class="k">SHUTTER:</td><td>${esc(rk.shutter)}</td>
+          <td class="k">LOCATION:</td><td colspan="5">${esc(rk.location)}</td>
+        </tr>
+      </tbody></table>
+      <table class="main">
+      <colgroup>
+        <col style="width:7.5%"/><col style="width:4.2%"/><col style="width:4.2%"/><col style="width:2.8%"/>
+        <col style="width:4.4%"/><col style="width:8.5%"/><col style="width:4.6%"/><col style="width:4%"/>
+        <col style="width:6%"/><col style="width:3%"/><col style="width:6%"/><col style="width:6%"/>
+        <col style="width:6%"/><col style="width:4.4%"/><col style="width:5%"/><col/>
+        ${hasPhoto?'<col style="width:5%"/>':''}
+      </colgroup>
+      <thead><tr>
+        <th>SCENE</th><th>SHOT</th><th>TAKE</th><th>T/S</th><th>CLIP</th><th>LENS</th><th>FOCAL</th><th>STOP</th><th>SHUTTER</th><th>EI</th>
+        <th>FILTER 1</th><th>FILTER 2</th><th>FILTER 3</th><th>WB</th><th>FOCUS</th><th>NOTES</th>${hasPhoto?'<th>PHOTO</th>':''}
+      </tr></thead><tbody>${rows}</tbody></table>
+      <table class="meta"><tbody><tr class="foot">
+        <td class="k">NOTES:</td><td>End of ${esc(rk.roll)}${rk.shootDay?' &middot; SD '+esc(String(rk.shootDay).padStart(2,'0')):''}</td>
+      </tr></tbody></table>
+      </div>`;
     }
 
-    const rows=roll.takes.map(t=>`<tr>
-      <td>${esc(sceneWithIE(t.scene))}</td><td style="text-align:center">${esc(t.shot)}</td><td style="text-align:center">${esc(t.take)}</td>
-      <td style="text-align:center">${t.tail?'\u2705':''}</td><td>${esc(t.clip)}</td>
-      <td>${esc(t.lens)}</td><td>${esc(t.focal)}</td><td>${esc(t.stop)}</td><td>${esc(t.shutter||roll.shutter)}</td><td>${esc(t.ei)}</td>
-      <td>${esc(t.intFilters)}</td><td>${esc(t.filters)}</td><td>${esc(t.filters3)}</td><td>${esc(t.wb)}</td><td>${esc(t.focus)}</td>
-      <td>${esc(t.notes)}</td>
-      ${hasAnyPhoto?`<td>${photoMap[t.id]?`<img src="${esc(photoMap[t.id])}" style="width:46px;height:34px;object-fit:cover;border-radius:2px;border:1px solid #999;">`:''}</td>`:''}
-      </tr>`).join('');
-    const html=`<!doctype html><html><head><meta charset="utf-8"><title>${esc(proj.projectName||'Camera Report')} ${esc(roll.roll)}</title>
+    // One page per roll. page-break-after on every sheet but the last means a
+    // new roll - and therefore any new camera - always starts a fresh page.
+    const sheets=ordered.map((rk,i)=>
+      `<div class="page"${i<ordered.length-1?' style="page-break-after:always;break-after:page"':''}>${sheetFor(rk)}</div>`
+    ).join('');
+
+    const days=[...new Set(ordered.map(r=>r.shootDay).filter(Boolean))];
+    const dayLabel=days.length===1?('Day '+days[0]):'';
+    const camLabel=[...new Set(ordered.map(r=>camOf(r)))].join('+');
+    const docTitle=`${proj.projectName||'Camera Report'}${dayLabel?' - '+dayLabel:''} - Cam ${camLabel}`;
+
+    const html=`<!doctype html><html><head><meta charset="utf-8"><title>${esc(docTitle)}</title>
     <style>
       /* THE colour fix. By default Safari (and Chrome) strip background colours
          when printing unless the user happens to tick "Print backgrounds" in
@@ -2794,37 +2879,40 @@ function CameraReport(){
       @page{ size:A4 landscape; margin:8mm; }
       body{font-family:Arial,Helvetica,sans-serif;margin:14px;color:#111;}
       .sheet{border:2px solid #999;}
+      .page+.page{margin-top:22px;}
       .hdr{background:#111;color:#fff;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;gap:12px;}
-      /* Production title plate. The name gets a coloured slab in the camera's
-         own colour rather than sitting as plain text on black - it reads as a
-         masthead, and it makes an A-cam report distinguishable from a B-cam
-         one at a glance across a stack of paper. */
+      /* Production title: knocked out of a colour wash rather than sitting as
+         flat white text - the letters are a window onto the gradient behind.
+         Guarded by @supports because the transparent text-fill that makes the
+         knockout work would otherwise render the title INVISIBLE on any engine
+         that doesn't do background-clip:text. */
       .hdr .title{flex:1;text-align:center;}
-      .hdr .title .plate{display:inline-block;background:${camHeaderColor};
-        border:1px solid rgba(255,255,255,0.28);border-radius:4px;
-        padding:5px 20px;font-size:24px;font-weight:bold;line-height:1.15;
-        letter-spacing:1.5px;text-transform:uppercase;color:#fff;
-        box-shadow:inset 0 0 0 3px rgba(0,0,0,0.25);}
-      .hdr .title .sub{display:block;margin-top:4px;font-size:8.5px;
-        letter-spacing:3px;color:#9a9a9a;text-transform:uppercase;}
+      .hdr .title .plate{display:inline-block;padding:2px 6px;font-size:27px;font-weight:bold;
+        line-height:1.15;letter-spacing:0.5px;color:#fff;}
+      @supports ((-webkit-background-clip:text) or (background-clip:text)){
+        .hdr .title .plate{
+          background-image:linear-gradient(100deg,#f0a0a0 0%,#f3d4a0 16%,#ede39a 32%,#a8e8c0 48%,#a8cdf0 64%,#cdb0f0 80%,#f0a0c0 100%);
+          -webkit-background-clip:text;background-clip:text;
+          -webkit-text-fill-color:transparent;
+        }
+      }
+      .hdr .title .sub{display:block;margin-top:2px;font-size:8.5px;
+        letter-spacing:3px;color:#8f8f8f;text-transform:uppercase;}
       .crew{font-size:10px;line-height:1.6;white-space:nowrap;}
       .crew b{display:inline-block;min-width:58px;text-align:right;margin-right:5px;font-weight:bold;}
       .rollbox{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:bold;}
       .rollbox .lbl{text-align:right;line-height:1.9;}
       .rollbox .val{text-align:center;}
-      .rollbox .roll{background:${camRollTag};color:#111;font-weight:bold;font-size:21px;padding:2px 16px;}
+      .rollbox .roll{color:#111;font-weight:bold;font-size:21px;padding:2px 16px;}
       .rollbox .mag{background:#fff;color:#111;font-weight:bold;font-size:15px;padding:1px 16px;margin-top:3px;}
-      /* Meta block: two rows, mirroring the paper report it replaces. */
       table.meta{width:100%;border-collapse:collapse;font-size:10.5px;}
       table.meta td{border:1px solid #111;padding:3px 6px;vertical-align:middle;}
       table.meta td.k{background:#e9e9e9;font-weight:bold;white-space:nowrap;width:1%;}
       table.main{width:100%;border-collapse:collapse;font-size:9.5px;table-layout:fixed;margin-top:0;}
-      /* Every cell fully bordered, header included.
-         nowrap + a slightly tighter type size keeps every heading on ONE line.
-         Previously they wrapped mid-word in portrait ("SHO / T", "SHUTT / ER"),
-         which is unreadable; the column widths below are sized so the longest
-         heading in each still fits without clipping. */
-      table.main th{background:${camHeaderColor};color:#fff;padding:4px 2px;text-align:left;font-size:8px;
+      /* Every cell fully bordered, header included. nowrap + a tighter type
+         size keeps every heading on ONE line; the column widths are sized so
+         the longest heading in each still fits without clipping. */
+      table.main th{background:var(--cam,#7a1f1f);color:#fff;padding:4px 2px;text-align:left;font-size:8px;
         border:1px solid #111;white-space:nowrap;overflow:hidden;letter-spacing:-0.1px;
         line-height:1.2;vertical-align:middle;}
       table.main td{border:1px solid #444;padding:3px 4px;word-wrap:break-word;vertical-align:top;height:15px;}
@@ -2837,79 +2925,17 @@ function CameraReport(){
       .toolbar .print{background:#c98a3a;color:#111;font-weight:bold;}
       .toolbar .spacer-note{flex:1;font-size:11px;color:#aaa;text-align:left;}
       .content{margin-top:52px;}
-      @media print{ .toolbar{display:none!important;} .content{margin-top:0;} body{margin:0;} }
+      @media print{ .toolbar{display:none!important;} .content{margin-top:0;} body{margin:0;} .page+.page{margin-top:0;} }
     </style></head><body>
     <div class="toolbar">
-      <span class="spacer-note">${esc(roll.roll)} camera report &middot; use Print to save as PDF</span>
+      <span class="spacer-note">${esc(docTitle)} &middot; ${ordered.length} page${ordered.length!==1?'s':''} &middot; use Print to save as PDF</span>
       <button class="close" onclick="window.close()">&times; Close</button>
       <button class="print" onclick="window.print()">&#128424; Print / Save PDF</button>
     </div>
-    <div class="content">
-    <div class="sheet">
-    <div class="hdr">
-      <div class="crew">
-        <b>DIRECTOR:</b>${esc(roll.director)}<br>
-        <b>DOP:</b>${esc(roll.dop)}<br>
-        <b>1ST AC:</b>${esc(roll.ac)}
-      </div>
-      <div class="title">
-        <span class="plate">${esc(proj.projectName||'Camera Report')}</span>
-        <span class="sub">Camera Report</span>
-      </div>
-      <div class="rollbox">
-        <div class="lbl">ROLL #<br>MAG #</div>
-        <div class="val"><div class="roll">${esc(roll.roll)}</div><div class="mag">${esc(roll.mag)||'&nbsp;'}</div></div>
-      </div>
-    </div>
-    <table class="meta"><tbody>
-      <tr>
-        <td class="k">DATE:</td><td>${esc(dateStr)}</td>
-        <td class="k">SHOOT DAY:</td><td>${esc(roll.shootDay)}</td>
-        <td class="k">CODEC:</td><td>${esc(roll.codec)}</td>
-        <td class="k">CAMERA:</td><td>${esc(roll.camera)}</td>
-        <td class="k">LUT:</td><td>${esc(roll.lut)}</td>
-      </tr>
-      <tr>
-        <td class="k">FPS:</td><td>${esc(roll.fps)}</td>
-        <td class="k">SHUTTER:</td><td>${esc(roll.shutter)}</td>
-        <td class="k">LOCATION:</td><td colspan="5">${esc(roll.location)}</td>
-      </tr>
-    </tbody></table>
-    <table class="main">
-    <colgroup>
-      <!-- Widths are driven by the widest HEADING each column must fit on one
-           line at 8px, not by the data - the data wraps happily, headings must
-           not. "SHUTTER" and "FILTER n" are the constraining ones. -->
-      <col style="width:7.5%"/>  <!-- SCENE -->
-      <col style="width:4.2%"/>  <!-- SHOT -->
-      <col style="width:4.2%"/>  <!-- TAKE -->
-      <col style="width:2.8%"/>  <!-- T/S -->
-      <col style="width:4.4%"/>  <!-- CLIP -->
-      <col style="width:8.5%"/>  <!-- LENS -->
-      <col style="width:4.6%"/>  <!-- FOCAL -->
-      <col style="width:4%"/>    <!-- STOP -->
-      <col style="width:6%"/>    <!-- SHUTTER -->
-      <col style="width:3%"/>    <!-- EI -->
-      <col style="width:6%"/>    <!-- FILTER 1 -->
-      <col style="width:6%"/>    <!-- FILTER 2 -->
-      <col style="width:6%"/>    <!-- FILTER 3 -->
-      <col style="width:4.4%"/>  <!-- WB -->
-      <col style="width:5%"/>    <!-- FOCUS -->
-      <col/>                     <!-- NOTES takes remaining space -->
-      ${hasAnyPhoto?'<col style="width:5%"/>':''}
-    </colgroup>
-    <thead><tr>
-      <th>SCENE</th><th>SHOT</th><th>TAKE</th><th>T/S</th><th>CLIP</th><th>LENS</th><th>FOCAL</th><th>STOP</th><th>SHUTTER</th><th>EI</th>
-      <th>FILTER 1</th><th>FILTER 2</th><th>FILTER 3</th><th>WB</th><th>FOCUS</th><th>NOTES</th>${hasAnyPhoto?'<th>PHOTO</th>':''}
-    </tr></thead><tbody>${rows}</tbody></table>
-    <table class="meta"><tbody><tr class="foot">
-      <td class="k">NOTES:</td><td>End of ${esc(roll.roll)}${roll.shootDay?' &middot; SD '+esc(String(roll.shootDay).padStart(2,'0')):''}</td>
-    </tr></tbody></table>
-    </div>
-    </div>
+    <div class="content">${sheets}</div>
     </body></html>`;
 
-    // Write the finished report into the tab we opened synchronously above  - 
+    // Write the finished report into the tab we opened synchronously above -
     // this works even on Safari/iPad because that tab was opened in direct
     // response to the click, before any async work happened.
     if(preOpened && !preOpened.closed){
@@ -2922,7 +2948,7 @@ function CameraReport(){
     }
 
     // Fallback (pre-open was blocked, e.g. some in-app browsers): print via a
-    // hidden iframe on the current page  -  no new window/tab involved at all.
+    // hidden iframe on the current page - no new window/tab involved at all.
     const blob=new Blob([html],{type:'text/html'});
     const blobUrl=URL.createObjectURL(blob);
     const iframe=document.createElement('iframe');
@@ -3117,7 +3143,9 @@ function CameraReport(){
               background:'transparent',border:`1px solid ${T.border}`,color:T.textDim,cursor:'pointer',
               display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{'?'}</button>
           {roll&&<button onClick={exportCSV} style={{padding:'4px 10px',borderRadius:5,fontSize:10,fontFamily:"'Geist Mono',monospace",background:'transparent',border:`1px solid ${T.border}`,color:T.textMute,cursor:'pointer'}}>CSV</button>}
-          {roll&&<button disabled={exporting} onClick={async()=>{ setExporting(true); try{ await exportReport(); }finally{ setExporting(false); } }} style={{padding:'4px 10px',borderRadius:5,fontSize:10,fontFamily:"'Geist Mono',monospace",background:T.accent+'18',border:`1px solid ${T.accent}44`,color:T.accent,cursor:exporting?'default':'pointer',opacity:exporting?0.6:1}}>{exporting?'Preparing...':<>{unlocked?'\uD83D\uDDA8':'\uD83D\uDD12'} Print / PDF</>}</button>}
+          {roll&&<button disabled={exporting} onClick={openPrintPicker}
+            title="Print the whole shoot day - one page per roll, grouped by camera"
+            style={{padding:'4px 10px',borderRadius:5,fontSize:10,fontFamily:"'Geist Mono',monospace",background:T.accent+'18',border:`1px solid ${T.accent}44`,color:T.accent,cursor:exporting?'default':'pointer',opacity:exporting?0.6:1}}>{exporting?'Preparing...':<>{unlocked?'\uD83D\uDDA8':'\uD83D\uDD12'} Print / PDF</>}</button>}
         </div>
       )}
 
@@ -3762,6 +3790,76 @@ function CameraReport(){
             </button>
           </div>
         </>
+      )}
+
+      {/* Print scope picker - which cameras of this shoot day go in the PDF. */}
+      {showPrint&&(
+        <div style={{position:'fixed',inset:0,zIndex:10000,background:'rgba(0,0,0,0.72)',
+          display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+          <div style={{background:T.panel,border:`1px solid ${T.border}`,borderRadius:12,
+            width:'100%',maxWidth:380,boxShadow:'0 20px 60px rgba(0,0,0,0.7)',
+            display:'flex',flexDirection:'column'}}>
+            <div style={{padding:'14px 18px',borderBottom:`1px solid ${T.rule}`,display:'flex',alignItems:'center',gap:8}}>
+              <span style={{fontSize:16}}>{'🖨'}</span>
+              <span style={{fontSize:14,fontWeight:600,color:T.text,flex:1}}>
+                Print {filterDay==='all'?'all days':'Day '+filterDay}
+              </span>
+              <button onClick={()=>setShowPrint(false)} style={{background:'transparent',border:'none',color:T.textDim,fontSize:18,cursor:'pointer',lineHeight:1}}>{'×'}</button>
+            </div>
+            <div style={{padding:'16px 18px',display:'flex',flexDirection:'column',gap:12}}>
+              <div style={{fontSize:11,color:T.textDim,lineHeight:1.55}}>
+                One page per roll, cameras kept together - all of A's rolls, then B's.
+                {selectedDayDate?' '+fmtDayDate(selectedDayDate)+'.':''}
+              </div>
+              {dayCams.length===0
+                ?<div style={{fontSize:11,color:T.textDim,fontStyle:'italic'}}>Nothing shot on this day.</div>
+                :<div style={{display:'flex',flexDirection:'column',gap:6}}>
+                  {dayCams.map(c=>{
+                    const cfg=CAM_CONFIG[c];
+                    const on=printCams.includes(c);
+                    const rs=dayRolls.filter(r=>camOf(r)===c);
+                    const clips=rs.reduce((n,r)=>n+((r.takes||[]).length),0);
+                    return(
+                      <button key={c} onClick={()=>setPrintCams(prev=>on?prev.filter(x=>x!==c):[...prev,c])}
+                        style={{display:'flex',alignItems:'center',gap:10,width:'100%',textAlign:'left',
+                          padding:'10px 12px',borderRadius:7,cursor:'pointer',
+                          border:`1.5px solid ${on?cfg.accent:T.border}`,
+                          background:on?cfg.tint:'transparent',
+                          color:on?cfg.accent:T.textDim,fontSize:12,fontFamily:"'Geist Mono',monospace"}}>
+                        <span style={{width:17,height:17,borderRadius:4,display:'grid',placeItems:'center',fontSize:11,fontWeight:700,
+                          background:on?cfg.accent:'transparent',color:on?'#0e0d0b':T.textDim,
+                          border:`1px solid ${on?cfg.accent:T.border}`}}>{on?'✓':''}</span>
+                        <span style={{fontWeight:700}}>Cam {c}</span>
+                        <span style={{flex:1,textAlign:'right',fontSize:10,opacity:0.8}}>
+                          {rs.length} roll{rs.length!==1?'s':''} · {clips} clip{clips!==1?'s':''}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>}
+              <div style={{fontSize:10,color:printRolls.length?T.textDim:T.danger,fontFamily:"'Geist Mono',monospace"}}>
+                {printRolls.length
+                  ?`${printRolls.length} page${printRolls.length!==1?'s':''} will be printed`
+                  :'Pick at least one camera'}
+              </div>
+              <div style={{display:'flex',justifyContent:'flex-end',gap:8,borderTop:`1px solid ${T.rule}`,paddingTop:14}}>
+                <button onClick={()=>setShowPrint(false)}
+                  style={{padding:'8px 16px',borderRadius:6,border:`1px solid ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,cursor:'pointer'}}>Cancel</button>
+                <button disabled={!printRolls.length||exporting}
+                  onClick={async()=>{
+                    const sel=printRolls;
+                    setShowPrint(false); setExporting(true);
+                    try{ await exportReport(sel); }finally{ setExporting(false); }
+                  }}
+                  style={{padding:'8px 20px',borderRadius:6,background:T.accent,border:'none',color:'#0e0d0b',
+                    fontWeight:600,fontSize:12,cursor:(printRolls.length&&!exporting)?'pointer':'default',
+                    opacity:(printRolls.length&&!exporting)?1:0.5}}>
+                  {exporting?'Preparing...':'Print'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {showAIFill&&roll&&(
