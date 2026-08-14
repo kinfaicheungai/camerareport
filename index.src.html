@@ -1147,7 +1147,7 @@ const SB_LENS_PRESETS_KEY='sb_camrep_lens_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-const APP_VERSION='v3.3';
+const APP_VERSION='v3.4';
 
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
@@ -4428,19 +4428,9 @@ function ScenesEditorModal({onClose}){
             </div>
           ))}
           <button onClick={addRow} style={{alignSelf:'flex-start',padding:'7px 14px',borderRadius:6,border:`1px dashed ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:'pointer'}}>+ Add scene</button>
-          {problemCount>0&&(
-            <div style={{fontSize:10,lineHeight:1.5,color:T.danger,background:T.danger+'18',
-              border:`1px solid ${T.danger}55`,borderRadius:6,padding:'9px 11px'}}>
-              {'\u26A0'} The schedule runs backwards in {problemCount} place{problemCount!==1?'s':''}.
-              Every shoot day needs a date later than the day before it, and no two days can share a date.
-            </div>
-          )}
           <div style={{display:'flex',justifyContent:'flex-end',gap:8,borderTop:`1px solid ${T.rule}`,paddingTop:14,marginTop:6}}>
             <button onClick={onClose} style={{padding:'8px 16px',borderRadius:6,border:`1px solid ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,cursor:'pointer'}}>Cancel</button>
-            <button onClick={save} disabled={problemCount>0}
-              title={problemCount?'Fix the dates flagged above first':'Save shoot days'}
-              style={{padding:'8px 20px',borderRadius:6,background:T.accent,border:'none',color:'#0e0d0b',
-                fontWeight:600,fontSize:12,cursor:problemCount?'not-allowed':'pointer',opacity:problemCount?0.45:1}}>Save</button>
+            <button onClick={save} style={{padding:'8px 20px',borderRadius:6,background:T.accent,border:'none',color:'#0e0d0b',fontWeight:600,fontSize:12,cursor:'pointer'}}>Save</button>
           </div>
         </div>
       </div>
@@ -4607,19 +4597,9 @@ function ColumnsEditorModal({onClose}){
               <span style={{fontSize:12,color:T.text,fontFamily:"'Geist Mono',monospace"}}>{c.label}</span>
             </label>
           ))}
-          {problemCount>0&&(
-            <div style={{fontSize:10,lineHeight:1.5,color:T.danger,background:T.danger+'18',
-              border:`1px solid ${T.danger}55`,borderRadius:6,padding:'9px 11px'}}>
-              {'\u26A0'} The schedule runs backwards in {problemCount} place{problemCount!==1?'s':''}.
-              Every shoot day needs a date later than the day before it, and no two days can share a date.
-            </div>
-          )}
           <div style={{display:'flex',justifyContent:'flex-end',gap:8,borderTop:`1px solid ${T.rule}`,paddingTop:14,marginTop:6}}>
             <button onClick={onClose} style={{padding:'8px 16px',borderRadius:6,border:`1px solid ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,cursor:'pointer'}}>Cancel</button>
-            <button onClick={save} disabled={problemCount>0}
-              title={problemCount?'Fix the dates flagged above first':'Save shoot days'}
-              style={{padding:'8px 20px',borderRadius:6,background:T.accent,border:'none',color:'#0e0d0b',
-                fontWeight:600,fontSize:12,cursor:problemCount?'not-allowed':'pointer',opacity:problemCount?0.45:1}}>Save</button>
+            <button onClick={save} style={{padding:'8px 20px',borderRadius:6,background:T.accent,border:'none',color:'#0e0d0b',fontWeight:600,fontSize:12,cursor:'pointer'}}>Save</button>
           </div>
         </div>
       </div>
@@ -5246,6 +5226,40 @@ function AccessGate({children}){
    effect: T's fields are mutated in place by applyTheme(), so the only thing
    needed is for every component to render again and re-read them - remounting
    under a new key guarantees that with no per-component wiring. */
+/* React unmounts the ENTIRE tree when a render throws and nothing catches it -
+   one undefined variable in one dialog blanks the whole app, mid-shoot, with
+   the day's work still only in localStorage. This boundary keeps that
+   contained: the crash is shown, the data is untouched on disk, and Reload
+   brings everything back. It exists because exactly that happened. */
+class ErrorBoundary extends React.Component{
+  constructor(p){ super(p); this.state={err:null}; }
+  static getDerivedStateFromError(err){ return {err}; }
+  componentDidCatch(err,info){ console.error('camrep crash:',err,info); }
+  render(){
+    if(!this.state.err) return this.props.children;
+    return(
+      <div style={{minHeight:'100%',display:'flex',alignItems:'center',justifyContent:'center',
+        padding:24,background:T.bg,color:T.text,fontFamily:"'Geist Mono',monospace"}}>
+        <div style={{maxWidth:460,background:T.panel,border:`1px solid ${T.danger}55`,
+          borderRadius:12,padding:'20px 22px'}}>
+          <div style={{fontSize:15,fontWeight:600,color:T.danger,marginBottom:10}}>Something broke on screen</div>
+          <div style={{fontSize:12,color:T.textMute,lineHeight:1.65,marginBottom:14}}>
+            Your rolls and takes are safe - they're saved on this device and were not touched.
+            Reload to carry on. If it keeps happening, note what you tapped just before and tell Tim.
+          </div>
+          <pre style={{fontSize:10,color:T.textDim,background:T.surface2,padding:'9px 11px',
+            borderRadius:6,overflow:'auto',maxHeight:110,whiteSpace:'pre-wrap',marginBottom:14}}>
+            {String((this.state.err&&this.state.err.message)||this.state.err)}
+          </pre>
+          <button onClick={()=>window.location.reload()}
+            style={{padding:'9px 20px',borderRadius:7,background:T.accent,border:'none',
+              color:'#0e0d0b',fontWeight:600,fontSize:12,cursor:'pointer'}}>Reload</button>
+        </div>
+      </div>
+    );
+  }
+}
+
 function ThemedApp(){
   const [themeName,setThemeName]=React.useState(loadThemeName);
   React.useEffect(()=>{ applyTheme(themeName); },[themeName]);
@@ -5257,7 +5271,7 @@ function ThemedApp(){
   return(
     <ThemeCtx.Provider value={{themeName,toggleTheme}}>
       <div key={themeName} style={{height:'100%'}}>
-        <AccessGate><App/></AccessGate>
+        <ErrorBoundary><AccessGate><App/></AccessGate></ErrorBoundary>
       </div>
     </ThemeCtx.Provider>
   );
