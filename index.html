@@ -1906,7 +1906,7 @@ var SB_LENS_PRESETS_KEY = 'sb_camrep_lens_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-var APP_VERSION = 'v3.4';
+var APP_VERSION = 'v3.6';
 var CAM_CONFIG = {
   A: {
     label: 'A',
@@ -5089,10 +5089,14 @@ function CameraReport() {
       shot = last.shot || '/';
       take = takeNoForIn(rk, scene, shot) + '';
     }
-    // An additional take within the SAME shot ("+ Add take", i.e. take >= 2)
-    // starts with the clip-onward technical fields BLANK  -  the AC only fills
-    // in what changed. New shots / new scenes still carry sensible defaults.
-    var isExtraTake = mode === 'take' && !ref;
+    /* An additional take of the SAME shot starts blank apart from the lens -
+       the AC only writes down what changed, and between takes of one shot
+       almost nothing does. Note this is keyed on the MODE alone, not on
+       whether a reference take was passed in: a synced multi-camera "+ Add
+       take" used to take the other branch and copy a full setup onto B and C
+       cam, so the same button produced blank rows on one camera and populated
+       ones on the others. */
+    var isExtraTake = mode === 'take';
     var base = {
       id: 'tk' + Date.now() + Math.floor(Math.random() * 1000),
       scene: scene,
@@ -5102,6 +5106,9 @@ function CameraReport() {
       clip: nextClipNumberFor(rk)
     };
     if (isExtraTake) {
+      // Another take of the same shot: only the take and clip numbers move.
+      // Even the lens is left blank - it's the same glass as the row above,
+      // and the table hides repeats anyway.
       return _objectSpread(_objectSpread({}, base), {}, {
         lens: '',
         focal: '',
@@ -5535,6 +5542,13 @@ function CameraReport() {
     var anchorParsed = parseClip((anchor === null || anchor === void 0 ? void 0 : anchor.clip) || '');
     var newClip = anchorParsed ? fmtClip(anchorParsed, anchorParsed.num + 1) : '';
     var insertNum = anchorParsed ? anchorParsed.num + 1 : null;
+
+    /* An inserted row is another TAKE of the shot above it, so it behaves like
+       "+ Add take": scene and shot come from the anchor, the take number steps
+       up, and everything the AC would only write when it CHANGES is left
+       empty. Lens is the one exception that carries over - the glass doesn't
+       come off the camera between takes of the same shot, so repeating it is
+       noise, while a stale focal/stop/filter would be a quiet lie. */
     var newTake = {
       id: 'tk' + Date.now(),
       scene: scene,
@@ -5543,14 +5557,14 @@ function CameraReport() {
       tail: false,
       clip: newClip,
       lens: (anchor === null || anchor === void 0 ? void 0 : anchor.lens) || roll.lens || '',
-      focal: (anchor === null || anchor === void 0 ? void 0 : anchor.focal) || '',
-      stop: (anchor === null || anchor === void 0 ? void 0 : anchor.stop) || '',
-      shutter: (anchor === null || anchor === void 0 ? void 0 : anchor.shutter) || roll.shutter || '',
-      ei: (anchor === null || anchor === void 0 ? void 0 : anchor.ei) || roll.baseEI || '',
-      intFilters: (anchor === null || anchor === void 0 ? void 0 : anchor.intFilters) || '',
-      filters: (anchor === null || anchor === void 0 ? void 0 : anchor.filters) || '',
-      filters3: (anchor === null || anchor === void 0 ? void 0 : anchor.filters3) || '',
-      wb: (anchor === null || anchor === void 0 ? void 0 : anchor.wb) || '',
+      focal: '',
+      stop: '',
+      shutter: '',
+      ei: '',
+      intFilters: '',
+      filters: '',
+      filters3: '',
+      wb: '',
       focus: '',
       notes: '',
       photoIds: []
@@ -5718,8 +5732,15 @@ function CameraReport() {
               var hasPhoto = (rk.takes || []).some(function (t) {
                 return (t.photoIds || []).length > 0;
               });
-              var rows = (rk.takes || []).map(function (t) {
-                return "<tr>\n        <td>".concat(esc(sceneWithIE(t.scene)), "</td><td style=\"text-align:center\">").concat(esc(t.shot), "</td><td style=\"text-align:center\">").concat(esc(t.take), "</td>\n        <td style=\"text-align:center\">").concat(t.tail ? '✅' : '', "</td><td>").concat(esc(t.clip), "</td>\n        <td>").concat(esc(t.lens), "</td><td>").concat(esc(t.focal), "</td><td>").concat(esc(t.stop), "</td><td>").concat(esc(t.shutter || rk.shutter), "</td><td>").concat(esc(t.ei), "</td>\n        <td>").concat(esc(t.intFilters), "</td><td>").concat(esc(t.filters), "</td><td>").concat(esc(t.filters3), "</td><td>").concat(esc(t.wb), "</td><td>").concat(esc(t.focus), "</td>\n        <td>").concat(esc(t.notes), "</td>\n        ").concat(hasPhoto ? "<td>".concat(photoMap[t.id] ? "<img src=\"".concat(esc(photoMap[t.id]), "\" style=\"width:46px;height:34px;object-fit:cover;border-radius:2px;border:1px solid #999;\">") : '', "</td>") : '', "\n        </tr>");
+              /* Same convention as the on-screen table and as a hand-written report:
+                 a repeated scene or shot is left blank rather than restated on every
+                 take. The underlying data still carries them (CSV and the Sheets
+                 backup export the full values for machines to read). */
+              var rows = (rk.takes || []).map(function (t, ti, arr) {
+                var pv = ti > 0 ? arr[ti - 1] : null;
+                var sc = pv && String(pv.scene || '') === String(t.scene || '') ? '' : sceneWithIE(t.scene);
+                var sh = pv && String(pv.shot || '') === String(t.shot || '') ? '' : t.shot;
+                return "<tr>\n        <td>".concat(esc(sc), "</td><td style=\"text-align:center\">").concat(esc(sh), "</td><td style=\"text-align:center\">").concat(esc(t.take), "</td>\n        <td style=\"text-align:center\">").concat(t.tail ? '✅' : '', "</td><td>").concat(esc(t.clip), "</td>\n        <td>").concat(esc(t.lens), "</td><td>").concat(esc(t.focal), "</td><td>").concat(esc(t.stop), "</td><td>").concat(esc(t.shutter || rk.shutter), "</td><td>").concat(esc(t.ei), "</td>\n        <td>").concat(esc(t.intFilters), "</td><td>").concat(esc(t.filters), "</td><td>").concat(esc(t.filters3), "</td><td>").concat(esc(t.wb), "</td><td>").concat(esc(t.focus), "</td>\n        <td>").concat(esc(t.notes), "</td>\n        ").concat(hasPhoto ? "<td>".concat(photoMap[t.id] ? "<img src=\"".concat(esc(photoMap[t.id]), "\" style=\"width:46px;height:34px;object-fit:cover;border-radius:2px;border:1px solid #999;\">") : '', "</td>") : '', "\n        </tr>");
               }).join('');
               return "<div class=\"sheet\" style=\"--cam:".concat(cfg.header, "\">\n      <div class=\"hdr\">\n        <div class=\"crew\">\n          <b>DIRECTOR:</b>").concat(esc(rk.director), "<br>\n          <b>DOP:</b>").concat(esc(rk.dop), "<br>\n          <b>1ST AC:</b>").concat(esc(rk.ac), "\n        </div>\n        <div class=\"title\">\n          <span class=\"plate\">").concat(esc(proj.projectName || 'Camera Report'), "</span>\n          <span class=\"sub\">Camera Report</span>\n        </div>\n        <div class=\"rollbox\">\n          <div class=\"lbl\">ROLL #<br>MAG #</div>\n          <div class=\"val\"><div class=\"roll\" style=\"background:").concat(tag, "\">").concat(esc(rk.roll), "</div><div class=\"mag\">").concat(esc(rk.mag) || '&nbsp;', "</div></div>\n        </div>\n      </div>\n      <table class=\"meta\"><tbody>\n        <tr>\n          <td class=\"k\">DATE:</td><td>").concat(esc(dateStr), "</td>\n          <td class=\"k\">SHOOT DAY:</td><td>").concat(esc(rk.shootDay), "</td>\n          <td class=\"k\">CODEC:</td><td>").concat(esc(rk.codec), "</td>\n          <td class=\"k\">CAMERA:</td><td>").concat(esc(rk.camera), "</td>\n          <td class=\"k\">LUT:</td><td>").concat(esc(rk.lut), "</td>\n        </tr>\n        <tr>\n          <td class=\"k\">FPS:</td><td>").concat(esc(rk.fps), "</td>\n          <td class=\"k\">SHUTTER:</td><td>").concat(esc(rk.shutter), "</td>\n          <td class=\"k\">LOCATION:</td><td colspan=\"5\">").concat(esc(rk.location), "</td>\n        </tr>\n      </tbody></table>\n      <table class=\"main\">\n      <colgroup>\n        <col style=\"width:7.5%\"/><col style=\"width:4.2%\"/><col style=\"width:4.2%\"/><col style=\"width:2.8%\"/>\n        <col style=\"width:4.4%\"/><col style=\"width:8.5%\"/><col style=\"width:4.6%\"/><col style=\"width:4%\"/>\n        <col style=\"width:6%\"/><col style=\"width:3%\"/><col style=\"width:6%\"/><col style=\"width:6%\"/>\n        <col style=\"width:6%\"/><col style=\"width:4.4%\"/><col style=\"width:5%\"/><col/>\n        ").concat(hasPhoto ? '<col style="width:5%"/>' : '', "\n      </colgroup>\n      <thead><tr>\n        <th>SCENE</th><th>SHOT</th><th>TAKE</th><th>T/S</th><th>CLIP</th><th>LENS</th><th>FOCAL</th><th>STOP</th><th>SHUTTER</th><th>EI</th>\n        <th>FILTER 1</th><th>FILTER 2</th><th>FILTER 3</th><th>WB</th><th>FOCUS</th><th>NOTES</th>").concat(hasPhoto ? '<th>PHOTO</th>' : '', "\n      </tr></thead><tbody>").concat(rows, "</tbody></table>\n      <table class=\"meta\"><tbody><tr class=\"foot\">\n        <td class=\"k\">NOTES:</td><td>End of ").concat(esc(rk.roll)).concat(rk.shootDay ? ' &middot; SD ' + esc(String(rk.shootDay).padStart(2, '0')) : '', "</td>\n      </tr></tbody></table>\n      </div>");
             };
@@ -7599,6 +7620,15 @@ function CameraReport() {
       boxShadow: 'inset 0 0 0 1.5px #e5484d'
     };
     var isSel = selTakeIds.includes(t.id);
+    /* Repeated scene/shot are shown BLANK, the way they're written
+       on paper: take 2 of a shot doesn't restate the scene number.
+       Only the display is blanked - the values stay in the data,
+       because take numbering, shot lettering, grouping, search and
+       the Sheets export all read them. Storing literal blanks
+       instead would make "take 2 of scene 41" indistinguishable
+       from "a take belonging to no scene". */
+    var sameScene = !!prev && String(prev.scene || '') === String(t.scene || '');
+    var sameShot = !!prev && String(prev.shot || '') === String(t.shot || '');
     // border-collapse:'separate' (needed for the sticky/floating header
     // fix above) means a border set directly on the <tr> no longer paints
     // reliably in most browsers - so the shot/scene divider line has to be
@@ -7632,8 +7662,8 @@ function CameraReport() {
         borderRight: "1px solid ".concat(T.rule)
       })
     }, /*#__PURE__*/React.createElement(LensFocalPicker, {
-      value: t.scene || '',
-      placeholder: "-",
+      value: sameScene ? '' : t.scene || '',
+      placeholder: sameScene ? '' : '-',
       options: sceneIds,
       inputStyle: cellInput,
       noFilter: true,
@@ -7650,8 +7680,8 @@ function CameraReport() {
         borderRight: "1px solid ".concat(T.rule)
       })
     }, /*#__PURE__*/React.createElement("input", {
-      value: t.shot || '',
-      placeholder: "/",
+      value: sameShot ? '' : t.shot || '',
+      placeholder: sameShot ? '' : '/',
       onChange: function onChange(e) {
         return changeTakeShot(t.id, e.target.value.toUpperCase());
       },

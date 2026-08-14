@@ -1147,7 +1147,7 @@ const SB_LENS_PRESETS_KEY='sb_camrep_lens_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-const APP_VERSION='v3.4';
+const APP_VERSION='v3.6';
 
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
@@ -2696,13 +2696,20 @@ function CameraReport(){
       scene=last.scene||(scenes[0]?.id||'');
       shot=last.shot||'/'; take=takeNoForIn(rk,scene,shot)+'';
     }
-    // An additional take within the SAME shot ("+ Add take", i.e. take >= 2)
-    // starts with the clip-onward technical fields BLANK  -  the AC only fills
-    // in what changed. New shots / new scenes still carry sensible defaults.
-    const isExtraTake=(mode==='take')&&(!ref);
+    /* An additional take of the SAME shot starts blank apart from the lens -
+       the AC only writes down what changed, and between takes of one shot
+       almost nothing does. Note this is keyed on the MODE alone, not on
+       whether a reference take was passed in: a synced multi-camera "+ Add
+       take" used to take the other branch and copy a full setup onto B and C
+       cam, so the same button produced blank rows on one camera and populated
+       ones on the others. */
+    const isExtraTake=(mode==='take');
     const base={id:'tk'+Date.now()+Math.floor(Math.random()*1000),
       scene, shot, take, tail:false, clip:nextClipNumberFor(rk)};
     if(isExtraTake){
+      // Another take of the same shot: only the take and clip numbers move.
+      // Even the lens is left blank - it's the same glass as the row above,
+      // and the table hides repeats anyway.
       return {...base,
         lens:'', focal:'', stop:'', shutter:'', ei:'',
         intFilters:'', filters:'', filters3:'',
@@ -2948,20 +2955,21 @@ function CameraReport(){
     const newClip=anchorParsed?fmtClip(anchorParsed,anchorParsed.num+1):'';
     const insertNum=anchorParsed?anchorParsed.num+1:null;
 
+    /* An inserted row is another TAKE of the shot above it, so it behaves like
+       "+ Add take": scene and shot come from the anchor, the take number steps
+       up, and everything the AC would only write when it CHANGES is left
+       empty. Lens is the one exception that carries over - the glass doesn't
+       come off the camera between takes of the same shot, so repeating it is
+       noise, while a stale focal/stop/filter would be a quiet lie. */
     const newTake={
       id:'tk'+Date.now(),
       scene, shot,
       take:String(takeNoFor(scene,shot)),
       tail:false, clip:newClip,
       lens:anchor?.lens||roll.lens||'',
-      focal:anchor?.focal||'',
-      stop:anchor?.stop||'',
-      shutter:anchor?.shutter||roll.shutter||'',
-      ei:anchor?.ei||roll.baseEI||'',
-      intFilters:anchor?.intFilters||'',
-      filters:anchor?.filters||'',
-      filters3:anchor?.filters3||'',
-      wb:anchor?.wb||'', focus:'', notes:'',
+      focal:'', stop:'', shutter:'', ei:'',
+      intFilters:'', filters:'', filters3:'',
+      wb:'', focus:'', notes:'',
       photoIds:[]
     };
 
@@ -3095,14 +3103,23 @@ function CameraReport(){
       const cfg=CAM_CONFIG[camOf(rk)]||CAM_CONFIG.A;
       const tag={A:'#f3b0b0',B:'#b0c8f3',C:'#f0e0a0',D:'#b0f3c8',E:'#dcc0f3'}[camOf(rk)]||'#f3b0b0';
       const hasPhoto=(rk.takes||[]).some(t=>(t.photoIds||[]).length>0);
-      const rows=(rk.takes||[]).map(t=>`<tr>
-        <td>${esc(sceneWithIE(t.scene))}</td><td style="text-align:center">${esc(t.shot)}</td><td style="text-align:center">${esc(t.take)}</td>
+      /* Same convention as the on-screen table and as a hand-written report:
+         a repeated scene or shot is left blank rather than restated on every
+         take. The underlying data still carries them (CSV and the Sheets
+         backup export the full values for machines to read). */
+      const rows=(rk.takes||[]).map((t,ti,arr)=>{
+        const pv=ti>0?arr[ti-1]:null;
+        const sc=(pv&&String(pv.scene||'')===String(t.scene||''))?'':sceneWithIE(t.scene);
+        const sh=(pv&&String(pv.shot||'')===String(t.shot||''))?'':t.shot;
+        return `<tr>
+        <td>${esc(sc)}</td><td style="text-align:center">${esc(sh)}</td><td style="text-align:center">${esc(t.take)}</td>
         <td style="text-align:center">${t.tail?'✅':''}</td><td>${esc(t.clip)}</td>
         <td>${esc(t.lens)}</td><td>${esc(t.focal)}</td><td>${esc(t.stop)}</td><td>${esc(t.shutter||rk.shutter)}</td><td>${esc(t.ei)}</td>
         <td>${esc(t.intFilters)}</td><td>${esc(t.filters)}</td><td>${esc(t.filters3)}</td><td>${esc(t.wb)}</td><td>${esc(t.focus)}</td>
         <td>${esc(t.notes)}</td>
         ${hasPhoto?`<td>${photoMap[t.id]?`<img src="${esc(photoMap[t.id])}" style="width:46px;height:34px;object-fit:cover;border-radius:2px;border:1px solid #999;">`:''}</td>`:''}
-        </tr>`).join('');
+        </tr>`;
+      }).join('');
       return `<div class="sheet" style="--cam:${cfg.header}">
       <div class="hdr">
         <div class="crew">
@@ -3939,6 +3956,15 @@ function CameraReport(){
                 const needStop=hasScene&&isFirstTakeOfShot&&!String(t.stop||'').trim();
                 const reqStyle={background:'rgba(229,72,77,0.16)',boxShadow:'inset 0 0 0 1.5px #e5484d'};
                 const isSel=selTakeIds.includes(t.id);
+                /* Repeated scene/shot are shown BLANK, the way they're written
+                   on paper: take 2 of a shot doesn't restate the scene number.
+                   Only the display is blanked - the values stay in the data,
+                   because take numbering, shot lettering, grouping, search and
+                   the Sheets export all read them. Storing literal blanks
+                   instead would make "take 2 of scene 41" indistinguishable
+                   from "a take belonging to no scene". */
+                const sameScene=!!prev&&String(prev.scene||'')===String(t.scene||'');
+                const sameShot=!!prev&&String(prev.shot||'')===String(t.shot||'');
                 // border-collapse:'separate' (needed for the sticky/floating header
                 // fix above) means a border set directly on the <tr> no longer paints
                 // reliably in most browsers - so the shot/scene divider line has to be
@@ -3956,14 +3982,14 @@ function CameraReport(){
                         already holds a scene ID would filter the dropdown down to
                         just itself, making it impossible to browse/pick a different
                         one without clearing the field first. */}
-                    <LensFocalPicker value={t.scene||''} placeholder="-" options={sceneIds} inputStyle={cellInput} noFilter
+                    <LensFocalPicker value={sameScene?'':(t.scene||'')} placeholder={sameScene?'':'-'} options={sceneIds} inputStyle={cellInput} noFilter
                       onChange={v=>{
                         const first=v.split(',')[0].trim();
                         const newTake=first?takeNoFor(first,t.shot||'/',t.id):t.take;
                         patchTake(t.id,{scene:v,take:String(newTake)});
                       }}/>
                   </td>
-                  {!hiddenCols.has('shot')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.shot||''} placeholder="/" onChange={e=>changeTakeShot(t.id,e.target.value.toUpperCase())} style={{...cellInput,textAlign:'center'}}/></td>}
+                  {!hiddenCols.has('shot')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={sameShot?'':(t.shot||'')} placeholder={sameShot?'':'/'} onChange={e=>changeTakeShot(t.id,e.target.value.toUpperCase())} style={{...cellInput,textAlign:'center'}}/></td>}
                   <td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.take||''} onChange={e=>patchTake(t.id,{take:e.target.value})} style={{...cellInput,textAlign:'center'}} inputMode="numeric"/></td>
                   {!hiddenCols.has('tail')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,textAlign:'center'}}>
                     <button onClick={()=>patchTake(t.id,{tail:!t.tail})} title="Tail slate" aria-label="Toggle tail slate" style={{background:'transparent',border:'none',cursor:'pointer',fontSize:14,padding:'2px'}}>{t.tail?'\u2705':'\u2610'}</button>
