@@ -1155,6 +1155,46 @@ function shootDaysToText(days) {
   }).join('\n');
 }
 
+/* A shooting schedule runs strictly forwards: Day 3 is always a LATER calendar
+   date than Day 2, and no two shoot days can fall on the same date. Breaking
+   that isn't a cosmetic slip - shoot day and date both end up printed on the
+   report and quoted in post, so a schedule where Day 3 precedes Day 2 produces
+   paperwork that contradicts itself and can't be sorted back into order.
+   Days with no date yet are simply skipped: an unscheduled day is legitimate,
+   it just isn't part of the sequence until it has a date. Dates are ISO
+   (YYYY-MM-DD), so plain string comparison is chronological.
+   Returns { [dayNumber]: reason } - empty object means the schedule is sound. */
+function shootDayProblems(days) {
+  var out = {};
+  var seen = {};
+  (days || []).forEach(function (d) {
+    var n = parseInt(d.day, 10) || 0;
+    if (!n) return;
+    if (seen[n]) out[n] = 'Day ' + n + ' is listed twice';
+    seen[n] = true;
+  });
+  var dated = (days || []).map(function (d) {
+    return {
+      day: parseInt(d.day, 10) || 0,
+      date: String(d.date || '').trim()
+    };
+  }).filter(function (d) {
+    return d.day && d.date;
+  }).sort(function (a, b) {
+    return a.day - b.day;
+  });
+  for (var i = 1; i < dated.length; i++) {
+    var prev = dated[i - 1],
+      cur = dated[i];
+    if (cur.date === prev.date) {
+      out[cur.day] = 'same date as Day ' + prev.day;
+    } else if (cur.date < prev.date) {
+      out[cur.day] = 'earlier than Day ' + prev.day;
+    }
+  }
+  return out;
+}
+
 /* Scenes are stored as {id, slug} where slug is free text like
    "INT. APARTMENT - DAY" - sceneIntExt() pulls the INT/EXT tag out of it
    with a regex. The structured Scene editor splits that same slug into an
@@ -1856,7 +1896,7 @@ var SB_LENS_PRESETS_KEY = 'sb_camrep_lens_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-var APP_VERSION = 'v3.1';
+var APP_VERSION = 'v3.3';
 var CAM_CONFIG = {
   A: {
     label: 'A',
@@ -4702,10 +4742,12 @@ function CameraReport() {
      there is no day record to share it with. */
   function setRollDate(v) {
     if (!roll) return;
-    patchRoll(roll.id, {
-      date: v
-    });
-    if (!roll.shootDay) return;
+    if (!roll.shootDay) {
+      patchRoll(roll.id, {
+        date: v
+      });
+      return;
+    }
     var rec = shootDays.find(function (d) {
       return d.day === roll.shootDay;
     });
@@ -4718,6 +4760,36 @@ function CameraReport() {
       day: roll.shootDay,
       date: v
     }]); // day existed only on rolls
+    /* This box edits the whole SHOOT DAY, so it has to obey the same rule the
+       Shoot days editor enforces: the schedule can only run forwards. Rejecting
+       here rather than accepting and flagging later, because the bad value
+       would immediately propagate to every other camera's roll on that day.
+        Compare the WHOLE problem set before and after, not just the entry for
+       the day being edited. shootDayProblems reports a clash against the LATER
+       of the two days, so moving Day 2 onto Day 3's date files the complaint
+       under Day 3 - checking only this day's own entry would wave it straight
+       through. Anything newly broken counts, wherever it surfaces. */
+    var before = shootDayProblems(shootDays);
+    var after = shootDayProblems(next);
+    var introduced = Object.keys(after).filter(function (k) {
+      return !before[k];
+    });
+    if (introduced.length) {
+      var own = after[roll.shootDay];
+      var other = introduced[0];
+      var neighbours = shootDays.filter(function (d) {
+        return d.day !== roll.shootDay && d.date;
+      }).sort(function (a, b) {
+        return a.day - b.day;
+      }).map(function (d) {
+        return 'Day ' + d.day + ': ' + fmtDayDate(d.date);
+      }).join('\n');
+      alert('Day ' + roll.shootDay + ' cannot be ' + fmtDayDate(v) + ' - ' + (own ? 'it would be ' + own : 'Day ' + other + ' would then be ' + after[other]) + '.\n\n' + 'Shoot days have to run forwards, and no two days can share a date.\n\n' + (neighbours ? 'Currently:\n' + neighbours : ''));
+      return;
+    }
+    patchRoll(roll.id, {
+      date: v
+    });
     updateData({
       shootDays: next
     });
@@ -4734,6 +4806,17 @@ function CameraReport() {
       return d.day === maxDay;
     });
     var nextDate = prevRec && prevRec.date ? addOneDay(prevRec.date) : new Date().toISOString().slice(0, 10);
+    /* Auto-fill has to satisfy the same forwards-only rule as a hand edit.
+       Deriving from the previous day is normally enough, but when that day has
+       no date we fall back to today, which can land on or before a day already
+       in the schedule - so step forwards until it doesn't. */
+    for (var i = 0; i < 400; i++) {
+      if (!shootDayProblems([].concat(_toConsumableArray(shootDays), [{
+        day: nextDay,
+        date: nextDate
+      }]))[nextDay]) break;
+      nextDate = addOneDay(nextDate);
+    }
     updateData({
       shootDays: [].concat(_toConsumableArray(shootDays), [{
         day: nextDay,
@@ -8955,7 +9038,17 @@ function ScenesEditorModal(_ref33) {
       fontFamily: "'Geist Mono',monospace",
       cursor: 'pointer'
     }
-  }, "+ Add scene"), /*#__PURE__*/React.createElement("div", {
+  }, "+ Add scene"), problemCount > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      lineHeight: 1.5,
+      color: T.danger,
+      background: T.danger + '18',
+      border: "1px solid ".concat(T.danger, "55"),
+      borderRadius: 6,
+      padding: '9px 11px'
+    }
+  }, "\u26A0", " The schedule runs backwards in ", problemCount, " place", problemCount !== 1 ? 's' : '', ". Every shoot day needs a date later than the day before it, and no two days can share a date."), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       justifyContent: 'flex-end',
@@ -8977,6 +9070,8 @@ function ScenesEditorModal(_ref33) {
     }
   }, "Cancel"), /*#__PURE__*/React.createElement("button", {
     onClick: save,
+    disabled: problemCount > 0,
+    title: problemCount ? 'Fix the dates flagged above first' : 'Save shoot days',
     style: {
       padding: '8px 20px',
       borderRadius: 6,
@@ -8985,7 +9080,8 @@ function ScenesEditorModal(_ref33) {
       color: '#0e0d0b',
       fontWeight: 600,
       fontSize: 12,
-      cursor: 'pointer'
+      cursor: problemCount ? 'not-allowed' : 'pointer',
+      opacity: problemCount ? 0.45 : 1
     }
   }, "Save")))));
 }
@@ -9055,7 +9151,16 @@ function ShootDaysEditorModal(_ref34) {
       }]);
     });
   }
+  /* Validated live rather than only on save, so a bad date is flagged on the
+     row that caused it while the user is still looking at it. Save stays
+     disabled until the schedule runs forwards again - a half-corrected
+     schedule written back would silently reorder the production. */
+  var problems = React.useMemo(function () {
+    return shootDayProblems(rows);
+  }, [rows]);
+  var problemCount = Object.keys(problems).length;
   function save() {
+    if (problemCount) return;
     var shootDays = rows.map(function (r) {
       return {
         day: parseInt(r.day, 10) || 0,
@@ -9146,7 +9251,7 @@ function ShootDaysEditorModal(_ref34) {
       color: T.textDim,
       lineHeight: 1.5
     }
-  }, "Optional - powers the shoot-day dropdown on each roll. Adding a new day auto-fills the next day number and the next calendar date for you; both are still editable."), rows.length === 0 && /*#__PURE__*/React.createElement("div", {
+  }, "Optional - powers the shoot-day dropdown on each roll. Adding a new day auto-fills the next day number and the next calendar date for you; both are still editable. Each day must fall on a later date than the one before it."), rows.length === 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       color: T.textDim,
@@ -9163,8 +9268,10 @@ function ShootDaysEditorModal(_ref34) {
       paddingRight: 2
     }
   }, rows.map(function (r, i) {
+    var bad = problems[parseInt(r.day, 10) || 0];
     return /*#__PURE__*/React.createElement("div", {
-      key: r._k,
+      key: r._k
+    }, /*#__PURE__*/React.createElement("div", {
       style: {
         display: 'grid',
         gridTemplateColumns: '60px 1fr auto',
@@ -9181,7 +9288,8 @@ function ShootDaysEditorModal(_ref34) {
       },
       placeholder: "1",
       style: _objectSpread(_objectSpread({}, inp), {}, {
-        textAlign: 'center'
+        textAlign: 'center',
+        border: "1px solid ".concat(bad ? T.danger : T.border)
       })
     }), /*#__PURE__*/React.createElement("input", {
       type: "date",
@@ -9191,7 +9299,9 @@ function ShootDaysEditorModal(_ref34) {
           date: e.target.value
         });
       },
-      style: inp
+      style: _objectSpread(_objectSpread({}, inp), {}, {
+        border: "1px solid ".concat(bad ? T.danger : T.border)
+      })
     }), /*#__PURE__*/React.createElement("button", {
       onClick: function onClick() {
         return removeRow(i);
@@ -9207,7 +9317,15 @@ function ShootDaysEditorModal(_ref34) {
         padding: '6px 9px',
         cursor: 'pointer'
       }
-    }, '×'));
+    }, '×')), bad && /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 9,
+        color: T.danger,
+        fontFamily: "'Geist Mono',monospace",
+        marginTop: 3,
+        paddingLeft: 2
+      }
+    }, "\u26A0", " ", bad));
   })), /*#__PURE__*/React.createElement("button", {
     onClick: addRow,
     style: {
@@ -9221,7 +9339,17 @@ function ShootDaysEditorModal(_ref34) {
       fontFamily: "'Geist Mono',monospace",
       cursor: 'pointer'
     }
-  }, "+ Add day"), /*#__PURE__*/React.createElement("div", {
+  }, "+ Add day"), problemCount > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      lineHeight: 1.5,
+      color: T.danger,
+      background: T.danger + '18',
+      border: "1px solid ".concat(T.danger, "55"),
+      borderRadius: 6,
+      padding: '9px 11px'
+    }
+  }, "\u26A0", " The schedule runs backwards in ", problemCount, " place", problemCount !== 1 ? 's' : '', ". Every shoot day needs a date later than the day before it, and no two days can share a date."), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       justifyContent: 'flex-end',
@@ -9243,6 +9371,8 @@ function ShootDaysEditorModal(_ref34) {
     }
   }, "Cancel"), /*#__PURE__*/React.createElement("button", {
     onClick: save,
+    disabled: problemCount > 0,
+    title: problemCount ? 'Fix the dates flagged above first' : 'Save shoot days',
     style: {
       padding: '8px 20px',
       borderRadius: 6,
@@ -9251,7 +9381,8 @@ function ShootDaysEditorModal(_ref34) {
       color: '#0e0d0b',
       fontWeight: 600,
       fontSize: 12,
-      cursor: 'pointer'
+      cursor: problemCount ? 'not-allowed' : 'pointer',
+      opacity: problemCount ? 0.45 : 1
     }
   }, "Save")))));
 }
@@ -9383,7 +9514,17 @@ function ColumnsEditorModal(_ref35) {
         fontFamily: "'Geist Mono',monospace"
       }
     }, c.label));
-  }), /*#__PURE__*/React.createElement("div", {
+  }), problemCount > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      lineHeight: 1.5,
+      color: T.danger,
+      background: T.danger + '18',
+      border: "1px solid ".concat(T.danger, "55"),
+      borderRadius: 6,
+      padding: '9px 11px'
+    }
+  }, "\u26A0", " The schedule runs backwards in ", problemCount, " place", problemCount !== 1 ? 's' : '', ". Every shoot day needs a date later than the day before it, and no two days can share a date."), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       justifyContent: 'flex-end',
@@ -9405,6 +9546,8 @@ function ColumnsEditorModal(_ref35) {
     }
   }, "Cancel"), /*#__PURE__*/React.createElement("button", {
     onClick: save,
+    disabled: problemCount > 0,
+    title: problemCount ? 'Fix the dates flagged above first' : 'Save shoot days',
     style: {
       padding: '8px 20px',
       borderRadius: 6,
@@ -9413,7 +9556,8 @@ function ColumnsEditorModal(_ref35) {
       color: '#0e0d0b',
       fontWeight: 600,
       fontSize: 12,
-      cursor: 'pointer'
+      cursor: problemCount ? 'not-allowed' : 'pointer',
+      opacity: problemCount ? 0.45 : 1
     }
   }, "Save")))));
 }

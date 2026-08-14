@@ -799,6 +799,39 @@ function parseShootDaysText(txt){
 }
 function shootDaysToText(days){ return (days||[]).map(d=>d.day+' | '+(d.date||'')).join('\n'); }
 
+/* A shooting schedule runs strictly forwards: Day 3 is always a LATER calendar
+   date than Day 2, and no two shoot days can fall on the same date. Breaking
+   that isn't a cosmetic slip - shoot day and date both end up printed on the
+   report and quoted in post, so a schedule where Day 3 precedes Day 2 produces
+   paperwork that contradicts itself and can't be sorted back into order.
+   Days with no date yet are simply skipped: an unscheduled day is legitimate,
+   it just isn't part of the sequence until it has a date. Dates are ISO
+   (YYYY-MM-DD), so plain string comparison is chronological.
+   Returns { [dayNumber]: reason } - empty object means the schedule is sound. */
+function shootDayProblems(days){
+  const out={};
+  const seen={};
+  (days||[]).forEach(d=>{
+    const n=parseInt(d.day,10)||0;
+    if(!n)return;
+    if(seen[n]) out[n]='Day '+n+' is listed twice';
+    seen[n]=true;
+  });
+  const dated=(days||[])
+    .map(d=>({day:parseInt(d.day,10)||0,date:String(d.date||'').trim()}))
+    .filter(d=>d.day&&d.date)
+    .sort((a,b)=>a.day-b.day);
+  for(let i=1;i<dated.length;i++){
+    const prev=dated[i-1], cur=dated[i];
+    if(cur.date===prev.date){
+      out[cur.day]='same date as Day '+prev.day;
+    }else if(cur.date<prev.date){
+      out[cur.day]='earlier than Day '+prev.day;
+    }
+  }
+  return out;
+}
+
 /* Scenes are stored as {id, slug} where slug is free text like
    "INT. APARTMENT - DAY" - sceneIntExt() pulls the INT/EXT tag out of it
    with a regex. The structured Scene editor splits that same slug into an
@@ -1114,7 +1147,7 @@ const SB_LENS_PRESETS_KEY='sb_camrep_lens_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-const APP_VERSION='v3.1';
+const APP_VERSION='v3.3';
 
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
@@ -2405,13 +2438,38 @@ function CameraReport(){
      there is no day record to share it with. */
   function setRollDate(v){
     if(!roll)return;
-    patchRoll(roll.id,{date:v});
-    if(!roll.shootDay)return;
+    if(!roll.shootDay){ patchRoll(roll.id,{date:v}); return; }
     const rec=shootDays.find(d=>d.day===roll.shootDay);
     if(rec&&rec.date===v)return;                       // already in step
     const next=rec
       ? shootDays.map(d=>d.day===roll.shootDay?{...d,date:v}:d)
       : [...shootDays,{day:roll.shootDay,date:v}];     // day existed only on rolls
+    /* This box edits the whole SHOOT DAY, so it has to obey the same rule the
+       Shoot days editor enforces: the schedule can only run forwards. Rejecting
+       here rather than accepting and flagging later, because the bad value
+       would immediately propagate to every other camera's roll on that day.
+
+       Compare the WHOLE problem set before and after, not just the entry for
+       the day being edited. shootDayProblems reports a clash against the LATER
+       of the two days, so moving Day 2 onto Day 3's date files the complaint
+       under Day 3 - checking only this day's own entry would wave it straight
+       through. Anything newly broken counts, wherever it surfaces. */
+    const before=shootDayProblems(shootDays);
+    const after=shootDayProblems(next);
+    const introduced=Object.keys(after).filter(k=>!before[k]);
+    if(introduced.length){
+      const own=after[roll.shootDay];
+      const other=introduced[0];
+      const neighbours=shootDays.filter(d=>d.day!==roll.shootDay&&d.date)
+        .sort((a,b)=>a.day-b.day)
+        .map(d=>'Day '+d.day+': '+fmtDayDate(d.date)).join('\n');
+      alert('Day '+roll.shootDay+' cannot be '+fmtDayDate(v)+' - '+
+        (own?('it would be '+own):('Day '+other+' would then be '+after[other]))+'.\n\n'+
+        'Shoot days have to run forwards, and no two days can share a date.\n\n'+
+        (neighbours?'Currently:\n'+neighbours:''));
+      return;
+    }
+    patchRoll(roll.id,{date:v});
     updateData({shootDays:next});
   }
 
@@ -2424,9 +2482,17 @@ function CameraReport(){
     const maxDay=allDayNums.length?Math.max(...allDayNums):0;
     const nextDay=maxDay+1;
     const prevRec=shootDays.find(d=>d.day===maxDay);
-    const nextDate=prevRec&&prevRec.date
+    let nextDate=prevRec&&prevRec.date
       ? addOneDay(prevRec.date)
       : new Date().toISOString().slice(0,10);
+    /* Auto-fill has to satisfy the same forwards-only rule as a hand edit.
+       Deriving from the previous day is normally enough, but when that day has
+       no date we fall back to today, which can land on or before a day already
+       in the schedule - so step forwards until it doesn't. */
+    for(let i=0;i<400;i++){
+      if(!shootDayProblems([...shootDays,{day:nextDay,date:nextDate}])[nextDay])break;
+      nextDate=addOneDay(nextDate);
+    }
     updateData({shootDays:[...shootDays,{day:nextDay,date:nextDate}]});
     setFilterDay(nextDay);
     setActiveRoll(null);
@@ -4362,9 +4428,19 @@ function ScenesEditorModal({onClose}){
             </div>
           ))}
           <button onClick={addRow} style={{alignSelf:'flex-start',padding:'7px 14px',borderRadius:6,border:`1px dashed ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:'pointer'}}>+ Add scene</button>
+          {problemCount>0&&(
+            <div style={{fontSize:10,lineHeight:1.5,color:T.danger,background:T.danger+'18',
+              border:`1px solid ${T.danger}55`,borderRadius:6,padding:'9px 11px'}}>
+              {'\u26A0'} The schedule runs backwards in {problemCount} place{problemCount!==1?'s':''}.
+              Every shoot day needs a date later than the day before it, and no two days can share a date.
+            </div>
+          )}
           <div style={{display:'flex',justifyContent:'flex-end',gap:8,borderTop:`1px solid ${T.rule}`,paddingTop:14,marginTop:6}}>
             <button onClick={onClose} style={{padding:'8px 16px',borderRadius:6,border:`1px solid ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,cursor:'pointer'}}>Cancel</button>
-            <button onClick={save} style={{padding:'8px 20px',borderRadius:6,background:T.accent,border:'none',color:'#0e0d0b',fontWeight:600,fontSize:12,cursor:'pointer'}}>Save</button>
+            <button onClick={save} disabled={problemCount>0}
+              title={problemCount?'Fix the dates flagged above first':'Save shoot days'}
+              style={{padding:'8px 20px',borderRadius:6,background:T.accent,border:'none',color:'#0e0d0b',
+                fontWeight:600,fontSize:12,cursor:problemCount?'not-allowed':'pointer',opacity:problemCount?0.45:1}}>Save</button>
           </div>
         </div>
       </div>
@@ -4404,7 +4480,15 @@ function ShootDaysEditorModal({onClose}){
       return [...rs,{day:maxDay+1,date:from?addOneDay(from.date):'',_k:keySeq.current++}];
     });
   }
+  /* Validated live rather than only on save, so a bad date is flagged on the
+     row that caused it while the user is still looking at it. Save stays
+     disabled until the schedule runs forwards again - a half-corrected
+     schedule written back would silently reorder the production. */
+  const problems=React.useMemo(()=>shootDayProblems(rows),[rows]);
+  const problemCount=Object.keys(problems).length;
+
   function save(){
+    if(problemCount)return;
     const shootDays=rows.map(r=>({day:parseInt(r.day,10)||0,date:r.date||''})).filter(d=>d.day).sort((a,b)=>a.day-b.day);
     updateData({shootDays});
     onClose();
@@ -4428,25 +4512,46 @@ function ShootDaysEditorModal({onClose}){
           <div style={{fontSize:10,color:T.textDim,lineHeight:1.5}}>
             Optional - powers the shoot-day dropdown on each roll. Adding a new day auto-fills the next day
             number and the next calendar date for you; both are still editable.
+            Each day must fall on a later date than the one before it.
           </div>
           {rows.length===0&&<div style={{fontSize:11,color:T.textDim,fontStyle:'italic',padding:'8px 0'}}>No shoot days yet.</div>}
           {/* Fixed-height scroll region so a long list of days doesn't push
               the Add/Save/Cancel controls off-screen - only this middle
               section scrolls, everything around it stays reachable. */}
           <div style={{display:'flex',flexDirection:'column',gap:10,maxHeight:'38vh',overflow:'auto',paddingRight:2}}>
-            {rows.map((r,i)=>(
-              <div key={r._k} style={{display:'grid',gridTemplateColumns:'60px 1fr auto',gap:6,alignItems:'center'}}>
-                <input type="number" value={r.day} onChange={e=>patchRow(i,{day:e.target.value})} placeholder="1" style={{...inp,textAlign:'center'}}/>
-                <input type="date" value={r.date||''} onChange={e=>patchRow(i,{date:e.target.value})} style={inp}/>
-                <button onClick={()=>removeRow(i)} title="Remove day" aria-label="Remove day"
-                  style={{background:'transparent',border:`1px solid ${T.danger}44`,borderRadius:5,color:T.danger,fontSize:12,padding:'6px 9px',cursor:'pointer'}}>{'×'}</button>
-              </div>
-            ))}
+            {rows.map((r,i)=>{
+              const bad=problems[parseInt(r.day,10)||0];
+              return(
+                <div key={r._k}>
+                  <div style={{display:'grid',gridTemplateColumns:'60px 1fr auto',gap:6,alignItems:'center'}}>
+                    <input type="number" value={r.day} onChange={e=>patchRow(i,{day:e.target.value})} placeholder="1"
+                      style={{...inp,textAlign:'center',border:`1px solid ${bad?T.danger:T.border}`}}/>
+                    <input type="date" value={r.date||''} onChange={e=>patchRow(i,{date:e.target.value})}
+                      style={{...inp,border:`1px solid ${bad?T.danger:T.border}`}}/>
+                    <button onClick={()=>removeRow(i)} title="Remove day" aria-label="Remove day"
+                      style={{background:'transparent',border:`1px solid ${T.danger}44`,borderRadius:5,color:T.danger,fontSize:12,padding:'6px 9px',cursor:'pointer'}}>{'×'}</button>
+                  </div>
+                  {bad&&<div style={{fontSize:9,color:T.danger,fontFamily:"'Geist Mono',monospace",marginTop:3,paddingLeft:2}}>
+                    {'\u26A0'} {bad}
+                  </div>}
+                </div>
+              );
+            })}
           </div>
           <button onClick={addRow} style={{alignSelf:'flex-start',padding:'7px 14px',borderRadius:6,border:`1px dashed ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:'pointer'}}>+ Add day</button>
+          {problemCount>0&&(
+            <div style={{fontSize:10,lineHeight:1.5,color:T.danger,background:T.danger+'18',
+              border:`1px solid ${T.danger}55`,borderRadius:6,padding:'9px 11px'}}>
+              {'\u26A0'} The schedule runs backwards in {problemCount} place{problemCount!==1?'s':''}.
+              Every shoot day needs a date later than the day before it, and no two days can share a date.
+            </div>
+          )}
           <div style={{display:'flex',justifyContent:'flex-end',gap:8,borderTop:`1px solid ${T.rule}`,paddingTop:14,marginTop:6}}>
             <button onClick={onClose} style={{padding:'8px 16px',borderRadius:6,border:`1px solid ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,cursor:'pointer'}}>Cancel</button>
-            <button onClick={save} style={{padding:'8px 20px',borderRadius:6,background:T.accent,border:'none',color:'#0e0d0b',fontWeight:600,fontSize:12,cursor:'pointer'}}>Save</button>
+            <button onClick={save} disabled={problemCount>0}
+              title={problemCount?'Fix the dates flagged above first':'Save shoot days'}
+              style={{padding:'8px 20px',borderRadius:6,background:T.accent,border:'none',color:'#0e0d0b',
+                fontWeight:600,fontSize:12,cursor:problemCount?'not-allowed':'pointer',opacity:problemCount?0.45:1}}>Save</button>
           </div>
         </div>
       </div>
@@ -4502,9 +4607,19 @@ function ColumnsEditorModal({onClose}){
               <span style={{fontSize:12,color:T.text,fontFamily:"'Geist Mono',monospace"}}>{c.label}</span>
             </label>
           ))}
+          {problemCount>0&&(
+            <div style={{fontSize:10,lineHeight:1.5,color:T.danger,background:T.danger+'18',
+              border:`1px solid ${T.danger}55`,borderRadius:6,padding:'9px 11px'}}>
+              {'\u26A0'} The schedule runs backwards in {problemCount} place{problemCount!==1?'s':''}.
+              Every shoot day needs a date later than the day before it, and no two days can share a date.
+            </div>
+          )}
           <div style={{display:'flex',justifyContent:'flex-end',gap:8,borderTop:`1px solid ${T.rule}`,paddingTop:14,marginTop:6}}>
             <button onClick={onClose} style={{padding:'8px 16px',borderRadius:6,border:`1px solid ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,cursor:'pointer'}}>Cancel</button>
-            <button onClick={save} style={{padding:'8px 20px',borderRadius:6,background:T.accent,border:'none',color:'#0e0d0b',fontWeight:600,fontSize:12,cursor:'pointer'}}>Save</button>
+            <button onClick={save} disabled={problemCount>0}
+              title={problemCount?'Fix the dates flagged above first':'Save shoot days'}
+              style={{padding:'8px 20px',borderRadius:6,background:T.accent,border:'none',color:'#0e0d0b',
+                fontWeight:600,fontSize:12,cursor:problemCount?'not-allowed':'pointer',opacity:problemCount?0.45:1}}>Save</button>
           </div>
         </div>
       </div>
