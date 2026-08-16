@@ -1906,7 +1906,7 @@ var SB_LENS_PRESETS_KEY = 'sb_camrep_lens_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-var APP_VERSION = 'v3.6';
+var APP_VERSION = 'v3.7';
 var CAM_CONFIG = {
   A: {
     label: 'A',
@@ -9153,7 +9153,25 @@ function ShootDaysEditorModal(_ref34) {
       });
     });
   }
+
+  /* This editor owns the DATE of a shoot day, not the footage shot on it -
+     removing a row here deletes the date record and nothing else. The rolls
+     keep their day number and stay reachable (the day picker builds its list
+     from the rolls as well as from this list), they just show without a date.
+     Saying so out loud matters: "delete" next to a day you shot on reads like
+     it's about to take the day's work with it. */
   function removeRow(i) {
+    var row = rows[i];
+    var day = parseInt(row && row.day, 10) || 0;
+    var attached = (data.rolls || []).filter(function (r) {
+      return r.shootDay === day;
+    });
+    if (attached.length) {
+      var clips = attached.reduce(function (n, r) {
+        return n + (r.takes || []).length;
+      }, 0);
+      if (!confirm("Day ".concat(day, " has ").concat(attached.length, " roll").concat(attached.length !== 1 ? 's' : '', " and ") + "".concat(clips, " clip").concat(clips !== 1 ? 's' : '', " logged against it.\n\n") + "Removing it here only deletes the DATE. The rolls and clips are kept, and " + "Day ".concat(day, " stays in the day list - just without a date until you add one back.\n\n") + "Remove the date?")) return;
+    }
     setRows(function (rs) {
       return rs.filter(function (_, idx) {
         return idx !== i;

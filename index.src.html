@@ -1147,7 +1147,7 @@ const SB_LENS_PRESETS_KEY='sb_camrep_lens_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-const APP_VERSION='v3.6';
+const APP_VERSION='v3.7';
 
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
@@ -4485,7 +4485,30 @@ function ShootDaysEditorModal({onClose}){
   const [rows,setRows]=React.useState(()=>(data.shootDays||[]).slice().sort((a,b)=>a.day-b.day).map(d=>({...d,_k:keySeq.current++})));
 
   function patchRow(i,patch){ setRows(rs=>rs.map((r,idx)=>idx===i?{...r,...patch}:r)); }
-  function removeRow(i){ setRows(rs=>rs.filter((_,idx)=>idx!==i)); }
+
+  /* This editor owns the DATE of a shoot day, not the footage shot on it -
+     removing a row here deletes the date record and nothing else. The rolls
+     keep their day number and stay reachable (the day picker builds its list
+     from the rolls as well as from this list), they just show without a date.
+     Saying so out loud matters: "delete" next to a day you shot on reads like
+     it's about to take the day's work with it. */
+  function removeRow(i){
+    const row=rows[i];
+    const day=parseInt(row&&row.day,10)||0;
+    const attached=(data.rolls||[]).filter(r=>r.shootDay===day);
+    if(attached.length){
+      const clips=attached.reduce((n,r)=>n+((r.takes||[]).length),0);
+      if(!confirm(
+        `Day ${day} has ${attached.length} roll${attached.length!==1?'s':''} and `+
+        `${clips} clip${clips!==1?'s':''} logged against it.\n\n`+
+        `Removing it here only deletes the DATE. The rolls and clips are kept, and `+
+        `Day ${day} stays in the day list - just without a date until you add one back.\n\n`+
+        `Remove the date?`
+      ))return;
+    }
+    setRows(rs=>rs.filter((_,idx)=>idx!==i));
+  }
+
   function addRow(){
     setRows(rs=>{
       // Continue from the highest day number present (not simply the last row -
