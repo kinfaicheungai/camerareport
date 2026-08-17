@@ -1937,7 +1937,7 @@ var SB_LENS_PRESETS_KEY = 'sb_camrep_lens_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-var APP_VERSION = 'v4.0';
+var APP_VERSION = 'v4.1';
 var CAM_CONFIG = {
   A: {
     label: 'A',
@@ -4186,14 +4186,21 @@ function CameraReport() {
     _React$useState106 = _slicedToArray(_React$useState105, 2),
     selTakeIds = _React$useState106[0],
     setSelTakeIds = _React$useState106[1]; // multi-selected clip rows (for moving)
+  // Highlight mode: while on, tapping a cell/row paints it yellow instead of
+  // opening it for editing (see paintOverlay below). Off by default so
+  // normal logging is never affected.
   var _React$useState107 = React.useState(false),
     _React$useState108 = _slicedToArray(_React$useState107, 2),
-    showSearch = _React$useState108[0],
-    setShowSearch = _React$useState108[1];
-  var _React$useState109 = React.useState({}),
+    highlightMode = _React$useState108[0],
+    setHighlightMode = _React$useState108[1];
+  var _React$useState109 = React.useState(false),
     _React$useState110 = _slicedToArray(_React$useState109, 2),
-    searchQ = _React$useState110[0],
-    setSearchQ = _React$useState110[1]; // field -> search string
+    showSearch = _React$useState110[0],
+    setShowSearch = _React$useState110[1];
+  var _React$useState111 = React.useState({}),
+    _React$useState112 = _slicedToArray(_React$useState111, 2),
+    searchQ = _React$useState112[0],
+    setSearchQ = _React$useState112[1]; // field -> search string
 
   // ---- Take-table header, freeze-panes style ----
   // Two earlier attempts (CSS position:sticky, then a JS "floating clone"
@@ -4207,10 +4214,10 @@ function CameraReport() {
   // space), and the table gets its OWN dedicated scroll container below
   // them - with nothing else competing for that scroll, a plain CSS
   // position:sticky header (see `th` below) just works, no JS needed.
-  var _React$useState111 = React.useState(false),
-    _React$useState112 = _slicedToArray(_React$useState111, 2),
-    metaCollapsed = _React$useState112[0],
-    setMetaCollapsed = _React$useState112[1];
+  var _React$useState113 = React.useState(false),
+    _React$useState114 = _slicedToArray(_React$useState113, 2),
+    metaCollapsed = _React$useState114[0],
+    setMetaCollapsed = _React$useState114[1];
   var scenes = proj.scenes || [];
   var sceneIds = React.useMemo(function () {
     return scenes.map(function (s) {
@@ -4318,10 +4325,10 @@ function CameraReport() {
   var undoStack = React.useRef([]); // array of rolls-snapshots (JSON strings)
   var redoStack = React.useRef([]);
   var isTimeTravel = React.useRef(false); // true while applying an undo/redo
-  var _React$useState113 = React.useState(0),
-    _React$useState114 = _slicedToArray(_React$useState113, 2),
-    histTick = _React$useState114[0],
-    setHistTick = _React$useState114[1]; // force re-render for button enable
+  var _React$useState115 = React.useState(0),
+    _React$useState116 = _slicedToArray(_React$useState115, 2),
+    histTick = _React$useState116[0],
+    setHistTick = _React$useState116[1]; // force re-render for button enable
   var prevRollsSnap = React.useRef(null); // last-known rolls, to push on next change
   var HIST_LIMIT = 20;
   var persist = /*#__PURE__*/function () {
@@ -5798,8 +5805,163 @@ function CameraReport() {
                 D: '#b0f3c8',
                 E: '#dcc0f3'
               }[camOf(rk)] || '#f3b0b0';
-              var hasPhoto = (rk.takes || []).some(function (t) {
+              // 'photo' is itself a hideable column (see takeHeaderCells on screen),
+              // so it must clear the same hiddenCols gate as every other column.
+              var hasPhoto = !hiddenCols.has('photo') && (rk.takes || []).some(function (t) {
                 return (t.photoIds || []).length > 0;
+              });
+              var HL_BG = '#facc1550';
+              // One column-definition list drives the header, colgroup AND every
+              // row, so print always matches the "Take table columns" setting in
+              // Project Settings, the same way the on-screen table already does.
+              // SCENE and TAKE are never hideable, matching the on-screen header.
+              var COLS = [{
+                key: 'scene',
+                always: true,
+                w: 7.5,
+                label: 'SCENE',
+                align: 'left',
+                val: function val(t, sc) {
+                  return esc(sc);
+                }
+              }, {
+                key: 'shot',
+                always: false,
+                w: 4.2,
+                label: 'SHOT',
+                align: 'center',
+                val: function val(t, sc, sh) {
+                  return esc(sh);
+                }
+              }, {
+                key: 'take',
+                always: true,
+                w: 4.2,
+                label: 'TAKE',
+                align: 'center',
+                val: function val(t) {
+                  return esc(t.take);
+                }
+              }, {
+                key: 'tail',
+                always: false,
+                w: 2.8,
+                label: 'T/S',
+                align: 'center',
+                val: function val(t) {
+                  return t.tail ? '✅' : '';
+                }
+              }, {
+                key: 'clip',
+                always: false,
+                w: 4.4,
+                label: 'CLIP',
+                align: 'left',
+                val: function val(t) {
+                  return esc(t.clip);
+                }
+              }, {
+                key: 'lens',
+                always: false,
+                w: 8.5,
+                label: 'LENS',
+                align: 'left',
+                val: function val(t) {
+                  return esc(t.lens);
+                }
+              }, {
+                key: 'focal',
+                always: false,
+                w: 4.6,
+                label: 'FOCAL',
+                align: 'left',
+                val: function val(t) {
+                  return esc(t.focal);
+                }
+              }, {
+                key: 'stop',
+                always: false,
+                w: 4,
+                label: 'STOP',
+                align: 'left',
+                val: function val(t) {
+                  return esc(t.stop);
+                }
+              }, {
+                key: 'shutter',
+                always: false,
+                w: 6,
+                label: 'SHUTTER',
+                align: 'left',
+                val: function val(t) {
+                  return esc(t.shutter || rk.shutter);
+                }
+              }, {
+                key: 'ei',
+                always: false,
+                w: 3,
+                label: 'EI',
+                align: 'left',
+                val: function val(t) {
+                  return esc(t.ei);
+                }
+              }, {
+                key: 'intFilters',
+                always: false,
+                w: 6,
+                label: 'FILTER 1',
+                align: 'left',
+                val: function val(t) {
+                  return esc(t.intFilters);
+                }
+              }, {
+                key: 'filters',
+                always: false,
+                w: 6,
+                label: 'FILTER 2',
+                align: 'left',
+                val: function val(t) {
+                  return esc(t.filters);
+                }
+              }, {
+                key: 'filters3',
+                always: false,
+                w: 6,
+                label: 'FILTER 3',
+                align: 'left',
+                val: function val(t) {
+                  return esc(t.filters3);
+                }
+              }, {
+                key: 'wb',
+                always: false,
+                w: 4.4,
+                label: 'WB',
+                align: 'left',
+                val: function val(t) {
+                  return esc(t.wb);
+                }
+              }, {
+                key: 'focus',
+                always: false,
+                w: 5,
+                label: 'FOCUS',
+                align: 'left',
+                val: function val(t) {
+                  return esc(t.focus);
+                }
+              }, {
+                key: 'notes',
+                always: false,
+                w: null,
+                label: 'NOTES',
+                align: 'left',
+                val: function val(t) {
+                  return esc(t.notes);
+                }
+              }];
+              var visCols = COLS.filter(function (c) {
+                return c.always || !hiddenCols.has(c.key);
               });
               /* Same convention as the on-screen table and as a hand-written report:
                  a repeated scene or shot is left blank rather than restated on every
@@ -5809,9 +5971,23 @@ function CameraReport() {
                 var pv = ti > 0 ? arr[ti - 1] : null;
                 var sc = pv && String(pv.scene || '') === String(t.scene || '') ? '' : sceneWithIE(t.scene);
                 var sh = pv && String(pv.shot || '') === String(t.shot || '') ? '' : t.shot;
-                return "<tr>\n        <td>".concat(esc(sc), "</td><td style=\"text-align:center\">").concat(esc(sh), "</td><td style=\"text-align:center\">").concat(esc(t.take), "</td>\n        <td style=\"text-align:center\">").concat(t.tail ? '✅' : '', "</td><td>").concat(esc(t.clip), "</td>\n        <td>").concat(esc(t.lens), "</td><td>").concat(esc(t.focal), "</td><td>").concat(esc(t.stop), "</td><td>").concat(esc(t.shutter || rk.shutter), "</td><td>").concat(esc(t.ei), "</td>\n        <td>").concat(esc(t.intFilters), "</td><td>").concat(esc(t.filters), "</td><td>").concat(esc(t.filters3), "</td><td>").concat(esc(t.wb), "</td><td>").concat(esc(t.focus), "</td>\n        <td>").concat(esc(t.notes), "</td>\n        ").concat(hasPhoto ? "<td>".concat(photoMap[t.id] ? "<img src=\"".concat(esc(photoMap[t.id]), "\" style=\"width:46px;height:34px;object-fit:cover;border-radius:2px;border:1px solid #999;\">") : '', "</td>") : '', "\n        </tr>");
+                // Highlight carries into print exactly as painted on screen: a
+                // per-cell yellow tint, plus a whole-row tint when rowHL is set.
+                var cells = visCols.map(function (c) {
+                  var parts = [];
+                  if (c.align === 'center') parts.push('text-align:center');
+                  if (t.cellHL && t.cellHL[c.key]) parts.push("background:".concat(HL_BG));
+                  var style = parts.length ? " style=\"".concat(parts.join(';'), "\"") : '';
+                  return "<td".concat(style, ">").concat(c.val(t, sc, sh), "</td>");
+                }).join('');
+                var rowStyle = t.rowHL ? " style=\"background:".concat(HL_BG, "\"") : '';
+                return "<tr".concat(rowStyle, ">\n        ").concat(cells, "\n        ").concat(hasPhoto ? "<td>".concat(photoMap[t.id] ? "<img src=\"".concat(esc(photoMap[t.id]), "\" style=\"width:46px;height:34px;object-fit:cover;border-radius:2px;border:1px solid #999;\">") : '', "</td>") : '', "\n        </tr>");
               }).join('');
-              return "<div class=\"sheet\" style=\"--cam:".concat(cfg.header, "\">\n      <div class=\"hdr\">\n        <div class=\"crew\">\n          <b>DIRECTOR:</b>").concat(esc(rk.director), "<br>\n          <b>DOP:</b>").concat(esc(rk.dop), "<br>\n          <b>1ST AC:</b>").concat(esc(rk.ac), "\n        </div>\n        <div class=\"title\">\n          <span class=\"plate\">").concat(esc(proj.projectName || 'Camera Report'), "</span>\n          <span class=\"sub\">Camera Report</span>\n        </div>\n        <div class=\"rollbox\">\n          <div class=\"lbl\">ROLL #<br>MAG #</div>\n          <div class=\"val\"><div class=\"roll\" style=\"background:").concat(tag, "\">").concat(esc(rk.roll), "</div><div class=\"mag\">").concat(esc(rk.mag) || '&nbsp;', "</div></div>\n        </div>\n      </div>\n      <table class=\"meta\"><tbody>\n        <tr>\n          <td class=\"k\">DATE:</td><td>").concat(esc(dateStr), "</td>\n          <td class=\"k\">SHOOT DAY:</td><td>").concat(esc(rk.shootDay), "</td>\n          <td class=\"k\">CODEC:</td><td>").concat(esc(rk.codec), "</td>\n          <td class=\"k\">CAMERA:</td><td>").concat(esc(rk.camera), "</td>\n          <td class=\"k\">LUT:</td><td>").concat(esc(rk.lut), "</td>\n        </tr>\n        <tr>\n          <td class=\"k\">FPS:</td><td>").concat(esc(rk.fps), "</td>\n          <td class=\"k\">SHUTTER:</td><td>").concat(esc(rk.shutter), "</td>\n          <td class=\"k\">LOCATION:</td><td colspan=\"5\">").concat(esc(rk.location), "</td>\n        </tr>\n      </tbody></table>\n      <table class=\"main\">\n      <colgroup>\n        <col style=\"width:7.5%\"/><col style=\"width:4.2%\"/><col style=\"width:4.2%\"/><col style=\"width:2.8%\"/>\n        <col style=\"width:4.4%\"/><col style=\"width:8.5%\"/><col style=\"width:4.6%\"/><col style=\"width:4%\"/>\n        <col style=\"width:6%\"/><col style=\"width:3%\"/><col style=\"width:6%\"/><col style=\"width:6%\"/>\n        <col style=\"width:6%\"/><col style=\"width:4.4%\"/><col style=\"width:5%\"/><col/>\n        ").concat(hasPhoto ? '<col style="width:5%"/>' : '', "\n      </colgroup>\n      <thead><tr>\n        <th>SCENE</th><th>SHOT</th><th>TAKE</th><th>T/S</th><th>CLIP</th><th>LENS</th><th>FOCAL</th><th>STOP</th><th>SHUTTER</th><th>EI</th>\n        <th>FILTER 1</th><th>FILTER 2</th><th>FILTER 3</th><th>WB</th><th>FOCUS</th><th>NOTES</th>").concat(hasPhoto ? '<th>PHOTO</th>' : '', "\n      </tr></thead><tbody>").concat(rows, "</tbody></table>\n      <table class=\"meta\"><tbody><tr class=\"foot\">\n        <td class=\"k\">NOTES:</td><td>End of ").concat(esc(rk.roll)).concat(rk.shootDay ? ' &middot; SD ' + esc(String(rk.shootDay).padStart(2, '0')) : '', "</td>\n      </tr></tbody></table>\n      </div>");
+              return "<div class=\"sheet\" style=\"--cam:".concat(cfg.header, "\">\n      <div class=\"hdr\">\n        <div class=\"crew\">\n          <b>DIRECTOR:</b>").concat(esc(rk.director), "<br>\n          <b>DOP:</b>").concat(esc(rk.dop), "<br>\n          <b>1ST AC:</b>").concat(esc(rk.ac), "\n        </div>\n        <div class=\"title\">\n          <span class=\"plate\">").concat(esc(proj.projectName || 'Camera Report'), "</span>\n          <span class=\"sub\">Camera Report</span>\n        </div>\n        <div class=\"rollbox\">\n          <div class=\"lbl\">ROLL #<br>MAG #</div>\n          <div class=\"val\"><div class=\"roll\" style=\"background:").concat(tag, "\">").concat(esc(rk.roll), "</div><div class=\"mag\">").concat(esc(rk.mag) || '&nbsp;', "</div></div>\n        </div>\n      </div>\n      <table class=\"meta\"><tbody>\n        <tr>\n          <td class=\"k\">DATE:</td><td>").concat(esc(dateStr), "</td>\n          <td class=\"k\">SHOOT DAY:</td><td>").concat(esc(rk.shootDay), "</td>\n          <td class=\"k\">CODEC:</td><td>").concat(esc(rk.codec), "</td>\n          <td class=\"k\">CAMERA:</td><td>").concat(esc(rk.camera), "</td>\n          <td class=\"k\">LUT:</td><td>").concat(esc(rk.lut), "</td>\n        </tr>\n        <tr>\n          <td class=\"k\">FPS:</td><td>").concat(esc(rk.fps), "</td>\n          <td class=\"k\">SHUTTER:</td><td>").concat(esc(rk.shutter), "</td>\n          <td class=\"k\">LOCATION:</td><td colspan=\"5\">").concat(esc(rk.location), "</td>\n        </tr>\n      </tbody></table>\n      <table class=\"main\">\n      <colgroup>\n        ").concat(visCols.map(function (c, idx) {
+                return idx === visCols.length - 1 ? '<col/>' : "<col style=\"width:".concat(c.w, "%\"/>");
+              }).join(''), "\n        ").concat(hasPhoto ? '<col style="width:5%"/>' : '', "\n      </colgroup>\n      <thead><tr>\n        ").concat(visCols.map(function (c) {
+                return "<th>".concat(c.label, "</th>");
+              }).join('')).concat(hasPhoto ? '<th>PHOTO</th>' : '', "\n      </tr></thead><tbody>").concat(rows, "</tbody></table>\n      <table class=\"meta\"><tbody><tr class=\"foot\">\n        <td class=\"k\">NOTES:</td><td>End of ").concat(esc(rk.roll)).concat(rk.shootDay ? ' &middot; SD ' + esc(String(rk.shootDay).padStart(2, '0')) : '', "</td>\n      </tr></tbody></table>\n      </div>");
             };
             list = rollList && rollList.length ? rollList : roll ? [roll] : [];
             if (list.length) {
@@ -7658,7 +7834,39 @@ function CameraReport() {
         cursor: 'pointer'
       }
     }, "Clear"));
-  }(), /*#__PURE__*/React.createElement("div", {
+  }(), highlightMode && /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '8px 16px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 10,
+      flexShrink: 0,
+      background: '#eab30822',
+      borderBottom: '1px solid #eab30866'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      fontWeight: 600,
+      color: '#eab308',
+      fontFamily: "'Geist Mono',monospace"
+    }
+  }, "\uD83D\uDD8D", " \u9AD8\u4EAE\u6A21\u5F0F\u4E2D - \u70B9\u683C\u5B50\u6216\u884C\u9996\u4E0A\u8272"), /*#__PURE__*/React.createElement("button", {
+    onClick: function onClick() {
+      return setHighlightMode(false);
+    },
+    style: {
+      padding: '4px 10px',
+      borderRadius: 5,
+      fontSize: 10,
+      fontFamily: "'Geist Mono',monospace",
+      background: 'transparent',
+      border: '1px solid #eab30866',
+      color: '#eab308',
+      cursor: 'pointer'
+    }
+  }, "\u5B8C\u6210")), /*#__PURE__*/React.createElement("div", {
     style: {
       flex: 1,
       overflow: 'auto',
@@ -7706,16 +7914,55 @@ function CameraReport() {
     var gb = newGroup ? {
       borderTop: "2px solid ".concat(T.accent, "66")
     } : {};
+    // Highlight-mode helpers, scoped per row so they close over
+    // `t`. One yellow tone for both row and cell painting; it
+    // deliberately wins over the needFocal/needStop red
+    // required-field flash (spread after reqStyle below) since a
+    // highlight the user just tapped is a more current signal.
+    var HL_BG = '#facc1550';
+    var hasHL = function hasHL(key) {
+      return !!(t.cellHL && t.cellHL[key]);
+    };
+    var cellBg = function cellBg(key) {
+      return hasHL(key) ? {
+        background: HL_BG
+      } : {};
+    };
+    var toggleCellHL = function toggleCellHL(key) {
+      var cur = _objectSpread({}, t.cellHL || {});
+      cur[key] = !cur[key];
+      patchTake(t.id, {
+        cellHL: cur
+      });
+    };
+    // While highlight mode is on, this transparent overlay sits
+    // on top of the cell's normal control and intercepts the tap
+    // - so painting never also opens a field for editing.
+    var paintOverlay = function paintOverlay(key) {
+      return highlightMode ? /*#__PURE__*/React.createElement("div", {
+        onClick: function onClick() {
+          return toggleCellHL(key);
+        },
+        title: "Tap to highlight",
+        style: {
+          position: 'absolute',
+          inset: 0,
+          cursor: 'pointer',
+          zIndex: 5
+        }
+      }) : null;
+    };
     return /*#__PURE__*/React.createElement("tr", {
       key: t.id,
       style: {
         borderBottom: "1px solid ".concat(T.rule),
-        background: isSel ? CAM.tint : i % 2 ? T.surface2 + '55' : 'transparent'
+        background: t.rowHL ? HL_BG : isSel ? CAM.tint : i % 2 ? T.surface2 + '55' : 'transparent'
       }
     }, /*#__PURE__*/React.createElement("td", {
       style: _objectSpread(_objectSpread({}, gb), {}, {
         borderRight: "1px solid ".concat(T.rule),
-        textAlign: 'center'
+        textAlign: 'center',
+        position: 'relative'
       })
     }, /*#__PURE__*/React.createElement("input", {
       type: "checkbox",
@@ -7726,10 +7973,24 @@ function CameraReport() {
       style: {
         cursor: 'pointer'
       }
+    }), highlightMode && /*#__PURE__*/React.createElement("div", {
+      onClick: function onClick() {
+        return patchTake(t.id, {
+          rowHL: !t.rowHL
+        });
+      },
+      title: "Tap to highlight row",
+      style: {
+        position: 'absolute',
+        inset: 0,
+        cursor: 'pointer',
+        zIndex: 5
+      }
     })), /*#__PURE__*/React.createElement("td", {
       style: _objectSpread(_objectSpread({}, gb), {}, {
-        borderRight: "1px solid ".concat(T.rule)
-      })
+        borderRight: "1px solid ".concat(T.rule),
+        position: 'relative'
+      }, cellBg('scene'))
     }, /*#__PURE__*/React.createElement(LensFocalPicker, {
       value: focusCell === t.id + ':scene' ? cellDraft : sameScene ? '' : t.scene || '',
       placeholder: sameScene ? '' : '-',
@@ -7754,10 +8015,11 @@ function CameraReport() {
           take: String(newTake)
         });
       }
-    })), !hiddenCols.has('shot') && /*#__PURE__*/React.createElement("td", {
+    }), paintOverlay('scene')), !hiddenCols.has('shot') && /*#__PURE__*/React.createElement("td", {
       style: _objectSpread(_objectSpread({}, gb), {}, {
-        borderRight: "1px solid ".concat(T.rule)
-      })
+        borderRight: "1px solid ".concat(T.rule),
+        position: 'relative'
+      }, cellBg('shot'))
     }, /*#__PURE__*/React.createElement("input", {
       value: focusCell === t.id + ':shot' ? cellDraft : sameShot ? '' : t.shot || '',
       placeholder: sameShot ? '' : '/',
@@ -7777,10 +8039,11 @@ function CameraReport() {
       style: _objectSpread(_objectSpread({}, cellInput), {}, {
         textAlign: 'center'
       })
-    })), /*#__PURE__*/React.createElement("td", {
+    }), paintOverlay('shot')), /*#__PURE__*/React.createElement("td", {
       style: _objectSpread(_objectSpread({}, gb), {}, {
-        borderRight: "1px solid ".concat(T.rule)
-      })
+        borderRight: "1px solid ".concat(T.rule),
+        position: 'relative'
+      }, cellBg('take'))
     }, /*#__PURE__*/React.createElement("input", {
       value: t.take || '',
       onChange: function onChange(e) {
@@ -7792,11 +8055,12 @@ function CameraReport() {
         textAlign: 'center'
       }),
       inputMode: "numeric"
-    })), !hiddenCols.has('tail') && /*#__PURE__*/React.createElement("td", {
+    }), paintOverlay('take')), !hiddenCols.has('tail') && /*#__PURE__*/React.createElement("td", {
       style: _objectSpread(_objectSpread({}, gb), {}, {
         borderRight: "1px solid ".concat(T.rule),
-        textAlign: 'center'
-      })
+        textAlign: 'center',
+        position: 'relative'
+      }, cellBg('tail'))
     }, /*#__PURE__*/React.createElement("button", {
       onClick: function onClick() {
         return patchTake(t.id, {
@@ -7812,10 +8076,11 @@ function CameraReport() {
         fontSize: 14,
         padding: '2px'
       }
-    }, t.tail ? "\u2705" : "\u2610")), !hiddenCols.has('clip') && /*#__PURE__*/React.createElement("td", {
+    }, t.tail ? "\u2705" : "\u2610"), paintOverlay('tail')), !hiddenCols.has('clip') && /*#__PURE__*/React.createElement("td", {
       style: _objectSpread(_objectSpread({}, gb), {}, {
-        borderRight: "1px solid ".concat(T.rule)
-      })
+        borderRight: "1px solid ".concat(T.rule),
+        position: 'relative'
+      }, cellBg('clip'))
     }, /*#__PURE__*/React.createElement("input", {
       value: t.clip || '',
       onChange: function onChange(e) {
@@ -7826,10 +8091,11 @@ function CameraReport() {
       style: _objectSpread(_objectSpread({}, cellInput), {}, {
         textAlign: 'right'
       })
-    })), !hiddenCols.has('lens') && /*#__PURE__*/React.createElement("td", {
+    }), paintOverlay('clip')), !hiddenCols.has('lens') && /*#__PURE__*/React.createElement("td", {
       style: _objectSpread(_objectSpread({}, gb), {}, {
-        borderRight: "1px solid ".concat(T.rule)
-      })
+        borderRight: "1px solid ".concat(T.rule),
+        position: 'relative'
+      }, cellBg('lens'))
     }, /*#__PURE__*/React.createElement(LensFocalPicker, {
       value: t.lens || '',
       onChange: function onChange(v) {
@@ -7840,10 +8106,11 @@ function CameraReport() {
       options: LENS_OPTIONS,
       inputStyle: cellInput,
       noFilter: true
-    })), !hiddenCols.has('focal') && /*#__PURE__*/React.createElement("td", {
-      style: _objectSpread(_objectSpread({}, gb), {}, {
-        borderRight: "1px solid ".concat(T.rule)
-      }, needFocal ? reqStyle : {})
+    }), paintOverlay('lens')), !hiddenCols.has('focal') && /*#__PURE__*/React.createElement("td", {
+      style: _objectSpread(_objectSpread(_objectSpread({}, gb), {}, {
+        borderRight: "1px solid ".concat(T.rule),
+        position: 'relative'
+      }, needFocal ? reqStyle : {}), cellBg('focal'))
     }, /*#__PURE__*/React.createElement(LensFocalPicker, {
       value: t.focal || '',
       onChange: function onChange(v) {
@@ -7853,10 +8120,11 @@ function CameraReport() {
       },
       options: FOCAL_OPTIONS,
       inputStyle: cellInput
-    })), !hiddenCols.has('stop') && /*#__PURE__*/React.createElement("td", {
-      style: _objectSpread(_objectSpread({}, gb), {}, {
-        borderRight: "1px solid ".concat(T.rule)
-      }, needStop ? reqStyle : {})
+    }), paintOverlay('focal')), !hiddenCols.has('stop') && /*#__PURE__*/React.createElement("td", {
+      style: _objectSpread(_objectSpread(_objectSpread({}, gb), {}, {
+        borderRight: "1px solid ".concat(T.rule),
+        position: 'relative'
+      }, needStop ? reqStyle : {}), cellBg('stop'))
     }, /*#__PURE__*/React.createElement(LensFocalPicker, {
       value: t.stop || '',
       onChange: function onChange(v) {
@@ -7866,10 +8134,11 @@ function CameraReport() {
       },
       options: STOP_OPTIONS,
       inputStyle: cellInput
-    })), !hiddenCols.has('shutter') && /*#__PURE__*/React.createElement("td", {
+    }), paintOverlay('stop')), !hiddenCols.has('shutter') && /*#__PURE__*/React.createElement("td", {
       style: _objectSpread(_objectSpread({}, gb), {}, {
-        borderRight: "1px solid ".concat(T.rule)
-      })
+        borderRight: "1px solid ".concat(T.rule),
+        position: 'relative'
+      }, cellBg('shutter'))
     }, /*#__PURE__*/React.createElement(LensFocalPicker, {
       value: t.shutter || '',
       onChange: function onChange(v) {
@@ -7882,10 +8151,11 @@ function CameraReport() {
       inputStyle: _objectSpread(_objectSpread({}, cellInput), {}, {
         textAlign: 'center'
       })
-    })), !hiddenCols.has('ei') && /*#__PURE__*/React.createElement("td", {
+    }), paintOverlay('shutter')), !hiddenCols.has('ei') && /*#__PURE__*/React.createElement("td", {
       style: _objectSpread(_objectSpread({}, gb), {}, {
-        borderRight: "1px solid ".concat(T.rule)
-      })
+        borderRight: "1px solid ".concat(T.rule),
+        position: 'relative'
+      }, cellBg('ei'))
     }, /*#__PURE__*/React.createElement("input", {
       value: t.ei || '',
       onChange: function onChange(e) {
@@ -7894,10 +8164,11 @@ function CameraReport() {
         });
       },
       style: cellInput
-    })), !hiddenCols.has('intFilters') && /*#__PURE__*/React.createElement("td", {
+    }), paintOverlay('ei')), !hiddenCols.has('intFilters') && /*#__PURE__*/React.createElement("td", {
       style: _objectSpread(_objectSpread({}, gb), {}, {
-        borderRight: "1px solid ".concat(T.rule)
-      })
+        borderRight: "1px solid ".concat(T.rule),
+        position: 'relative'
+      }, cellBg('intFilters'))
     }, /*#__PURE__*/React.createElement(LensFocalPicker, {
       value: t.intFilters || '',
       onChange: function onChange(v) {
@@ -7907,10 +8178,11 @@ function CameraReport() {
       },
       options: FILTER1_OPTIONS,
       inputStyle: cellInput
-    })), !hiddenCols.has('filters') && /*#__PURE__*/React.createElement("td", {
+    }), paintOverlay('intFilters')), !hiddenCols.has('filters') && /*#__PURE__*/React.createElement("td", {
       style: _objectSpread(_objectSpread({}, gb), {}, {
-        borderRight: "1px solid ".concat(T.rule)
-      })
+        borderRight: "1px solid ".concat(T.rule),
+        position: 'relative'
+      }, cellBg('filters'))
     }, /*#__PURE__*/React.createElement(LensFocalPicker, {
       value: t.filters || '',
       onChange: function onChange(v) {
@@ -7920,10 +8192,11 @@ function CameraReport() {
       },
       options: FILTER2_OPTIONS,
       inputStyle: cellInput
-    })), !hiddenCols.has('filters3') && /*#__PURE__*/React.createElement("td", {
+    }), paintOverlay('filters')), !hiddenCols.has('filters3') && /*#__PURE__*/React.createElement("td", {
       style: _objectSpread(_objectSpread({}, gb), {}, {
-        borderRight: "1px solid ".concat(T.rule)
-      })
+        borderRight: "1px solid ".concat(T.rule),
+        position: 'relative'
+      }, cellBg('filters3'))
     }, /*#__PURE__*/React.createElement(LensFocalPicker, {
       value: t.filters3 || '',
       onChange: function onChange(v) {
@@ -7933,10 +8206,11 @@ function CameraReport() {
       },
       options: FILTER3_OPTIONS,
       inputStyle: cellInput
-    })), !hiddenCols.has('wb') && /*#__PURE__*/React.createElement("td", {
+    }), paintOverlay('filters3')), !hiddenCols.has('wb') && /*#__PURE__*/React.createElement("td", {
       style: _objectSpread(_objectSpread({}, gb), {}, {
-        borderRight: "1px solid ".concat(T.rule)
-      })
+        borderRight: "1px solid ".concat(T.rule),
+        position: 'relative'
+      }, cellBg('wb'))
     }, /*#__PURE__*/React.createElement(LensFocalPicker, {
       value: t.wb || '',
       onChange: function onChange(v) {
@@ -7947,10 +8221,11 @@ function CameraReport() {
       options: WB_OPTIONS,
       inputStyle: cellInput,
       normalize: withK
-    })), !hiddenCols.has('focus') && /*#__PURE__*/React.createElement("td", {
+    }), paintOverlay('wb')), !hiddenCols.has('focus') && /*#__PURE__*/React.createElement("td", {
       style: _objectSpread(_objectSpread({}, gb), {}, {
-        borderRight: "1px solid ".concat(T.rule)
-      })
+        borderRight: "1px solid ".concat(T.rule),
+        position: 'relative'
+      }, cellBg('focus'))
     }, /*#__PURE__*/React.createElement("input", {
       value: t.focus || '',
       onChange: function onChange(e) {
@@ -7959,10 +8234,11 @@ function CameraReport() {
         });
       },
       style: cellInput
-    })), !hiddenCols.has('notes') && /*#__PURE__*/React.createElement("td", {
+    }), paintOverlay('focus')), !hiddenCols.has('notes') && /*#__PURE__*/React.createElement("td", {
       style: _objectSpread(_objectSpread({}, gb), {}, {
-        borderRight: "1px solid ".concat(T.rule)
-      })
+        borderRight: "1px solid ".concat(T.rule),
+        position: 'relative'
+      }, cellBg('notes'))
     }, /*#__PURE__*/React.createElement(NotesPicker, {
       value: t.notes || '',
       onChange: function onChange(v) {
@@ -7970,11 +8246,12 @@ function CameraReport() {
           notes: v
         });
       }
-    })), !hiddenCols.has('photo') && /*#__PURE__*/React.createElement("td", {
+    }), paintOverlay('notes')), !hiddenCols.has('photo') && /*#__PURE__*/React.createElement("td", {
       style: _objectSpread(_objectSpread({}, gb), {}, {
         borderRight: "1px solid ".concat(T.rule),
-        padding: '4px 2px'
-      })
+        padding: '4px 2px',
+        position: 'relative'
+      }, cellBg('photo'))
     }, /*#__PURE__*/React.createElement(TakePhotoCell, {
       projId: projId,
       take: t,
@@ -7990,7 +8267,7 @@ function CameraReport() {
           })
         });
       }
-    })), /*#__PURE__*/React.createElement("td", {
+    }), paintOverlay('photo')), /*#__PURE__*/React.createElement("td", {
       style: _objectSpread(_objectSpread({}, gb), {}, {
         textAlign: 'center',
         whiteSpace: 'nowrap',
@@ -8396,7 +8673,28 @@ function CameraReport() {
       textAlign: 'left',
       marginTop: 2
     }
-  }, "\u21B3", " Resequence clips"), allDayNums.length > 0 && (allDayNums.length > 1 || !roll.shootDay) && /*#__PURE__*/React.createElement("div", {
+  }, "\u21B3", " Resequence clips"), /*#__PURE__*/React.createElement("button", {
+    className: "cr-btn",
+    onClick: function onClick() {
+      setHighlightMode(function (v) {
+        return !v;
+      });
+      setShowActions(false);
+    },
+    title: "Tap cells or rows in the table to mark them yellow for the printed report",
+    style: {
+      padding: '9px 12px',
+      borderRadius: 6,
+      border: "1px solid ".concat(highlightMode ? '#eab308' : T.border),
+      background: highlightMode ? '#eab30822' : 'transparent',
+      color: highlightMode ? '#eab308' : T.textDim,
+      fontSize: 11,
+      fontFamily: "'Geist Mono',monospace",
+      cursor: 'pointer',
+      textAlign: 'left',
+      marginTop: 2
+    }
+  }, "\uD83D\uDD8D", " \u9AD8\u4EAE\u6A21\u5F0F", highlightMode ? " \u2713" : ''), allDayNums.length > 0 && (allDayNums.length > 1 || !roll.shootDay) && /*#__PURE__*/React.createElement("div", {
     style: {
       borderTop: "1px solid ".concat(T.rule),
       paddingTop: 10,
@@ -8798,30 +9096,30 @@ function SettingsModal(_ref33) {
   var _useStandaloneData2 = useStandaloneData(),
     data = _useStandaloneData2.data,
     updateData = _useStandaloneData2.updateData;
-  var _React$useState115 = React.useState(data.projectName || ''),
-    _React$useState116 = _slicedToArray(_React$useState115, 2),
-    projectName = _React$useState116[0],
-    setProjectName = _React$useState116[1];
-  var _React$useState117 = React.useState(data.gsheetsClientId || ''),
+  var _React$useState117 = React.useState(data.projectName || ''),
     _React$useState118 = _slicedToArray(_React$useState117, 2),
-    clientId = _React$useState118[0],
-    setClientId = _React$useState118[1];
-  var _React$useState119 = React.useState(false),
+    projectName = _React$useState118[0],
+    setProjectName = _React$useState118[1];
+  var _React$useState119 = React.useState(data.gsheetsClientId || ''),
     _React$useState120 = _slicedToArray(_React$useState119, 2),
-    saved = _React$useState120[0],
-    setSaved = _React$useState120[1];
+    clientId = _React$useState120[0],
+    setClientId = _React$useState120[1];
   var _React$useState121 = React.useState(false),
     _React$useState122 = _slicedToArray(_React$useState121, 2),
-    showScenes = _React$useState122[0],
-    setShowScenes = _React$useState122[1];
+    saved = _React$useState122[0],
+    setSaved = _React$useState122[1];
   var _React$useState123 = React.useState(false),
     _React$useState124 = _slicedToArray(_React$useState123, 2),
-    showDays = _React$useState124[0],
-    setShowDays = _React$useState124[1];
+    showScenes = _React$useState124[0],
+    setShowScenes = _React$useState124[1];
   var _React$useState125 = React.useState(false),
     _React$useState126 = _slicedToArray(_React$useState125, 2),
-    showColumns = _React$useState126[0],
-    setShowColumns = _React$useState126[1];
+    showDays = _React$useState126[0],
+    setShowDays = _React$useState126[1];
+  var _React$useState127 = React.useState(false),
+    _React$useState128 = _slicedToArray(_React$useState127, 2),
+    showColumns = _React$useState128[0],
+    setShowColumns = _React$useState128[1];
   var sceneCount = (data.scenes || []).length;
   var dayCount = (data.shootDays || []).length;
   var hiddenColCount = (data.hiddenColumns || []).length;
@@ -9049,7 +9347,7 @@ function ScenesEditorModal(_ref34) {
      (and a focused field jumps to another scene mid-edit). A key that sticks
      to the row itself makes deletes and reorders behave. */
   var keySeq = React.useRef(0);
-  var _React$useState127 = React.useState(function () {
+  var _React$useState129 = React.useState(function () {
       return (data.scenes || []).map(function (s) {
         return _objectSpread({
           _k: keySeq.current++,
@@ -9057,9 +9355,9 @@ function ScenesEditorModal(_ref34) {
         }, decomposeSlug(s.slug));
       });
     }),
-    _React$useState128 = _slicedToArray(_React$useState127, 2),
-    rows = _React$useState128[0],
-    setRows = _React$useState128[1];
+    _React$useState130 = _slicedToArray(_React$useState129, 2),
+    rows = _React$useState130[0],
+    setRows = _React$useState130[1];
   function patchRow(i, patch) {
     setRows(function (rs) {
       return rs.map(function (r, idx) {
@@ -9310,7 +9608,7 @@ function ShootDaysEditorModal(_ref35) {
      schedule itself, and a calendar reads forwards. Ascending also makes a
      mis-typed date obvious at a glance, because the dates should march
      downwards in step with the day numbers. */
-  var _React$useState129 = React.useState(function () {
+  var _React$useState131 = React.useState(function () {
       return (data.shootDays || []).slice().sort(function (a, b) {
         return a.day - b.day;
       }).map(function (d) {
@@ -9319,9 +9617,9 @@ function ShootDaysEditorModal(_ref35) {
         });
       });
     }),
-    _React$useState130 = _slicedToArray(_React$useState129, 2),
-    rows = _React$useState130[0],
-    setRows = _React$useState130[1];
+    _React$useState132 = _slicedToArray(_React$useState131, 2),
+    rows = _React$useState132[0],
+    setRows = _React$useState132[1];
   function patchRow(i, patch) {
     setRows(function (rs) {
       return rs.map(function (r, idx) {
@@ -9622,12 +9920,12 @@ function ColumnsEditorModal(_ref36) {
   var _useStandaloneData5 = useStandaloneData(),
     data = _useStandaloneData5.data,
     updateData = _useStandaloneData5.updateData;
-  var _React$useState131 = React.useState(function () {
+  var _React$useState133 = React.useState(function () {
       return new Set(data.hiddenColumns || []);
     }),
-    _React$useState132 = _slicedToArray(_React$useState131, 2),
-    hidden = _React$useState132[0],
-    setHidden = _React$useState132[1];
+    _React$useState134 = _slicedToArray(_React$useState133, 2),
+    hidden = _React$useState134[0],
+    setHidden = _React$useState134[1];
   function toggle(key) {
     setHidden(function (prev) {
       var next = new Set(prev);
@@ -9784,14 +10082,14 @@ function BackupModal(_ref37) {
     findProjectByName = _useStandaloneData6.findProjectByName,
     importProject = _useStandaloneData6.importProject,
     overwriteProject = _useStandaloneData6.overwriteProject;
-  var _React$useState133 = React.useState('idle'),
-    _React$useState134 = _slicedToArray(_React$useState133, 2),
-    status = _React$useState134[0],
-    setStatus = _React$useState134[1]; // idle | working | done | error
-  var _React$useState135 = React.useState(''),
+  var _React$useState135 = React.useState('idle'),
     _React$useState136 = _slicedToArray(_React$useState135, 2),
-    errMsg = _React$useState136[0],
-    setErrMsg = _React$useState136[1];
+    status = _React$useState136[0],
+    setStatus = _React$useState136[1]; // idle | working | done | error
+  var _React$useState137 = React.useState(''),
+    _React$useState138 = _slicedToArray(_React$useState137, 2),
+    errMsg = _React$useState138[0],
+    setErrMsg = _React$useState138[1];
   // A per-device Settings value always overrides the baked-in shared default -
   // that's what lets a fork on a different hosting URL use its own Client ID.
   var effectiveClientId = getEffectiveClientId(data);
@@ -9804,14 +10102,14 @@ function BackupModal(_ref37) {
   }, [data.rolls]);
 
   // Restore state
-  var _React$useState137 = React.useState(null),
-    _React$useState138 = _slicedToArray(_React$useState137, 2),
-    sheets = _React$useState138[0],
-    setSheets = _React$useState138[1]; // null = not looked yet
-  var _React$useState139 = React.useState(false),
+  var _React$useState139 = React.useState(null),
     _React$useState140 = _slicedToArray(_React$useState139, 2),
-    restoring = _React$useState140[0],
-    setRestoring = _React$useState140[1];
+    sheets = _React$useState140[0],
+    setSheets = _React$useState140[1]; // null = not looked yet
+  var _React$useState141 = React.useState(false),
+    _React$useState142 = _slicedToArray(_React$useState141, 2),
+    restoring = _React$useState142[0],
+    setRestoring = _React$useState142[1];
   function runBackup() {
     return _runBackup.apply(this, arguments);
   }
@@ -10247,43 +10545,43 @@ function App() {
   var _useTheme = useTheme(),
     themeName = _useTheme.themeName,
     toggleTheme = _useTheme.toggleTheme;
-  var _React$useState141 = React.useState(ensureProjectsSetup),
-    _React$useState142 = _slicedToArray(_React$useState141, 2),
-    projectIds = _React$useState142[0],
-    setProjectIds = _React$useState142[1];
-  var _React$useState143 = React.useState(function () {
+  var _React$useState143 = React.useState(ensureProjectsSetup),
+    _React$useState144 = _slicedToArray(_React$useState143, 2),
+    projectIds = _React$useState144[0],
+    setProjectIds = _React$useState144[1];
+  var _React$useState145 = React.useState(function () {
       return loadCurrentProjectId(projectIds);
     }),
-    _React$useState144 = _slicedToArray(_React$useState143, 2),
-    projectId = _React$useState144[0],
-    setProjectId = _React$useState144[1];
-  var _React$useState145 = React.useState(function () {
+    _React$useState146 = _slicedToArray(_React$useState145, 2),
+    projectId = _React$useState146[0],
+    setProjectId = _React$useState146[1];
+  var _React$useState147 = React.useState(function () {
       return loadProjectData(projectId);
     }),
-    _React$useState146 = _slicedToArray(_React$useState145, 2),
-    data = _React$useState146[0],
-    setData = _React$useState146[1];
-  var _React$useState147 = React.useState(false),
     _React$useState148 = _slicedToArray(_React$useState147, 2),
-    showSettings = _React$useState148[0],
-    setShowSettings = _React$useState148[1];
+    data = _React$useState148[0],
+    setData = _React$useState148[1];
   var _React$useState149 = React.useState(false),
     _React$useState150 = _slicedToArray(_React$useState149, 2),
-    showBackup = _React$useState150[0],
-    setShowBackup = _React$useState150[1];
+    showSettings = _React$useState150[0],
+    setShowSettings = _React$useState150[1];
   var _React$useState151 = React.useState(false),
     _React$useState152 = _slicedToArray(_React$useState151, 2),
-    showProjects = _React$useState152[0],
-    setShowProjects = _React$useState152[1];
+    showBackup = _React$useState152[0],
+    setShowBackup = _React$useState152[1];
+  var _React$useState153 = React.useState(false),
+    _React$useState154 = _slicedToArray(_React$useState153, 2),
+    showProjects = _React$useState154[0],
+    setShowProjects = _React$useState154[1];
   // True once a localStorage write has actually FAILED (quota full, private
   // browsing, storage blocked). Previously saveProjectData's false return was
   // discarded here, so the status pill kept saying "SAVED LOCALLY" while
   // nothing was being written - the worst possible failure mode for a camera
   // report you're relying on mid-shoot.
-  var _React$useState153 = React.useState(false),
-    _React$useState154 = _slicedToArray(_React$useState153, 2),
-    storageFailed = _React$useState154[0],
-    setStorageFailed = _React$useState154[1];
+  var _React$useState155 = React.useState(false),
+    _React$useState156 = _slicedToArray(_React$useState155, 2),
+    storageFailed = _React$useState156[0],
+    setStorageFailed = _React$useState156[1];
 
   // Pure state update - no side effects. It stays a functional updater because
   // two updateData calls can land in the same tick (e.g. adding a shoot day,
@@ -10603,28 +10901,28 @@ function ProjectSwitcherModal(_ref38) {
     switchProject = _useStandaloneData7.switchProject,
     createProject = _useStandaloneData7.createProject,
     deleteProject = _useStandaloneData7.deleteProject;
-  var _React$useState155 = React.useState(function () {
+  var _React$useState157 = React.useState(function () {
       var m = {};
       projectIds.forEach(function (id) {
         m[id] = id === projectId ? data.projectName : loadProjectData(id).projectName;
       });
       return m;
     }),
-    _React$useState156 = _slicedToArray(_React$useState155, 2),
-    names = _React$useState156[0],
-    setNames = _React$useState156[1];
-  var _React$useState157 = React.useState(null),
     _React$useState158 = _slicedToArray(_React$useState157, 2),
-    editingId = _React$useState158[0],
-    setEditingId = _React$useState158[1];
-  var _React$useState159 = React.useState(''),
+    names = _React$useState158[0],
+    setNames = _React$useState158[1];
+  var _React$useState159 = React.useState(null),
     _React$useState160 = _slicedToArray(_React$useState159, 2),
-    editName = _React$useState160[0],
-    setEditName = _React$useState160[1];
+    editingId = _React$useState160[0],
+    setEditingId = _React$useState160[1];
   var _React$useState161 = React.useState(''),
     _React$useState162 = _slicedToArray(_React$useState161, 2),
-    newName = _React$useState162[0],
-    setNewName = _React$useState162[1];
+    editName = _React$useState162[0],
+    setEditName = _React$useState162[1];
+  var _React$useState163 = React.useState(''),
+    _React$useState164 = _slicedToArray(_React$useState163, 2),
+    newName = _React$useState164[0],
+    setNewName = _React$useState164[1];
   function startEdit(id) {
     setEditingId(id);
     setEditName(names[id] || '');
@@ -10873,24 +11171,24 @@ var TRIAL_LIMITS = {
 };
 function AccessGate(_ref39) {
   var children = _ref39.children;
-  var _React$useState163 = React.useState(function () {
+  var _React$useState165 = React.useState(function () {
       return loadGateAuth() ? 'allowed' : 'trial';
     }),
-    _React$useState164 = _slicedToArray(_React$useState163, 2),
-    state = _React$useState164[0],
-    setState = _React$useState164[1]; // trial | working | denied | allowed | error
-  var _React$useState165 = React.useState(''),
     _React$useState166 = _slicedToArray(_React$useState165, 2),
-    errMsg = _React$useState166[0],
-    setErrMsg = _React$useState166[1];
-  var _React$useState167 = React.useState(false),
+    state = _React$useState166[0],
+    setState = _React$useState166[1]; // trial | working | denied | allowed | error
+  var _React$useState167 = React.useState(''),
     _React$useState168 = _slicedToArray(_React$useState167, 2),
-    showUnlock = _React$useState168[0],
-    setShowUnlock = _React$useState168[1];
-  var _React$useState169 = React.useState(''),
+    errMsg = _React$useState168[0],
+    setErrMsg = _React$useState168[1];
+  var _React$useState169 = React.useState(false),
     _React$useState170 = _slicedToArray(_React$useState169, 2),
-    unlockReason = _React$useState170[0],
-    setUnlockReason = _React$useState170[1];
+    showUnlock = _React$useState170[0],
+    setShowUnlock = _React$useState170[1];
+  var _React$useState171 = React.useState(''),
+    _React$useState172 = _slicedToArray(_React$useState171, 2),
+    unlockReason = _React$useState172[0],
+    setUnlockReason = _React$useState172[1];
   var checkedOnce = React.useRef(false);
   React.useEffect(function () {
     if (checkedOnce.current) return;
@@ -11176,10 +11474,10 @@ var ErrorBoundary = /*#__PURE__*/function (_React$Component) {
   }]);
 }(React.Component);
 function ThemedApp() {
-  var _React$useState171 = React.useState(loadThemeName),
-    _React$useState172 = _slicedToArray(_React$useState171, 2),
-    themeName = _React$useState172[0],
-    setThemeName = _React$useState172[1];
+  var _React$useState173 = React.useState(loadThemeName),
+    _React$useState174 = _slicedToArray(_React$useState173, 2),
+    themeName = _React$useState174[0],
+    setThemeName = _React$useState174[1];
   React.useEffect(function () {
     applyTheme(themeName);
   }, [themeName]);

@@ -1170,7 +1170,7 @@ const SB_LENS_PRESETS_KEY='sb_camrep_lens_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-const APP_VERSION='v4.0';
+const APP_VERSION='v4.1';
 
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
@@ -2058,6 +2058,10 @@ function CameraReport(){
   const fabRef=React.useRef({});
   const [printCams,setPrintCams]=React.useState([]);         // cams ticked for printing
   const [selTakeIds,setSelTakeIds]=React.useState([]); // multi-selected clip rows (for moving)
+  // Highlight mode: while on, tapping a cell/row paints it yellow instead of
+  // opening it for editing (see paintOverlay below). Off by default so
+  // normal logging is never affected.
+  const [highlightMode,setHighlightMode]=React.useState(false);
   const [showSearch,setShowSearch]=React.useState(false);
   const [searchQ,setSearchQ]=React.useState({});  // field -> search string
 
@@ -3146,7 +3150,33 @@ function CameraReport(){
       const dateStr=fmtDayDate(rk.date||(dayD&&dayD.date)||'');
       const cfg=CAM_CONFIG[camOf(rk)]||CAM_CONFIG.A;
       const tag={A:'#f3b0b0',B:'#b0c8f3',C:'#f0e0a0',D:'#b0f3c8',E:'#dcc0f3'}[camOf(rk)]||'#f3b0b0';
-      const hasPhoto=(rk.takes||[]).some(t=>(t.photoIds||[]).length>0);
+      // 'photo' is itself a hideable column (see takeHeaderCells on screen),
+      // so it must clear the same hiddenCols gate as every other column.
+      const hasPhoto=!hiddenCols.has('photo')&&(rk.takes||[]).some(t=>(t.photoIds||[]).length>0);
+      const HL_BG='#facc1550';
+      // One column-definition list drives the header, colgroup AND every
+      // row, so print always matches the "Take table columns" setting in
+      // Project Settings, the same way the on-screen table already does.
+      // SCENE and TAKE are never hideable, matching the on-screen header.
+      const COLS=[
+        {key:'scene',     always:true,  w:7.5,  label:'SCENE',    align:'left',   val:(t,sc)=>esc(sc)},
+        {key:'shot',      always:false, w:4.2,  label:'SHOT',     align:'center', val:(t,sc,sh)=>esc(sh)},
+        {key:'take',      always:true,  w:4.2,  label:'TAKE',     align:'center', val:t=>esc(t.take)},
+        {key:'tail',      always:false, w:2.8,  label:'T/S',      align:'center', val:t=>t.tail?'✅':''},
+        {key:'clip',      always:false, w:4.4,  label:'CLIP',     align:'left',   val:t=>esc(t.clip)},
+        {key:'lens',      always:false, w:8.5,  label:'LENS',     align:'left',   val:t=>esc(t.lens)},
+        {key:'focal',     always:false, w:4.6,  label:'FOCAL',    align:'left',   val:t=>esc(t.focal)},
+        {key:'stop',      always:false, w:4,    label:'STOP',     align:'left',   val:t=>esc(t.stop)},
+        {key:'shutter',   always:false, w:6,    label:'SHUTTER',  align:'left',   val:t=>esc(t.shutter||rk.shutter)},
+        {key:'ei',        always:false, w:3,    label:'EI',       align:'left',   val:t=>esc(t.ei)},
+        {key:'intFilters',always:false, w:6,    label:'FILTER 1', align:'left',   val:t=>esc(t.intFilters)},
+        {key:'filters',   always:false, w:6,    label:'FILTER 2', align:'left',   val:t=>esc(t.filters)},
+        {key:'filters3',  always:false, w:6,    label:'FILTER 3', align:'left',   val:t=>esc(t.filters3)},
+        {key:'wb',        always:false, w:4.4,  label:'WB',       align:'left',   val:t=>esc(t.wb)},
+        {key:'focus',     always:false, w:5,    label:'FOCUS',    align:'left',   val:t=>esc(t.focus)},
+        {key:'notes',     always:false, w:null, label:'NOTES',    align:'left',   val:t=>esc(t.notes)},
+      ];
+      const visCols=COLS.filter(c=>c.always||!hiddenCols.has(c.key));
       /* Same convention as the on-screen table and as a hand-written report:
          a repeated scene or shot is left blank rather than restated on every
          take. The underlying data still carries them (CSV and the Sheets
@@ -3155,12 +3185,18 @@ function CameraReport(){
         const pv=ti>0?arr[ti-1]:null;
         const sc=(pv&&String(pv.scene||'')===String(t.scene||''))?'':sceneWithIE(t.scene);
         const sh=(pv&&String(pv.shot||'')===String(t.shot||''))?'':t.shot;
-        return `<tr>
-        <td>${esc(sc)}</td><td style="text-align:center">${esc(sh)}</td><td style="text-align:center">${esc(t.take)}</td>
-        <td style="text-align:center">${t.tail?'✅':''}</td><td>${esc(t.clip)}</td>
-        <td>${esc(t.lens)}</td><td>${esc(t.focal)}</td><td>${esc(t.stop)}</td><td>${esc(t.shutter||rk.shutter)}</td><td>${esc(t.ei)}</td>
-        <td>${esc(t.intFilters)}</td><td>${esc(t.filters)}</td><td>${esc(t.filters3)}</td><td>${esc(t.wb)}</td><td>${esc(t.focus)}</td>
-        <td>${esc(t.notes)}</td>
+        // Highlight carries into print exactly as painted on screen: a
+        // per-cell yellow tint, plus a whole-row tint when rowHL is set.
+        const cells=visCols.map(c=>{
+          const parts=[];
+          if(c.align==='center')parts.push('text-align:center');
+          if(t.cellHL&&t.cellHL[c.key])parts.push(`background:${HL_BG}`);
+          const style=parts.length?` style="${parts.join(';')}"`:'';
+          return `<td${style}>${c.val(t,sc,sh)}</td>`;
+        }).join('');
+        const rowStyle=t.rowHL?` style="background:${HL_BG}"`:'';
+        return `<tr${rowStyle}>
+        ${cells}
         ${hasPhoto?`<td>${photoMap[t.id]?`<img src="${esc(photoMap[t.id])}" style="width:46px;height:34px;object-fit:cover;border-radius:2px;border:1px solid #999;">`:''}</td>`:''}
         </tr>`;
       }).join('');
@@ -3196,15 +3232,11 @@ function CameraReport(){
       </tbody></table>
       <table class="main">
       <colgroup>
-        <col style="width:7.5%"/><col style="width:4.2%"/><col style="width:4.2%"/><col style="width:2.8%"/>
-        <col style="width:4.4%"/><col style="width:8.5%"/><col style="width:4.6%"/><col style="width:4%"/>
-        <col style="width:6%"/><col style="width:3%"/><col style="width:6%"/><col style="width:6%"/>
-        <col style="width:6%"/><col style="width:4.4%"/><col style="width:5%"/><col/>
+        ${visCols.map((c,idx)=>idx===visCols.length-1?'<col/>':`<col style="width:${c.w}%"/>`).join('')}
         ${hasPhoto?'<col style="width:5%"/>':''}
       </colgroup>
       <thead><tr>
-        <th>SCENE</th><th>SHOT</th><th>TAKE</th><th>T/S</th><th>CLIP</th><th>LENS</th><th>FOCAL</th><th>STOP</th><th>SHUTTER</th><th>EI</th>
-        <th>FILTER 1</th><th>FILTER 2</th><th>FILTER 3</th><th>WB</th><th>FOCUS</th><th>NOTES</th>${hasPhoto?'<th>PHOTO</th>':''}
+        ${visCols.map(c=>`<th>${c.label}</th>`).join('')}${hasPhoto?'<th>PHOTO</th>':''}
       </tr></thead><tbody>${rows}</tbody></table>
       <table class="meta"><tbody><tr class="foot">
         <td class="k">NOTES:</td><td>End of ${esc(rk.roll)}${rk.shootDay?' &middot; SD '+esc(String(rk.shootDay).padStart(2,'0')):''}</td>
@@ -3975,6 +4007,21 @@ function CameraReport(){
           );
         })()}
 
+        {/* Highlight-mode banner - outside the table's scroll container so it
+            stays visible without scrolling, same pattern as the multi-select
+            bar above. */}
+        {highlightMode&&(
+          <div style={{padding:'8px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',
+            gap:10,flexShrink:0,background:'#eab30822',borderBottom:'1px solid #eab30866'}}>
+            <span style={{fontSize:11,fontWeight:600,color:'#eab308',fontFamily:"'Geist Mono',monospace"}}>
+              {'\uD83D\uDD8D'} 高亮模式中 - 点格子或行首上色
+            </span>
+            <button onClick={()=>setHighlightMode(false)}
+              style={{padding:'4px 10px',borderRadius:5,fontSize:10,fontFamily:"'Geist Mono',monospace",
+                background:'transparent',border:'1px solid #eab30866',color:'#eab308',cursor:'pointer'}}>完成</button>
+          </div>
+        )}
+
         {/* Take table - its OWN dedicated scroll container, with nothing
             else sharing it, which is what makes the plain CSS sticky header
             (see `th` above) actually reliable this time. */}
@@ -4015,13 +4062,35 @@ function CameraReport(){
                 // applied to every <td> in the row instead, spread in first so it never
                 // clobbers each cell's own borderRight/background.
                 const gb=newGroup?{borderTop:`2px solid ${T.accent}66`}:{};
+                // Highlight-mode helpers, scoped per row so they close over
+                // `t`. One yellow tone for both row and cell painting; it
+                // deliberately wins over the needFocal/needStop red
+                // required-field flash (spread after reqStyle below) since a
+                // highlight the user just tapped is a more current signal.
+                const HL_BG='#facc1550';
+                const hasHL=key=>!!(t.cellHL&&t.cellHL[key]);
+                const cellBg=key=>hasHL(key)?{background:HL_BG}:{};
+                const toggleCellHL=key=>{
+                  const cur={...(t.cellHL||{})};
+                  cur[key]=!cur[key];
+                  patchTake(t.id,{cellHL:cur});
+                };
+                // While highlight mode is on, this transparent overlay sits
+                // on top of the cell's normal control and intercepts the tap
+                // - so painting never also opens a field for editing.
+                const paintOverlay=key=>highlightMode?(
+                  <div onClick={()=>toggleCellHL(key)} title="Tap to highlight"
+                    style={{position:'absolute',inset:0,cursor:'pointer',zIndex:5}}/>
+                ):null;
                 return(
                 <tr key={t.id} style={{borderBottom:`1px solid ${T.rule}`,
-                  background:isSel?(CAM.tint):(i%2?T.surface2+'55':'transparent')}}>
-                  <td style={{...gb,borderRight:`1px solid ${T.rule}`,textAlign:'center'}}>
+                  background:t.rowHL?HL_BG:(isSel?(CAM.tint):(i%2?T.surface2+'55':'transparent'))}}>
+                  <td style={{...gb,borderRight:`1px solid ${T.rule}`,textAlign:'center',position:'relative'}}>
                     <input type="checkbox" checked={isSel} onChange={()=>toggleTakeSel(t.id)} style={{cursor:'pointer'}}/>
+                    {highlightMode&&<div onClick={()=>patchTake(t.id,{rowHL:!t.rowHL})} title="Tap to highlight row"
+                      style={{position:'absolute',inset:0,cursor:'pointer',zIndex:5}}/>}
                   </td>
-                  <td style={{...gb,borderRight:`1px solid ${T.rule}`}}>
+                  <td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('scene')}}>
                     {/* noFilter: same fix as Lens below - without it, a cell that
                         already holds a scene ID would filter the dropdown down to
                         just itself, making it impossible to browse/pick a different
@@ -4040,40 +4109,44 @@ function CameraReport(){
                         const newTake=first?takeNoFor(first,t.shot||'/',t.id):t.take;
                         patchTake(t.id,{scene:v,take:String(newTake)});
                       }}/>
+                    {paintOverlay('scene')}
                   </td>
-                  {!hiddenCols.has('shot')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={focusCell===t.id+':shot'?cellDraft:(sameShot?'':(t.shot||''))} placeholder={sameShot?'':'/'}
+                  {!hiddenCols.has('shot')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('shot')}}><input value={focusCell===t.id+':shot'?cellDraft:(sameShot?'':(t.shot||''))} placeholder={sameShot?'':'/'}
                     onFocus={()=>{ setFocusCell(t.id+':shot'); setCellDraft(sameShot?'':(t.shot||'')); }}
                     onBlur={()=>{ setFocusCell(''); setCellDraft(''); }}
                     onChange={e=>{ const v=e.target.value.toUpperCase(); setCellDraft(v); changeTakeShot(t.id,v); }}
-                    style={{...cellInput,textAlign:'center'}}/></td>}
-                  <td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.take||''} onChange={e=>patchTake(t.id,{take:e.target.value})} style={{...cellInput,textAlign:'center'}} inputMode="numeric"/></td>
-                  {!hiddenCols.has('tail')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,textAlign:'center'}}>
+                    style={{...cellInput,textAlign:'center'}}/>{paintOverlay('shot')}</td>}
+                  <td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('take')}}><input value={t.take||''} onChange={e=>patchTake(t.id,{take:e.target.value})} style={{...cellInput,textAlign:'center'}} inputMode="numeric"/>{paintOverlay('take')}</td>
+                  {!hiddenCols.has('tail')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,textAlign:'center',position:'relative',...cellBg('tail')}}>
                     <button onClick={()=>patchTake(t.id,{tail:!t.tail})} title="Tail slate" aria-label="Toggle tail slate" style={{background:'transparent',border:'none',cursor:'pointer',fontSize:14,padding:'2px'}}>{t.tail?'\u2705':'\u2610'}</button>
+                    {paintOverlay('tail')}
                   </td>}
-                  {!hiddenCols.has('clip')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.clip||''} onChange={e=>patchTake(t.id,{clip:e.target.value})} style={{...cellInput,textAlign:'right'}}/></td>}
-                  {!hiddenCols.has('lens')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.lens||''} onChange={v=>patchTake(t.id,{lens:v})} options={LENS_OPTIONS} inputStyle={cellInput} noFilter/></td>}
-                  {!hiddenCols.has('focal')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,...(needFocal?reqStyle:{})}}><LensFocalPicker value={t.focal||''} onChange={v=>patchTake(t.id,{focal:v})} options={FOCAL_OPTIONS} inputStyle={cellInput}/></td>}
-                  {!hiddenCols.has('stop')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,...(needStop?reqStyle:{})}}><LensFocalPicker value={t.stop||''} onChange={v=>patchTake(t.id,{stop:v})} options={STOP_OPTIONS} inputStyle={cellInput}/></td>}
-                  {!hiddenCols.has('shutter')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.shutter||''} onChange={v=>patchTake(t.id,{shutter:v})} options={SHUTTER_OPTIONS} placeholder={roll.shutter||''} inputStyle={{...cellInput,textAlign:'center'}}/></td>}
-                  {!hiddenCols.has('ei')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.ei||''} onChange={e=>patchTake(t.id,{ei:e.target.value})} style={cellInput}/></td>}
-                  {!hiddenCols.has('intFilters')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.intFilters||''} onChange={v=>patchTake(t.id,{intFilters:v})} options={FILTER1_OPTIONS} inputStyle={cellInput}/></td>}
-                  {!hiddenCols.has('filters')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.filters||''} onChange={v=>patchTake(t.id,{filters:v})} options={FILTER2_OPTIONS} inputStyle={cellInput}/></td>}
-                  {!hiddenCols.has('filters3')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.filters3||''} onChange={v=>patchTake(t.id,{filters3:v})} options={FILTER3_OPTIONS} inputStyle={cellInput}/></td>}
-                  {!hiddenCols.has('wb')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><LensFocalPicker value={t.wb||''} onChange={v=>patchTake(t.id,{wb:v})} options={WB_OPTIONS} inputStyle={cellInput} normalize={withK}/></td>}
+                  {!hiddenCols.has('clip')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('clip')}}><input value={t.clip||''} onChange={e=>patchTake(t.id,{clip:e.target.value})} style={{...cellInput,textAlign:'right'}}/>{paintOverlay('clip')}</td>}
+                  {!hiddenCols.has('lens')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('lens')}}><LensFocalPicker value={t.lens||''} onChange={v=>patchTake(t.id,{lens:v})} options={LENS_OPTIONS} inputStyle={cellInput} noFilter/>{paintOverlay('lens')}</td>}
+                  {!hiddenCols.has('focal')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...(needFocal?reqStyle:{}),...cellBg('focal')}}><LensFocalPicker value={t.focal||''} onChange={v=>patchTake(t.id,{focal:v})} options={FOCAL_OPTIONS} inputStyle={cellInput}/>{paintOverlay('focal')}</td>}
+                  {!hiddenCols.has('stop')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...(needStop?reqStyle:{}),...cellBg('stop')}}><LensFocalPicker value={t.stop||''} onChange={v=>patchTake(t.id,{stop:v})} options={STOP_OPTIONS} inputStyle={cellInput}/>{paintOverlay('stop')}</td>}
+                  {!hiddenCols.has('shutter')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('shutter')}}><LensFocalPicker value={t.shutter||''} onChange={v=>patchTake(t.id,{shutter:v})} options={SHUTTER_OPTIONS} placeholder={roll.shutter||''} inputStyle={{...cellInput,textAlign:'center'}}/>{paintOverlay('shutter')}</td>}
+                  {!hiddenCols.has('ei')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('ei')}}><input value={t.ei||''} onChange={e=>patchTake(t.id,{ei:e.target.value})} style={cellInput}/>{paintOverlay('ei')}</td>}
+                  {!hiddenCols.has('intFilters')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('intFilters')}}><LensFocalPicker value={t.intFilters||''} onChange={v=>patchTake(t.id,{intFilters:v})} options={FILTER1_OPTIONS} inputStyle={cellInput}/>{paintOverlay('intFilters')}</td>}
+                  {!hiddenCols.has('filters')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('filters')}}><LensFocalPicker value={t.filters||''} onChange={v=>patchTake(t.id,{filters:v})} options={FILTER2_OPTIONS} inputStyle={cellInput}/>{paintOverlay('filters')}</td>}
+                  {!hiddenCols.has('filters3')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('filters3')}}><LensFocalPicker value={t.filters3||''} onChange={v=>patchTake(t.id,{filters3:v})} options={FILTER3_OPTIONS} inputStyle={cellInput}/>{paintOverlay('filters3')}</td>}
+                  {!hiddenCols.has('wb')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('wb')}}><LensFocalPicker value={t.wb||''} onChange={v=>patchTake(t.id,{wb:v})} options={WB_OPTIONS} inputStyle={cellInput} normalize={withK}/>{paintOverlay('wb')}</td>}
                   {/* Focus is plain free text now - no feet mark. ACs write
                       distances in whatever form the shot needs ("5'6", "4'6-4'",
                       "20'-8'"), so a blanket auto-suffix got in the way more
                       often than it helped. */}
-                  {!hiddenCols.has('focus')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}>
+                  {!hiddenCols.has('focus')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('focus')}}>
                     <input value={t.focus||''} onChange={e=>patchTake(t.id,{focus:e.target.value})} style={cellInput}/>
+                    {paintOverlay('focus')}
                   </td>}
-                  {!hiddenCols.has('notes')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><NotesPicker value={t.notes||''} onChange={v=>patchTake(t.id,{notes:v})}/></td>}
-                  {!hiddenCols.has('photo')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,padding:'4px 2px'}}>
+                  {!hiddenCols.has('notes')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('notes')}}><NotesPicker value={t.notes||''} onChange={v=>patchTake(t.id,{notes:v})}/>{paintOverlay('notes')}</td>}
+                  {!hiddenCols.has('photo')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,padding:'4px 2px',position:'relative',...cellBg('photo')}}>
                     <TakePhotoCell projId={projId} take={t}
                       onAddPhoto={imgId=>patchTake(t.id,{photoIds:[...(t.photoIds||[]),imgId]})}
                       onRemovePhoto={imgId=>{
                         patchTake(t.id,{photoIds:(t.photoIds||[]).filter(x=>x!==imgId)});
                       }}/>
+                    {paintOverlay('photo')}
                   </td>}
                   <td style={{...gb,textAlign:'center',whiteSpace:'nowrap',padding:'4px 2px'}}>
                     <button onClick={()=>insertTakeAfter(t.id)} title="Insert row below" aria-label="Insert row below"
@@ -4245,6 +4318,18 @@ function CameraReport(){
               style={{padding:'9px 12px',borderRadius:6,border:`1px solid ${T.border}`,background:'transparent',
                 color:T.textDim,fontSize:10,fontFamily:"'Geist Mono',monospace",cursor:'pointer',textAlign:'left',marginTop:2}}>
               {'\u21B3'} Resequence clips
+            </button>
+
+            {/* Highlight mode: tap toggles it on and closes the drawer so the
+                table is immediately reachable for painting cells/rows. */}
+            <button className="cr-btn" onClick={()=>{setHighlightMode(v=>!v);setShowActions(false);}}
+              title="Tap cells or rows in the table to mark them yellow for the printed report"
+              style={{padding:'9px 12px',borderRadius:6,
+                border:`1px solid ${highlightMode?'#eab308':T.border}`,
+                background:highlightMode?'#eab30822':'transparent',
+                color:highlightMode?'#eab308':T.textDim,fontSize:11,fontFamily:"'Geist Mono',monospace",
+                cursor:'pointer',textAlign:'left',marginTop:2}}>
+              {'\uD83D\uDD8D'} 高亮模式{highlightMode?' \u2713':''}
             </button>
 
             {/* Correction, not routine use - which is why it sits at the bottom

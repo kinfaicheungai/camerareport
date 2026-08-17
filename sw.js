@@ -3,7 +3,7 @@
    background refresh when online (stale-while-revalidate) so the next visit
    with signal picks up any redeploy without ever blocking an offline open.
    Bump CACHE_NAME whenever you redeploy so old caches get cleared out. */
-const CACHE_NAME = 'camreport-cache-v31';
+const CACHE_NAME = 'camreport-cache-v32';
 const CORE_ASSETS = [
   './',
   './index.html',
