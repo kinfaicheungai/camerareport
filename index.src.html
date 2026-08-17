@@ -337,6 +337,15 @@ body{background:#0e0d0b;color:#f1ebe0;font-family:'Geist',sans-serif;-webkit-fon
 ::-webkit-scrollbar-thumb{background:var(--scroll-thumb,rgba(255,243,220,0.12));border-radius:3px}
 button{cursor:pointer;border:none;background:none;font:inherit;color:inherit}
 input,textarea,select{font:inherit;color:inherit;background:none;border:none;outline:none}
+/* Press feedback. On a touch screen there's no cursor and no hover, so a tap
+   on a flat button gives no sign it registered - crew were pressing twice to
+   be sure. The transform lands on the same frame as the touch, which is what
+   makes it read as a physical press. */
+.cr-btn{transition:transform .09s ease,filter .12s ease,box-shadow .12s ease;-webkit-tap-highlight-color:transparent}
+.cr-btn:active{transform:scale(0.955);filter:brightness(1.18)}
+.cr-btn:disabled{transform:none;filter:none}
+@keyframes crPulse{0%{transform:scale(1)}45%{transform:scale(0.94)}100%{transform:scale(1)}}
+.cr-pulse{animation:crPulse .18s ease}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 @media (max-width: 768px) {
@@ -1161,7 +1170,7 @@ const SB_LENS_PRESETS_KEY='sb_camrep_lens_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-const APP_VERSION='v3.9';
+const APP_VERSION='v4.0';
 
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
@@ -2037,6 +2046,13 @@ function CameraReport(){
      "every digit works except 9" happened, on a roll whose previous row was
      scene 9. While focused the real value is always shown. */
   const [focusCell,setFocusCell]=React.useState('');
+  /* What the focused scene/shot cell is showing right now. A continuation take
+     reads as EMPTY - on paper nobody rewrites the scene number for take 2, and
+     a value that only appears when you tap it feels like a glitch. So the cell
+     opens empty and shows exactly what gets typed, rather than revealing the
+     inherited value. The take's own record keeps the real scene/shot, because
+     take numbering, shot lettering, search and the Sheets export all read it. */
+  const [cellDraft,setCellDraft]=React.useState('');
   const [fabPos,setFabPos]=React.useState(loadFabPos);
   const [fabDrag,setFabDrag]=React.useState(null);           // {x,y} px while held
   const fabRef=React.useRef({});
@@ -4010,19 +4026,26 @@ function CameraReport(){
                         already holds a scene ID would filter the dropdown down to
                         just itself, making it impossible to browse/pick a different
                         one without clearing the field first. */}
-                    <LensFocalPicker value={(sameScene&&focusCell!==t.id+':scene')?'':(t.scene||'')}
-                      placeholder={(sameScene&&focusCell!==t.id+':scene')?'':'-'}
-                      onFocusChange={f=>setFocusCell(f?t.id+':scene':'')}
+                    <LensFocalPicker
+                      value={focusCell===t.id+':scene'?cellDraft:(sameScene?'':(t.scene||''))}
+                      placeholder={sameScene?'':'-'}
+                      onFocusChange={f=>{
+                        if(f){ setFocusCell(t.id+':scene'); setCellDraft(sameScene?'':(t.scene||'')); }
+                        else { setFocusCell(''); setCellDraft(''); }
+                      }}
                       options={sceneIds} inputStyle={cellInput} noFilter
                       onChange={v=>{
+                        setCellDraft(v);
                         const first=v.split(',')[0].trim();
                         const newTake=first?takeNoFor(first,t.shot||'/',t.id):t.take;
                         patchTake(t.id,{scene:v,take:String(newTake)});
                       }}/>
                   </td>
-                  {!hiddenCols.has('shot')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={(sameShot&&focusCell!==t.id+':shot')?'':(t.shot||'')} placeholder={(sameShot&&focusCell!==t.id+':shot')?'':'/'}
-                    onFocus={()=>setFocusCell(t.id+':shot')} onBlur={()=>setFocusCell('')}
-                    onChange={e=>changeTakeShot(t.id,e.target.value.toUpperCase())} style={{...cellInput,textAlign:'center'}}/></td>}
+                  {!hiddenCols.has('shot')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={focusCell===t.id+':shot'?cellDraft:(sameShot?'':(t.shot||''))} placeholder={sameShot?'':'/'}
+                    onFocus={()=>{ setFocusCell(t.id+':shot'); setCellDraft(sameShot?'':(t.shot||'')); }}
+                    onBlur={()=>{ setFocusCell(''); setCellDraft(''); }}
+                    onChange={e=>{ const v=e.target.value.toUpperCase(); setCellDraft(v); changeTakeShot(t.id,v); }}
+                    style={{...cellInput,textAlign:'center'}}/></td>}
                   <td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.take||''} onChange={e=>patchTake(t.id,{take:e.target.value})} style={{...cellInput,textAlign:'center'}} inputMode="numeric"/></td>
                   {!hiddenCols.has('tail')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,textAlign:'center'}}>
                     <button onClick={()=>patchTake(t.id,{tail:!t.tail})} title="Tail slate" aria-label="Toggle tail slate" style={{background:'transparent',border:'none',cursor:'pointer',fontSize:14,padding:'2px'}}>{t.tail?'\u2705':'\u2610'}</button>
@@ -4139,13 +4162,20 @@ function CameraReport(){
       {showActions&&roll&&(
         <>
           <div onClick={()=>setShowActions(false)} style={{position:'fixed',inset:0,zIndex:700,background:'rgba(0,0,0,0.45)'}}/>
-          {/* Sized to its content (only ~4 buttons), not a fixed 240px panel:
-              top:'auto' anchored to bottom-right as a compact card rather
-              than a full-height edge-to-edge drawer, with maxHeight+auto
-              scroll as a safety net if "Sync cams" expands it. */}
-          <div style={{position:'fixed',right:0,bottom:0,width:'min(190px,62vw)',maxHeight:'70vh',zIndex:701,
-            background:T.panel,borderLeft:`1px solid ${T.border}`,borderTop:`1px solid ${T.border}`,
-            borderRadius:'10px 0 0 0',boxShadow:'-6px -2px 24px rgba(0,0,0,0.5)',
+          {/* The panel opens WHERE THE BUTTON IS. It used to always spring from
+              the bottom-right, so once the button had been dragged elsewhere
+              the two had nothing to do with each other and the panel could
+              land under your hand. It now hugs the same edge, and grows down
+              from the button when it sits high on screen or up from it when
+              it sits low, so it never runs off the top or bottom. */}
+          <div style={{position:'fixed',zIndex:701,
+            [fabPos.side]:8,
+            ...(fabPos.y<=0.5
+              ?{top:`min(${(fabPos.y*100).toFixed(1)}vh, 28vh)`}
+              :{bottom:`max(2vh, ${(100-fabPos.y*100-4).toFixed(1)}vh)`}),
+            width:'min(190px,62vw)',maxHeight:'68vh',
+            background:T.panel,border:`1px solid ${T.border}`,
+            borderRadius:10,boxShadow:'0 8px 28px rgba(0,0,0,0.55)',
             display:'flex',flexDirection:'column',padding:'12px 10px',gap:8,overflowY:'auto'}}>
             <div style={{display:'flex',alignItems:'center',marginBottom:4}}>
               <span style={{fontSize:12,fontWeight:600,color:T.text,flex:1,fontFamily:"'Geist Mono',monospace"}}>ROLL ACTIONS</span>
@@ -4161,15 +4191,15 @@ function CameraReport(){
               border:`1px solid ${T.danger}55`,borderRadius:5,padding:'7px 9px',fontFamily:"'Geist Mono',monospace"}}>
               {'\u26A0'} Duplicate roll number - fix ROLL # before logging clips.
             </div>}
-            <button onClick={addTake} disabled={!!rollDupe} style={{padding:'9px 14px',borderRadius:6,border:`1px dashed ${CAM.accent}66`,background:CAM.tint,color:CAM.accent,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:rollDupe?'not-allowed':'pointer',textAlign:'left',opacity:rollDupe?0.4:1}}>+ Add take</button>
-            <button onClick={addShot} disabled={!!rollDupe} style={{padding:'9px 14px',borderRadius:6,border:`1px dashed ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:rollDupe?'not-allowed':'pointer',textAlign:'left',opacity:rollDupe?0.4:1}}>+ New shot</button>
-            <button onClick={addNewScene} disabled={!!rollDupe} style={{padding:'9px 14px',borderRadius:6,border:`1px dashed ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:rollDupe?'not-allowed':'pointer',textAlign:'left',opacity:rollDupe?0.4:1}}>+ New scene</button>
+            <button className="cr-btn" onClick={addTake} disabled={!!rollDupe} style={{padding:'9px 14px',borderRadius:6,border:`1px dashed ${CAM.accent}66`,background:CAM.tint,color:CAM.accent,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:rollDupe?'not-allowed':'pointer',textAlign:'left',opacity:rollDupe?0.4:1}}>+ Add take</button>
+            <button className="cr-btn" onClick={addShot} disabled={!!rollDupe} style={{padding:'9px 14px',borderRadius:6,border:`1px dashed ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:rollDupe?'not-allowed':'pointer',textAlign:'left',opacity:rollDupe?0.4:1}}>+ New shot</button>
+            <button className="cr-btn" onClick={addNewScene} disabled={!!rollDupe} style={{padding:'9px 14px',borderRadius:6,border:`1px dashed ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:rollDupe?'not-allowed':'pointer',textAlign:'left',opacity:rollDupe?0.4:1}}>+ New scene</button>
             {existingCams.length>1&&(()=>{
               const active=syncCams.includes(activeCam)&&syncCams.length>1;
               const label=syncCams.length>1?syncCams.join('+'):'off';
               return(
                 <div style={{borderTop:`1px solid ${T.rule}`,paddingTop:10,marginTop:2}}>
-                  <button onClick={()=>setShowSyncMenu(v=>!v)}
+                  <button className="cr-btn" onClick={()=>setShowSyncMenu(v=>!v)}
                     title="Choose which cameras add takes together (e.g. just A+B, or A+B+C)"
                     style={{display:'flex',alignItems:'center',gap:6,width:'100%',padding:'9px 12px',borderRadius:6,cursor:'pointer',
                       border:`1.5px solid ${active?CAM.accent:T.border}`,
@@ -4211,7 +4241,7 @@ function CameraReport(){
                 </div>
               );
             })()}
-            <button onClick={resequenceClips} title="Renumber all clip names in sequence from the first one"
+            <button className="cr-btn" onClick={resequenceClips} title="Renumber all clip names in sequence from the first one"
               style={{padding:'9px 12px',borderRadius:6,border:`1px solid ${T.border}`,background:'transparent',
                 color:T.textDim,fontSize:10,fontFamily:"'Geist Mono',monospace",cursor:'pointer',textAlign:'left',marginTop:2}}>
               {'\u21B3'} Resequence clips
