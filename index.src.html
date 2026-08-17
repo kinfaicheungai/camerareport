@@ -904,6 +904,7 @@ const TAKE_COLUMNS=[
   {key:'filters', label:'Filter 2'},
   {key:'filters3',label:'Filter 3'},
   {key:'wb',      label:'White balance'},
+  {key:'tint',    label:'Tint'},
   {key:'focus',   label:'Focus'},
   {key:'notes',   label:'Notes'},
   {key:'photo',   label:'Reference photo'},
@@ -999,7 +1000,7 @@ function clearGateAuth(){
 /* Column set mirrors exportCSV() below (ROLL/CAM/DAY/DATE added up front
    since this backup flattens EVERY roll, not just the one on screen). */
 function flattenRollsForSheet(rolls){
-  const head=['ROLL','CAM','SHOOT DAY','DATE','SCENE','SHOT','TAKE','T/S','CLIP','LENS','FOCAL','STOP','SHUTTER','EI','FILTER 1','FILTER 2','FILTER 3','WB','FOCUS','NOTES'];
+  const head=['ROLL','CAM','SHOOT DAY','DATE','SCENE','SHOT','TAKE','T/S','CLIP','LENS','FOCAL','STOP','SHUTTER','EI','FILTER 1','FILTER 2','FILTER 3','WB','TINT','FOCUS','NOTES'];
   const rows=[head];
   (rolls||[]).slice().sort((a,b)=>{
     const ca=camOf(a), cb=camOf(b);
@@ -1011,7 +1012,7 @@ function flattenRollsForSheet(rolls){
         r.roll||'', camOf(r), r.shootDay!=null?String(r.shootDay):'', r.date||'',
         t.scene||'', t.shot||'', t.take||'', t.tail?'TAIL':'', t.clip||'',
         t.lens||'', t.focal||'', t.stop||'', t.shutter||r.shutter||'', t.ei||'',
-        t.intFilters||'', t.filters||'', t.filters3||'', t.wb||'', t.focus||'', t.notes||''
+        t.intFilters||'', t.filters||'', t.filters3||'', t.wb||'', t.tint||'', t.focus||'', t.notes||''
       ].map(v=>v==null?'':String(v)));
     });
   });
@@ -1162,6 +1163,7 @@ const SB_FILTER1_PRESETS_KEY='sb_camrep_filter1_presets';
 const SB_FILTER2_PRESETS_KEY='sb_camrep_filter2_presets';
 const SB_FILTER3_PRESETS_KEY='sb_camrep_filter3_presets';
 const SB_LENS_PRESETS_KEY='sb_camrep_lens_presets';
+const SB_TINT_PRESETS_KEY='sb_camrep_tint_presets';
 
 /* Multi-camera config: each camera letter has a distinct header colour so
    the user can tell at a glance which camera's report they're editing. */
@@ -1170,7 +1172,7 @@ const SB_LENS_PRESETS_KEY='sb_camrep_lens_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-const APP_VERSION='v4.1';
+const APP_VERSION='v4.2';
 
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
@@ -1990,6 +1992,10 @@ function CameraReport(){
   // used to be plain free-text boxes with no list to pick from.
   const DEFAULT_FILTER1=['Clear','IRND 0.3','IRND 0.6','IRND 0.9','IRND 1.2','IRND 1.5','IRND 1.8','IRND 2.1'];
   const DEFAULT_FILTER3=['Clear','Polariser','Black Pro-Mist 1/8','Black Pro-Mist 1/4','Black Pro-Mist 1/2','Black Pro-Mist 1','Glimmerglass 1','Hollywood Black Magic 1/8','Low Contrast 1/4','Soft FX 1/2'];
+  // Tint is the green/magenta axis alongside White Balance's blue/amber axis
+  // - positive = green, negative = magenta, same convention as most cameras'
+  // WB/Tint pair.
+  const DEFAULT_TINT=['+10','+5','0','-5','-10'];
   const loadOpts=(key,def)=>{try{const v=JSON.parse(localStorage.getItem(key)||'null');return (Array.isArray(v)&&v.length)?v:def;}catch{return def;}};
   const [lensOptions,setLensOptions]=React.useState(()=>loadOpts(SB_LENS_PRESETS_KEY,DEFAULT_LENS));
   const [focalOptions,setFocalOptions]=React.useState(()=>loadOpts(SB_FOCAL_PRESETS_KEY,DEFAULT_FOCAL));
@@ -1997,12 +2003,14 @@ function CameraReport(){
   const [filter1Options,setFilter1Options]=React.useState(()=>loadOpts(SB_FILTER1_PRESETS_KEY,DEFAULT_FILTER1));
   const [filter2Options,setFilter2Options]=React.useState(()=>loadOpts(SB_FILTER2_PRESETS_KEY,DEFAULT_FILTER2));
   const [filter3Options,setFilter3Options]=React.useState(()=>loadOpts(SB_FILTER3_PRESETS_KEY,DEFAULT_FILTER3));
+  const [tintOptions,setTintOptions]=React.useState(()=>loadOpts(SB_TINT_PRESETS_KEY,DEFAULT_TINT));
   const LENS_OPTIONS=lensOptions;
   const FOCAL_OPTIONS=focalOptions;
   const STOP_OPTIONS=stopOptions;
   const FILTER1_OPTIONS=filter1Options;
   const FILTER2_OPTIONS=filter2Options;
   const FILTER3_OPTIONS=filter3Options;
+  const TINT_OPTIONS=tintOptions;
   // Single active-preset editor (null = closed). Value is a config key.
   const [activePreset,setActivePreset]=React.useState(null);
   // Registry of all editable dropdown-option lists  -  add future fields here.
@@ -2014,9 +2022,10 @@ function CameraReport(){
     filter1:{title:'Filter 1 (internal) Presets', storageKey:SB_FILTER1_PRESETS_KEY, defaults:DEFAULT_FILTER1, placeholder:'e.g. IRND 0.9', onSaved:setFilter1Options},
     filter2:{title:'Filter 2 (ND) Presets', storageKey:SB_FILTER2_PRESETS_KEY, defaults:DEFAULT_FILTER2, placeholder:'e.g. ND1.2', normalize:v=>/^\d+(\.\d+)?$/.test(v)?'ND'+v:v, onSaved:setFilter2Options},
     filter3:{title:'Filter 3 (diffusion/effects) Presets', storageKey:SB_FILTER3_PRESETS_KEY, defaults:DEFAULT_FILTER3, placeholder:'e.g. Black Pro-Mist 1/4', onSaved:setFilter3Options},
+    tint:   {title:'Tint Presets',    storageKey:SB_TINT_PRESETS_KEY,    defaults:DEFAULT_TINT,    placeholder:'e.g. +5 or -5', normalize:v=>/^\d+(\.\d+)?$/.test(v)?'+'+v:v, onSaved:setTintOptions},
   };
   const PRESET_MENU=[{k:'notes',l:'Notes'},{k:'lens',l:'Lens'},{k:'focal',l:'Focal'},{k:'stop',l:'Stop'},
-    {k:'filter1',l:'Filter 1'},{k:'filter2',l:'Filter 2'},{k:'filter3',l:'Filter 3'}];
+    {k:'filter1',l:'Filter 1'},{k:'filter2',l:'Filter 2'},{k:'filter3',l:'Filter 3'},{k:'tint',l:'Tint'}];
   const [showPresetMenu,setShowPresetMenu]=React.useState(false);
 
   const [rolls,setRolls]=React.useState([]);     // [{id, roll, cam, mag, date, shootDay, ...takes}]
@@ -2761,21 +2770,21 @@ function CameraReport(){
       return {...base,
         lens:'', focal:'', stop:'', shutter:'', ei:'',
         intFilters:'', filters:'', filters3:'',
-        wb:'', focus:'', notes:'', photoIds:[]};
+        wb:'', tint:'', focus:'', notes:'', photoIds:[]};
     }
     /* New shot / new scene inherits the whole optical + exposure setup from the
-       PREVIOUS TAKE - lens, stop, shutter, EI, WB and all three filter slots.
-       Between setups those rarely change, so re-typing them every time is
-       wasted keystrokes on set. LENS reads from `last` rather than the roll's
-       default so that swapping glass mid-roll sticks for the rest of the roll.
-       FOCAL is the deliberate exception: a new setup means a new framing, so
-       leaving it blank forces it to be entered rather than silently inheriting
-       a length that is now wrong. */
+       PREVIOUS TAKE - lens, stop, shutter, EI, WB/Tint and all three filter
+       slots. Between setups those rarely change, so re-typing them every
+       time is wasted keystrokes on set. LENS reads from `last` rather than
+       the roll's default so that swapping glass mid-roll sticks for the
+       rest of the roll. FOCAL is the deliberate exception: a new setup
+       means a new framing, so leaving it blank forces it to be entered
+       rather than silently inheriting a length that is now wrong. */
     return {...base,
       lens:carried('lens')||rk.lens||'', focal:'', stop:carried('stop'),
       shutter:carried('shutter')||rk.shutter||'', ei:carried('ei')||rk.baseEI||'',
       intFilters:carried('intFilters'), filters:carried('filters'), filters3:carried('filters3'),
-      wb:carried('wb'), focus:'', notes:'', photoIds:[]};
+      wb:carried('wb'), tint:carried('tint'), focus:'', notes:'', photoIds:[]};
   }
 
   // Resolve target rolls for a sync-add: the last roll used for each
@@ -2847,7 +2856,7 @@ function CameraReport(){
     {k:'scene',l:'SCENE'},{k:'shot',l:'SHOT'},{k:'clip',l:'CLIP'},
     {k:'lens',l:'LENS'},{k:'focal',l:'FOCAL'},{k:'stop',l:'STOP'},
     {k:'shutter',l:'SHUTTER'},{k:'ei',l:'EI'},{k:'intFilters',l:'FILTER 1'},
-    {k:'filters',l:'FILTER 2'},{k:'filters3',l:'FILTER 3'},{k:'wb',l:'WB'},{k:'focus',l:'FOCUS'},
+    {k:'filters',l:'FILTER 2'},{k:'filters3',l:'FILTER 3'},{k:'wb',l:'WB'},{k:'tint',l:'TINT'},{k:'focus',l:'FOCUS'},
     {k:'notes',l:'NOTES'},
   ];
   const SEARCH_FIELDS=[...ROLL_SEARCH_FIELDS,...TAKE_SEARCH_FIELDS];
@@ -3003,21 +3012,19 @@ function CameraReport(){
     const newClip=anchorParsed?fmtClip(anchorParsed,anchorParsed.num+1):'';
     const insertNum=anchorParsed?anchorParsed.num+1:null;
 
-    /* An inserted row is another TAKE of the shot above it, so it behaves like
-       "+ Add take": scene and shot come from the anchor, the take number steps
-       up, and everything the AC would only write when it CHANGES is left
-       empty. Lens is the one exception that carries over - the glass doesn't
-       come off the camera between takes of the same shot, so repeating it is
-       noise, while a stale focal/stop/filter would be a quiet lie. */
+    /* An inserted row is another TAKE of the shot above it, so it behaves
+       exactly like "+ Add take": scene and shot come from the anchor, the
+       take number steps up, and everything else - including lens - is left
+       empty for the AC to fill in only what changed. */
     const newTake={
       id:'tk'+Date.now(),
       scene, shot,
       take:String(takeNoFor(scene,shot)),
       tail:false, clip:newClip,
-      lens:anchor?.lens||roll.lens||'',
+      lens:'',
       focal:'', stop:'', shutter:'', ei:'',
       intFilters:'', filters:'', filters3:'',
-      wb:'', focus:'', notes:'',
+      wb:'', tint:'', focus:'', notes:'',
       photoIds:[]
     };
 
@@ -3173,6 +3180,7 @@ function CameraReport(){
         {key:'filters',   always:false, w:6,    label:'FILTER 2', align:'left',   val:t=>esc(t.filters)},
         {key:'filters3',  always:false, w:6,    label:'FILTER 3', align:'left',   val:t=>esc(t.filters3)},
         {key:'wb',        always:false, w:4.4,  label:'WB',       align:'left',   val:t=>esc(t.wb)},
+        {key:'tint',      always:false, w:3.2,  label:'TINT',     align:'left',   val:t=>esc(t.tint)},
         {key:'focus',     always:false, w:5,    label:'FOCUS',    align:'left',   val:t=>esc(t.focus)},
         {key:'notes',     always:false, w:null, label:'NOTES',    align:'left',   val:t=>esc(t.notes)},
       ];
@@ -3352,11 +3360,11 @@ function CameraReport(){
 
   function exportCSV(){
     if(!roll)return;
-    const head=['SCENE','SHOT','TAKE','T/S','CLIP','LENS','FOCAL','STOP','SHUTTER','EI','FILTER 1','FILTER 2','FILTER 3','WB','FOCUS','NOTES'];
+    const head=['SCENE','SHOT','TAKE','T/S','CLIP','LENS','FOCAL','STOP','SHUTTER','EI','FILTER 1','FILTER 2','FILTER 3','WB','TINT','FOCUS','NOTES'];
     const esc=(v)=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
     const lines=[head.join(',')];
     roll.takes.forEach(t=>{
-      lines.push([t.scene,t.shot,t.take,t.tail?'TAIL':'',t.clip,t.lens,t.focal,t.stop,t.shutter||roll.shutter||'',t.ei,t.intFilters,t.filters,t.filters3,t.wb,t.focus,t.notes].map(esc).join(','));
+      lines.push([t.scene,t.shot,t.take,t.tail?'TAIL':'',t.clip,t.lens,t.focal,t.stop,t.shutter||roll.shutter||'',t.ei,t.intFilters,t.filters,t.filters3,t.wb,t.tint,t.focus,t.notes].map(esc).join(','));
     });
     const blob=new Blob([lines.join('\n')],{type:'text/csv'});
     const url=URL.createObjectURL(blob);
@@ -3399,6 +3407,7 @@ function CameraReport(){
       {!hiddenCols.has('filters')&&<th style={{...th,width:80}}>FILTER 2</th>}
       {!hiddenCols.has('filters3')&&<th style={{...th,width:70}}>FILTER 3</th>}
       {!hiddenCols.has('wb')&&<th style={{...th,width:76}}>WB</th>}
+      {!hiddenCols.has('tint')&&<th style={{...th,width:50}}>TINT</th>}
       {!hiddenCols.has('focus')&&<th style={{...th,width:46,whiteSpace:'nowrap'}}>FOCUS</th>}
       {!hiddenCols.has('notes')&&<th style={{...th,minWidth:180}}>NOTES</th>}
       {!hiddenCols.has('photo')&&<th style={{...th,width:44}}>{'📷'}</th>}
@@ -3737,6 +3746,7 @@ function CameraReport(){
                 {!hiddenCols.has('stop')&&<th style={{...th,width:50}}>STOP</th>}
                 {!hiddenCols.has('shutter')&&<th style={{...th,width:55}}>SHUTTER</th>}
                 {!hiddenCols.has('wb')&&<th style={{...th,width:55}}>WB</th>}
+                {!hiddenCols.has('tint')&&<th style={{...th,width:44}}>TINT</th>}
                 {!hiddenCols.has('intFilters')&&<th style={{...th,width:64}}>FILTER 1</th>}
                 {!hiddenCols.has('filters')&&<th style={{...th,width:64}}>FILTER 2</th>}
                 {!hiddenCols.has('filters3')&&<th style={{...th,width:64}}>FILTER 3</th>}
@@ -3793,6 +3803,9 @@ function CameraReport(){
                       {!hiddenCols.has('wb')&&<td style={{borderRight:`1px solid ${T.rule}`,...hl('wb')}}>
                         <input value={t.wb||''} onChange={e=>patch({wb:e.target.value})}
                           onBlur={e=>{const n=withK(e.target.value); if(n!==e.target.value)patch({wb:n});}} style={ci}/>
+                      </td>}
+                      {!hiddenCols.has('tint')&&<td style={{borderRight:`1px solid ${T.rule}`,...hl('tint')}}>
+                        <input value={t.tint||''} onChange={e=>patch({tint:e.target.value})} style={ci}/>
                       </td>}
                       {!hiddenCols.has('intFilters')&&<td style={{borderRight:`1px solid ${T.rule}`,...hl('intFilters')}}>
                         <input value={t.intFilters||''} onChange={e=>patch({intFilters:e.target.value})} style={ci}/>
@@ -4014,11 +4027,11 @@ function CameraReport(){
           <div style={{padding:'8px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',
             gap:10,flexShrink:0,background:'#eab30822',borderBottom:'1px solid #eab30866'}}>
             <span style={{fontSize:11,fontWeight:600,color:'#eab308',fontFamily:"'Geist Mono',monospace"}}>
-              {'\uD83D\uDD8D'} 高亮模式中 - 点格子或行首上色
+              {'\uD83D\uDD8D'} Highlight mode on - tap a cell or row to mark it
             </span>
             <button onClick={()=>setHighlightMode(false)}
               style={{padding:'4px 10px',borderRadius:5,fontSize:10,fontFamily:"'Geist Mono',monospace",
-                background:'transparent',border:'1px solid #eab30866',color:'#eab308',cursor:'pointer'}}>完成</button>
+                background:'transparent',border:'1px solid #eab30866',color:'#eab308',cursor:'pointer'}}>Done</button>
           </div>
         )}
 
@@ -4131,6 +4144,7 @@ function CameraReport(){
                   {!hiddenCols.has('filters')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('filters')}}><LensFocalPicker value={t.filters||''} onChange={v=>patchTake(t.id,{filters:v})} options={FILTER2_OPTIONS} inputStyle={cellInput}/>{paintOverlay('filters')}</td>}
                   {!hiddenCols.has('filters3')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('filters3')}}><LensFocalPicker value={t.filters3||''} onChange={v=>patchTake(t.id,{filters3:v})} options={FILTER3_OPTIONS} inputStyle={cellInput}/>{paintOverlay('filters3')}</td>}
                   {!hiddenCols.has('wb')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('wb')}}><LensFocalPicker value={t.wb||''} onChange={v=>patchTake(t.id,{wb:v})} options={WB_OPTIONS} inputStyle={cellInput} normalize={withK}/>{paintOverlay('wb')}</td>}
+                  {!hiddenCols.has('tint')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('tint')}}><LensFocalPicker value={t.tint||''} onChange={v=>patchTake(t.id,{tint:v})} options={TINT_OPTIONS} inputStyle={cellInput}/>{paintOverlay('tint')}</td>}
                   {/* Focus is plain free text now - no feet mark. ACs write
                       distances in whatever form the shot needs ("5'6", "4'6-4'",
                       "20'-8'"), so a blanket auto-suffix got in the way more
@@ -4329,7 +4343,7 @@ function CameraReport(){
                 background:highlightMode?'#eab30822':'transparent',
                 color:highlightMode?'#eab308':T.textDim,fontSize:11,fontFamily:"'Geist Mono',monospace",
                 cursor:'pointer',textAlign:'left',marginTop:2}}>
-              {'\uD83D\uDD8D'} 高亮模式{highlightMode?' \u2713':''}
+              {'\uD83D\uDD8D'} Highlight Mode{highlightMode?' \u2713':''}
             </button>
 
             {/* Correction, not routine use - which is why it sits at the bottom

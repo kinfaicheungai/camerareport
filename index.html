@@ -1317,6 +1317,9 @@ var TAKE_COLUMNS = [{
   key: 'wb',
   label: 'White balance'
 }, {
+  key: 'tint',
+  label: 'Tint'
+}, {
   key: 'focus',
   label: 'Focus'
 }, {
@@ -1521,7 +1524,7 @@ function clearGateAuth() {
 /* Column set mirrors exportCSV() below (ROLL/CAM/DAY/DATE added up front
    since this backup flattens EVERY roll, not just the one on screen). */
 function flattenRollsForSheet(rolls) {
-  var head = ['ROLL', 'CAM', 'SHOOT DAY', 'DATE', 'SCENE', 'SHOT', 'TAKE', 'T/S', 'CLIP', 'LENS', 'FOCAL', 'STOP', 'SHUTTER', 'EI', 'FILTER 1', 'FILTER 2', 'FILTER 3', 'WB', 'FOCUS', 'NOTES'];
+  var head = ['ROLL', 'CAM', 'SHOOT DAY', 'DATE', 'SCENE', 'SHOT', 'TAKE', 'T/S', 'CLIP', 'LENS', 'FOCAL', 'STOP', 'SHUTTER', 'EI', 'FILTER 1', 'FILTER 2', 'FILTER 3', 'WB', 'TINT', 'FOCUS', 'NOTES'];
   var rows = [head];
   (rolls || []).slice().sort(function (a, b) {
     var ca = camOf(a),
@@ -1532,7 +1535,7 @@ function flattenRollsForSheet(rolls) {
     });
   }).forEach(function (r) {
     (r.takes || []).forEach(function (t) {
-      rows.push([r.roll || '', camOf(r), r.shootDay != null ? String(r.shootDay) : '', r.date || '', t.scene || '', t.shot || '', t.take || '', t.tail ? 'TAIL' : '', t.clip || '', t.lens || '', t.focal || '', t.stop || '', t.shutter || r.shutter || '', t.ei || '', t.intFilters || '', t.filters || '', t.filters3 || '', t.wb || '', t.focus || '', t.notes || ''].map(function (v) {
+      rows.push([r.roll || '', camOf(r), r.shootDay != null ? String(r.shootDay) : '', r.date || '', t.scene || '', t.shot || '', t.take || '', t.tail ? 'TAIL' : '', t.clip || '', t.lens || '', t.focal || '', t.stop || '', t.shutter || r.shutter || '', t.ei || '', t.intFilters || '', t.filters || '', t.filters3 || '', t.wb || '', t.tint || '', t.focus || '', t.notes || ''].map(function (v) {
         return v == null ? '' : String(v);
       }));
     });
@@ -1929,6 +1932,7 @@ var SB_FILTER1_PRESETS_KEY = 'sb_camrep_filter1_presets';
 var SB_FILTER2_PRESETS_KEY = 'sb_camrep_filter2_presets';
 var SB_FILTER3_PRESETS_KEY = 'sb_camrep_filter3_presets';
 var SB_LENS_PRESETS_KEY = 'sb_camrep_lens_presets';
+var SB_TINT_PRESETS_KEY = 'sb_camrep_tint_presets';
 
 /* Multi-camera config: each camera letter has a distinct header colour so
    the user can tell at a glance which camera's report they're editing. */
@@ -1937,7 +1941,7 @@ var SB_LENS_PRESETS_KEY = 'sb_camrep_lens_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-var APP_VERSION = 'v4.1';
+var APP_VERSION = 'v4.2';
 var CAM_CONFIG = {
   A: {
     label: 'A',
@@ -3939,6 +3943,10 @@ function CameraReport() {
   // used to be plain free-text boxes with no list to pick from.
   var DEFAULT_FILTER1 = ['Clear', 'IRND 0.3', 'IRND 0.6', 'IRND 0.9', 'IRND 1.2', 'IRND 1.5', 'IRND 1.8', 'IRND 2.1'];
   var DEFAULT_FILTER3 = ['Clear', 'Polariser', 'Black Pro-Mist 1/8', 'Black Pro-Mist 1/4', 'Black Pro-Mist 1/2', 'Black Pro-Mist 1', 'Glimmerglass 1', 'Hollywood Black Magic 1/8', 'Low Contrast 1/4', 'Soft FX 1/2'];
+  // Tint is the green/magenta axis alongside White Balance's blue/amber axis
+  // - positive = green, negative = magenta, same convention as most cameras'
+  // WB/Tint pair.
+  var DEFAULT_TINT = ['+10', '+5', '0', '-5', '-10'];
   var loadOpts = function loadOpts(key, def) {
     try {
       var v = JSON.parse(localStorage.getItem(key) || 'null');
@@ -3983,17 +3991,24 @@ function CameraReport() {
     _React$useState58 = _slicedToArray(_React$useState57, 2),
     filter3Options = _React$useState58[0],
     setFilter3Options = _React$useState58[1];
+  var _React$useState59 = React.useState(function () {
+      return loadOpts(SB_TINT_PRESETS_KEY, DEFAULT_TINT);
+    }),
+    _React$useState60 = _slicedToArray(_React$useState59, 2),
+    tintOptions = _React$useState60[0],
+    setTintOptions = _React$useState60[1];
   var LENS_OPTIONS = lensOptions;
   var FOCAL_OPTIONS = focalOptions;
   var STOP_OPTIONS = stopOptions;
   var FILTER1_OPTIONS = filter1Options;
   var FILTER2_OPTIONS = filter2Options;
   var FILTER3_OPTIONS = filter3Options;
+  var TINT_OPTIONS = tintOptions;
   // Single active-preset editor (null = closed). Value is a config key.
-  var _React$useState59 = React.useState(null),
-    _React$useState60 = _slicedToArray(_React$useState59, 2),
-    activePreset = _React$useState60[0],
-    setActivePreset = _React$useState60[1];
+  var _React$useState61 = React.useState(null),
+    _React$useState62 = _slicedToArray(_React$useState61, 2),
+    activePreset = _React$useState62[0],
+    setActivePreset = _React$useState62[1];
   // Registry of all editable dropdown-option lists  -  add future fields here.
   var PRESET_CONFIGS = {
     notes: {
@@ -4053,6 +4068,16 @@ function CameraReport() {
       defaults: DEFAULT_FILTER3,
       placeholder: 'e.g. Black Pro-Mist 1/4',
       onSaved: setFilter3Options
+    },
+    tint: {
+      title: 'Tint Presets',
+      storageKey: SB_TINT_PRESETS_KEY,
+      defaults: DEFAULT_TINT,
+      placeholder: 'e.g. +5 or -5',
+      normalize: function normalize(v) {
+        return /^\d+(\.\d+)?$/.test(v) ? '+' + v : v;
+      },
+      onSaved: setTintOptions
     }
   };
   var PRESET_MENU = [{
@@ -4076,75 +4101,78 @@ function CameraReport() {
   }, {
     k: 'filter3',
     l: 'Filter 3'
+  }, {
+    k: 'tint',
+    l: 'Tint'
   }];
-  var _React$useState61 = React.useState(false),
-    _React$useState62 = _slicedToArray(_React$useState61, 2),
-    showPresetMenu = _React$useState62[0],
-    setShowPresetMenu = _React$useState62[1];
-  var _React$useState63 = React.useState([]),
+  var _React$useState63 = React.useState(false),
     _React$useState64 = _slicedToArray(_React$useState63, 2),
-    rolls = _React$useState64[0],
-    setRolls = _React$useState64[1]; // [{id, roll, cam, mag, date, shootDay, ...takes}]
-  var _React$useState65 = React.useState(null),
+    showPresetMenu = _React$useState64[0],
+    setShowPresetMenu = _React$useState64[1];
+  var _React$useState65 = React.useState([]),
     _React$useState66 = _slicedToArray(_React$useState65, 2),
-    activeRoll = _React$useState66[0],
-    setActiveRoll = _React$useState66[1];
-  var _React$useState67 = React.useState('A'),
+    rolls = _React$useState66[0],
+    setRolls = _React$useState66[1]; // [{id, roll, cam, mag, date, shootDay, ...takes}]
+  var _React$useState67 = React.useState(null),
     _React$useState68 = _slicedToArray(_React$useState67, 2),
-    activeCam = _React$useState68[0],
-    setActiveCam = _React$useState68[1]; // which camera's rolls are shown
-  var _React$useState69 = React.useState([]),
+    activeRoll = _React$useState68[0],
+    setActiveRoll = _React$useState68[1];
+  var _React$useState69 = React.useState('A'),
     _React$useState70 = _slicedToArray(_React$useState69, 2),
-    syncCams = _React$useState70[0],
-    setSyncCams = _React$useState70[1]; // array of cam letters to sync together, e.g. ['A','B']
-  var _React$useState71 = React.useState(false),
+    activeCam = _React$useState70[0],
+    setActiveCam = _React$useState70[1]; // which camera's rolls are shown
+  var _React$useState71 = React.useState([]),
     _React$useState72 = _slicedToArray(_React$useState71, 2),
-    showSyncMenu = _React$useState72[0],
-    setShowSyncMenu = _React$useState72[1];
+    syncCams = _React$useState72[0],
+    setSyncCams = _React$useState72[1]; // array of cam letters to sync together, e.g. ['A','B']
   var _React$useState73 = React.useState(false),
     _React$useState74 = _slicedToArray(_React$useState73, 2),
-    showActions = _React$useState74[0],
-    setShowActions = _React$useState74[1]; // roll-actions side drawer (Add take/New shot/etc.)
+    showSyncMenu = _React$useState74[0],
+    setShowSyncMenu = _React$useState74[1];
   var _React$useState75 = React.useState(false),
     _React$useState76 = _slicedToArray(_React$useState75, 2),
-    showToolbar = _React$useState76[0],
-    setShowToolbar = _React$useState76[1]; // collapses undo/search/AIFill/presets/CSV/PDF/day-filter row
-  var _React$useState77 = React.useState({}),
+    showActions = _React$useState76[0],
+    setShowActions = _React$useState76[1]; // roll-actions side drawer (Add take/New shot/etc.)
+  var _React$useState77 = React.useState(false),
     _React$useState78 = _slicedToArray(_React$useState77, 2),
-    camActiveRoll = _React$useState78[0],
-    setCamActiveRoll = _React$useState78[1]; // cam -> last selected roll id
-  var _React$useState79 = React.useState('offline'),
+    showToolbar = _React$useState78[0],
+    setShowToolbar = _React$useState78[1]; // collapses undo/search/AIFill/presets/CSV/PDF/day-filter row
+  var _React$useState79 = React.useState({}),
     _React$useState80 = _slicedToArray(_React$useState79, 2),
-    syncStatus = _React$useState80[0],
-    setSyncStatus = _React$useState80[1];
-  var _React$useState81 = React.useState(false),
+    camActiveRoll = _React$useState80[0],
+    setCamActiveRoll = _React$useState80[1]; // cam -> last selected roll id
+  var _React$useState81 = React.useState('offline'),
     _React$useState82 = _slicedToArray(_React$useState81, 2),
-    exporting = _React$useState82[0],
-    setExporting = _React$useState82[1];
+    syncStatus = _React$useState82[0],
+    setSyncStatus = _React$useState82[1];
   var _React$useState83 = React.useState(false),
     _React$useState84 = _slicedToArray(_React$useState83, 2),
-    showAIFill = _React$useState84[0],
-    setShowAIFill = _React$useState84[1];
+    exporting = _React$useState84[0],
+    setExporting = _React$useState84[1];
   var _React$useState85 = React.useState(false),
     _React$useState86 = _slicedToArray(_React$useState85, 2),
-    showIconGuide = _React$useState86[0],
-    setShowIconGuide = _React$useState86[1];
-  var _React$useState87 = React.useState('all'),
+    showAIFill = _React$useState86[0],
+    setShowAIFill = _React$useState86[1];
+  var _React$useState87 = React.useState(false),
     _React$useState88 = _slicedToArray(_React$useState87, 2),
-    filterDay = _React$useState88[0],
-    setFilterDay = _React$useState88[1];
-  var _React$useState89 = React.useState(false),
+    showIconGuide = _React$useState88[0],
+    setShowIconGuide = _React$useState88[1];
+  var _React$useState89 = React.useState('all'),
     _React$useState90 = _slicedToArray(_React$useState89, 2),
-    showDayMenu = _React$useState90[0],
-    setShowDayMenu = _React$useState90[1]; // day dropdown
+    filterDay = _React$useState90[0],
+    setFilterDay = _React$useState90[1];
   var _React$useState91 = React.useState(false),
     _React$useState92 = _slicedToArray(_React$useState91, 2),
-    showAddCam = _React$useState92[0],
-    setShowAddCam = _React$useState92[1]; // "add camera to this day" picker
+    showDayMenu = _React$useState92[0],
+    setShowDayMenu = _React$useState92[1]; // day dropdown
   var _React$useState93 = React.useState(false),
     _React$useState94 = _slicedToArray(_React$useState93, 2),
-    showPrint = _React$useState94[0],
-    setShowPrint = _React$useState94[1]; // print-scope picker
+    showAddCam = _React$useState94[0],
+    setShowAddCam = _React$useState94[1]; // "add camera to this day" picker
+  var _React$useState95 = React.useState(false),
+    _React$useState96 = _slicedToArray(_React$useState95, 2),
+    showPrint = _React$useState96[0],
+    setShowPrint = _React$useState96[1]; // print-scope picker
   /* Floating Actions button. It used to be pinned to the right edge, where a
      thumb has to reach past the screen border and where it could sit on top of
      whatever was underneath. Now it can be dragged anywhere and settles
@@ -4155,52 +4183,52 @@ function CameraReport() {
      character would disappear the instant it matched - which is exactly how
      "every digit works except 9" happened, on a roll whose previous row was
      scene 9. While focused the real value is always shown. */
-  var _React$useState95 = React.useState(''),
-    _React$useState96 = _slicedToArray(_React$useState95, 2),
-    focusCell = _React$useState96[0],
-    setFocusCell = _React$useState96[1];
+  var _React$useState97 = React.useState(''),
+    _React$useState98 = _slicedToArray(_React$useState97, 2),
+    focusCell = _React$useState98[0],
+    setFocusCell = _React$useState98[1];
   /* What the focused scene/shot cell is showing right now. A continuation take
      reads as EMPTY - on paper nobody rewrites the scene number for take 2, and
      a value that only appears when you tap it feels like a glitch. So the cell
      opens empty and shows exactly what gets typed, rather than revealing the
      inherited value. The take's own record keeps the real scene/shot, because
      take numbering, shot lettering, search and the Sheets export all read it. */
-  var _React$useState97 = React.useState(''),
-    _React$useState98 = _slicedToArray(_React$useState97, 2),
-    cellDraft = _React$useState98[0],
-    setCellDraft = _React$useState98[1];
-  var _React$useState99 = React.useState(loadFabPos),
+  var _React$useState99 = React.useState(''),
     _React$useState100 = _slicedToArray(_React$useState99, 2),
-    fabPos = _React$useState100[0],
-    setFabPos = _React$useState100[1];
-  var _React$useState101 = React.useState(null),
+    cellDraft = _React$useState100[0],
+    setCellDraft = _React$useState100[1];
+  var _React$useState101 = React.useState(loadFabPos),
     _React$useState102 = _slicedToArray(_React$useState101, 2),
-    fabDrag = _React$useState102[0],
-    setFabDrag = _React$useState102[1]; // {x,y} px while held
-  var fabRef = React.useRef({});
-  var _React$useState103 = React.useState([]),
+    fabPos = _React$useState102[0],
+    setFabPos = _React$useState102[1];
+  var _React$useState103 = React.useState(null),
     _React$useState104 = _slicedToArray(_React$useState103, 2),
-    printCams = _React$useState104[0],
-    setPrintCams = _React$useState104[1]; // cams ticked for printing
+    fabDrag = _React$useState104[0],
+    setFabDrag = _React$useState104[1]; // {x,y} px while held
+  var fabRef = React.useRef({});
   var _React$useState105 = React.useState([]),
     _React$useState106 = _slicedToArray(_React$useState105, 2),
-    selTakeIds = _React$useState106[0],
-    setSelTakeIds = _React$useState106[1]; // multi-selected clip rows (for moving)
+    printCams = _React$useState106[0],
+    setPrintCams = _React$useState106[1]; // cams ticked for printing
+  var _React$useState107 = React.useState([]),
+    _React$useState108 = _slicedToArray(_React$useState107, 2),
+    selTakeIds = _React$useState108[0],
+    setSelTakeIds = _React$useState108[1]; // multi-selected clip rows (for moving)
   // Highlight mode: while on, tapping a cell/row paints it yellow instead of
   // opening it for editing (see paintOverlay below). Off by default so
   // normal logging is never affected.
-  var _React$useState107 = React.useState(false),
-    _React$useState108 = _slicedToArray(_React$useState107, 2),
-    highlightMode = _React$useState108[0],
-    setHighlightMode = _React$useState108[1];
   var _React$useState109 = React.useState(false),
     _React$useState110 = _slicedToArray(_React$useState109, 2),
-    showSearch = _React$useState110[0],
-    setShowSearch = _React$useState110[1];
-  var _React$useState111 = React.useState({}),
+    highlightMode = _React$useState110[0],
+    setHighlightMode = _React$useState110[1];
+  var _React$useState111 = React.useState(false),
     _React$useState112 = _slicedToArray(_React$useState111, 2),
-    searchQ = _React$useState112[0],
-    setSearchQ = _React$useState112[1]; // field -> search string
+    showSearch = _React$useState112[0],
+    setShowSearch = _React$useState112[1];
+  var _React$useState113 = React.useState({}),
+    _React$useState114 = _slicedToArray(_React$useState113, 2),
+    searchQ = _React$useState114[0],
+    setSearchQ = _React$useState114[1]; // field -> search string
 
   // ---- Take-table header, freeze-panes style ----
   // Two earlier attempts (CSS position:sticky, then a JS "floating clone"
@@ -4214,10 +4242,10 @@ function CameraReport() {
   // space), and the table gets its OWN dedicated scroll container below
   // them - with nothing else competing for that scroll, a plain CSS
   // position:sticky header (see `th` below) just works, no JS needed.
-  var _React$useState113 = React.useState(false),
-    _React$useState114 = _slicedToArray(_React$useState113, 2),
-    metaCollapsed = _React$useState114[0],
-    setMetaCollapsed = _React$useState114[1];
+  var _React$useState115 = React.useState(false),
+    _React$useState116 = _slicedToArray(_React$useState115, 2),
+    metaCollapsed = _React$useState116[0],
+    setMetaCollapsed = _React$useState116[1];
   var scenes = proj.scenes || [];
   var sceneIds = React.useMemo(function () {
     return scenes.map(function (s) {
@@ -4325,10 +4353,10 @@ function CameraReport() {
   var undoStack = React.useRef([]); // array of rolls-snapshots (JSON strings)
   var redoStack = React.useRef([]);
   var isTimeTravel = React.useRef(false); // true while applying an undo/redo
-  var _React$useState115 = React.useState(0),
-    _React$useState116 = _slicedToArray(_React$useState115, 2),
-    histTick = _React$useState116[0],
-    setHistTick = _React$useState116[1]; // force re-render for button enable
+  var _React$useState117 = React.useState(0),
+    _React$useState118 = _slicedToArray(_React$useState117, 2),
+    histTick = _React$useState118[0],
+    setHistTick = _React$useState118[1]; // force re-render for button enable
   var prevRollsSnap = React.useRef(null); // last-known rolls, to push on next change
   var HIST_LIMIT = 20;
   var persist = /*#__PURE__*/function () {
@@ -5195,19 +5223,20 @@ function CameraReport() {
         filters: '',
         filters3: '',
         wb: '',
+        tint: '',
         focus: '',
         notes: '',
         photoIds: []
       });
     }
     /* New shot / new scene inherits the whole optical + exposure setup from the
-       PREVIOUS TAKE - lens, stop, shutter, EI, WB and all three filter slots.
-       Between setups those rarely change, so re-typing them every time is
-       wasted keystrokes on set. LENS reads from `last` rather than the roll's
-       default so that swapping glass mid-roll sticks for the rest of the roll.
-       FOCAL is the deliberate exception: a new setup means a new framing, so
-       leaving it blank forces it to be entered rather than silently inheriting
-       a length that is now wrong. */
+       PREVIOUS TAKE - lens, stop, shutter, EI, WB/Tint and all three filter
+       slots. Between setups those rarely change, so re-typing them every
+       time is wasted keystrokes on set. LENS reads from `last` rather than
+       the roll's default so that swapping glass mid-roll sticks for the
+       rest of the roll. FOCAL is the deliberate exception: a new setup
+       means a new framing, so leaving it blank forces it to be entered
+       rather than silently inheriting a length that is now wrong. */
     return _objectSpread(_objectSpread({}, base), {}, {
       lens: carried('lens') || rk.lens || '',
       focal: '',
@@ -5218,6 +5247,7 @@ function CameraReport() {
       filters: carried('filters'),
       filters3: carried('filters3'),
       wb: carried('wb'),
+      tint: carried('tint'),
       focus: '',
       notes: '',
       photoIds: []
@@ -5349,6 +5379,9 @@ function CameraReport() {
   }, {
     k: 'wb',
     l: 'WB'
+  }, {
+    k: 'tint',
+    l: 'TINT'
   }, {
     k: 'focus',
     l: 'FOCUS'
@@ -5619,12 +5652,10 @@ function CameraReport() {
     var newClip = anchorParsed ? fmtClip(anchorParsed, anchorParsed.num + 1) : '';
     var insertNum = anchorParsed ? anchorParsed.num + 1 : null;
 
-    /* An inserted row is another TAKE of the shot above it, so it behaves like
-       "+ Add take": scene and shot come from the anchor, the take number steps
-       up, and everything the AC would only write when it CHANGES is left
-       empty. Lens is the one exception that carries over - the glass doesn't
-       come off the camera between takes of the same shot, so repeating it is
-       noise, while a stale focal/stop/filter would be a quiet lie. */
+    /* An inserted row is another TAKE of the shot above it, so it behaves
+       exactly like "+ Add take": scene and shot come from the anchor, the
+       take number steps up, and everything else - including lens - is left
+       empty for the AC to fill in only what changed. */
     var newTake = {
       id: 'tk' + Date.now(),
       scene: scene,
@@ -5632,7 +5663,7 @@ function CameraReport() {
       take: String(takeNoFor(scene, shot)),
       tail: false,
       clip: newClip,
-      lens: (anchor === null || anchor === void 0 ? void 0 : anchor.lens) || roll.lens || '',
+      lens: '',
       focal: '',
       stop: '',
       shutter: '',
@@ -5641,6 +5672,7 @@ function CameraReport() {
       filters: '',
       filters3: '',
       wb: '',
+      tint: '',
       focus: '',
       notes: '',
       photoIds: []
@@ -5942,6 +5974,15 @@ function CameraReport() {
                   return esc(t.wb);
                 }
               }, {
+                key: 'tint',
+                always: false,
+                w: 3.2,
+                label: 'TINT',
+                align: 'left',
+                val: function val(t) {
+                  return esc(t.tint);
+                }
+              }, {
                 key: 'focus',
                 always: false,
                 w: 5,
@@ -6124,13 +6165,13 @@ function CameraReport() {
   }
   function exportCSV() {
     if (!roll) return;
-    var head = ['SCENE', 'SHOT', 'TAKE', 'T/S', 'CLIP', 'LENS', 'FOCAL', 'STOP', 'SHUTTER', 'EI', 'FILTER 1', 'FILTER 2', 'FILTER 3', 'WB', 'FOCUS', 'NOTES'];
+    var head = ['SCENE', 'SHOT', 'TAKE', 'T/S', 'CLIP', 'LENS', 'FOCAL', 'STOP', 'SHUTTER', 'EI', 'FILTER 1', 'FILTER 2', 'FILTER 3', 'WB', 'TINT', 'FOCUS', 'NOTES'];
     var esc = function esc(v) {
       return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
     };
     var lines = [head.join(',')];
     roll.takes.forEach(function (t) {
-      lines.push([t.scene, t.shot, t.take, t.tail ? 'TAIL' : '', t.clip, t.lens, t.focal, t.stop, t.shutter || roll.shutter || '', t.ei, t.intFilters, t.filters, t.filters3, t.wb, t.focus, t.notes].map(esc).join(','));
+      lines.push([t.scene, t.shot, t.take, t.tail ? 'TAIL' : '', t.clip, t.lens, t.focal, t.stop, t.shutter || roll.shutter || '', t.ei, t.intFilters, t.filters, t.filters3, t.wb, t.tint, t.focus, t.notes].map(esc).join(','));
     });
     var blob = new Blob([lines.join('\n')], {
       type: 'text/csv'
@@ -6266,7 +6307,11 @@ function CameraReport() {
     style: _objectSpread(_objectSpread({}, th), {}, {
       width: 76
     })
-  }, "WB"), !hiddenCols.has('focus') && /*#__PURE__*/React.createElement("th", {
+  }, "WB"), !hiddenCols.has('tint') && /*#__PURE__*/React.createElement("th", {
+    style: _objectSpread(_objectSpread({}, th), {}, {
+      width: 50
+    })
+  }, "TINT"), !hiddenCols.has('focus') && /*#__PURE__*/React.createElement("th", {
     style: _objectSpread(_objectSpread({}, th), {}, {
       width: 46,
       whiteSpace: 'nowrap'
@@ -7125,7 +7170,11 @@ function CameraReport() {
     style: _objectSpread(_objectSpread({}, th), {}, {
       width: 55
     })
-  }, "WB"), !hiddenCols.has('intFilters') && /*#__PURE__*/React.createElement("th", {
+  }, "WB"), !hiddenCols.has('tint') && /*#__PURE__*/React.createElement("th", {
+    style: _objectSpread(_objectSpread({}, th), {}, {
+      width: 44
+    })
+  }, "TINT"), !hiddenCols.has('intFilters') && /*#__PURE__*/React.createElement("th", {
     style: _objectSpread(_objectSpread({}, th), {}, {
       width: 64
     })
@@ -7328,6 +7377,18 @@ function CameraReport() {
         var n = withK(e.target.value);
         if (n !== e.target.value) patch({
           wb: n
+        });
+      },
+      style: ci
+    })), !hiddenCols.has('tint') && /*#__PURE__*/React.createElement("td", {
+      style: _objectSpread({
+        borderRight: "1px solid ".concat(T.rule)
+      }, hl('tint'))
+    }, /*#__PURE__*/React.createElement("input", {
+      value: t.tint || '',
+      onChange: function onChange(e) {
+        return patch({
+          tint: e.target.value
         });
       },
       style: ci
@@ -7852,7 +7913,7 @@ function CameraReport() {
       color: '#eab308',
       fontFamily: "'Geist Mono',monospace"
     }
-  }, "\uD83D\uDD8D", " \u9AD8\u4EAE\u6A21\u5F0F\u4E2D - \u70B9\u683C\u5B50\u6216\u884C\u9996\u4E0A\u8272"), /*#__PURE__*/React.createElement("button", {
+  }, "\uD83D\uDD8D", " Highlight mode on - tap a cell or row to mark it"), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       return setHighlightMode(false);
     },
@@ -7866,7 +7927,7 @@ function CameraReport() {
       color: '#eab308',
       cursor: 'pointer'
     }
-  }, "\u5B8C\u6210")), /*#__PURE__*/React.createElement("div", {
+  }, "Done")), /*#__PURE__*/React.createElement("div", {
     style: {
       flex: 1,
       overflow: 'auto',
@@ -8221,7 +8282,21 @@ function CameraReport() {
       options: WB_OPTIONS,
       inputStyle: cellInput,
       normalize: withK
-    }), paintOverlay('wb')), !hiddenCols.has('focus') && /*#__PURE__*/React.createElement("td", {
+    }), paintOverlay('wb')), !hiddenCols.has('tint') && /*#__PURE__*/React.createElement("td", {
+      style: _objectSpread(_objectSpread({}, gb), {}, {
+        borderRight: "1px solid ".concat(T.rule),
+        position: 'relative'
+      }, cellBg('tint'))
+    }, /*#__PURE__*/React.createElement(LensFocalPicker, {
+      value: t.tint || '',
+      onChange: function onChange(v) {
+        return patchTake(t.id, {
+          tint: v
+        });
+      },
+      options: TINT_OPTIONS,
+      inputStyle: cellInput
+    }), paintOverlay('tint')), !hiddenCols.has('focus') && /*#__PURE__*/React.createElement("td", {
       style: _objectSpread(_objectSpread({}, gb), {}, {
         borderRight: "1px solid ".concat(T.rule),
         position: 'relative'
@@ -8694,7 +8769,7 @@ function CameraReport() {
       textAlign: 'left',
       marginTop: 2
     }
-  }, "\uD83D\uDD8D", " \u9AD8\u4EAE\u6A21\u5F0F", highlightMode ? " \u2713" : ''), allDayNums.length > 0 && (allDayNums.length > 1 || !roll.shootDay) && /*#__PURE__*/React.createElement("div", {
+  }, "\uD83D\uDD8D", " Highlight Mode", highlightMode ? " \u2713" : ''), allDayNums.length > 0 && (allDayNums.length > 1 || !roll.shootDay) && /*#__PURE__*/React.createElement("div", {
     style: {
       borderTop: "1px solid ".concat(T.rule),
       paddingTop: 10,
@@ -9096,30 +9171,30 @@ function SettingsModal(_ref33) {
   var _useStandaloneData2 = useStandaloneData(),
     data = _useStandaloneData2.data,
     updateData = _useStandaloneData2.updateData;
-  var _React$useState117 = React.useState(data.projectName || ''),
-    _React$useState118 = _slicedToArray(_React$useState117, 2),
-    projectName = _React$useState118[0],
-    setProjectName = _React$useState118[1];
-  var _React$useState119 = React.useState(data.gsheetsClientId || ''),
+  var _React$useState119 = React.useState(data.projectName || ''),
     _React$useState120 = _slicedToArray(_React$useState119, 2),
-    clientId = _React$useState120[0],
-    setClientId = _React$useState120[1];
-  var _React$useState121 = React.useState(false),
+    projectName = _React$useState120[0],
+    setProjectName = _React$useState120[1];
+  var _React$useState121 = React.useState(data.gsheetsClientId || ''),
     _React$useState122 = _slicedToArray(_React$useState121, 2),
-    saved = _React$useState122[0],
-    setSaved = _React$useState122[1];
+    clientId = _React$useState122[0],
+    setClientId = _React$useState122[1];
   var _React$useState123 = React.useState(false),
     _React$useState124 = _slicedToArray(_React$useState123, 2),
-    showScenes = _React$useState124[0],
-    setShowScenes = _React$useState124[1];
+    saved = _React$useState124[0],
+    setSaved = _React$useState124[1];
   var _React$useState125 = React.useState(false),
     _React$useState126 = _slicedToArray(_React$useState125, 2),
-    showDays = _React$useState126[0],
-    setShowDays = _React$useState126[1];
+    showScenes = _React$useState126[0],
+    setShowScenes = _React$useState126[1];
   var _React$useState127 = React.useState(false),
     _React$useState128 = _slicedToArray(_React$useState127, 2),
-    showColumns = _React$useState128[0],
-    setShowColumns = _React$useState128[1];
+    showDays = _React$useState128[0],
+    setShowDays = _React$useState128[1];
+  var _React$useState129 = React.useState(false),
+    _React$useState130 = _slicedToArray(_React$useState129, 2),
+    showColumns = _React$useState130[0],
+    setShowColumns = _React$useState130[1];
   var sceneCount = (data.scenes || []).length;
   var dayCount = (data.shootDays || []).length;
   var hiddenColCount = (data.hiddenColumns || []).length;
@@ -9347,7 +9422,7 @@ function ScenesEditorModal(_ref34) {
      (and a focused field jumps to another scene mid-edit). A key that sticks
      to the row itself makes deletes and reorders behave. */
   var keySeq = React.useRef(0);
-  var _React$useState129 = React.useState(function () {
+  var _React$useState131 = React.useState(function () {
       return (data.scenes || []).map(function (s) {
         return _objectSpread({
           _k: keySeq.current++,
@@ -9355,9 +9430,9 @@ function ScenesEditorModal(_ref34) {
         }, decomposeSlug(s.slug));
       });
     }),
-    _React$useState130 = _slicedToArray(_React$useState129, 2),
-    rows = _React$useState130[0],
-    setRows = _React$useState130[1];
+    _React$useState132 = _slicedToArray(_React$useState131, 2),
+    rows = _React$useState132[0],
+    setRows = _React$useState132[1];
   function patchRow(i, patch) {
     setRows(function (rs) {
       return rs.map(function (r, idx) {
@@ -9608,7 +9683,7 @@ function ShootDaysEditorModal(_ref35) {
      schedule itself, and a calendar reads forwards. Ascending also makes a
      mis-typed date obvious at a glance, because the dates should march
      downwards in step with the day numbers. */
-  var _React$useState131 = React.useState(function () {
+  var _React$useState133 = React.useState(function () {
       return (data.shootDays || []).slice().sort(function (a, b) {
         return a.day - b.day;
       }).map(function (d) {
@@ -9617,9 +9692,9 @@ function ShootDaysEditorModal(_ref35) {
         });
       });
     }),
-    _React$useState132 = _slicedToArray(_React$useState131, 2),
-    rows = _React$useState132[0],
-    setRows = _React$useState132[1];
+    _React$useState134 = _slicedToArray(_React$useState133, 2),
+    rows = _React$useState134[0],
+    setRows = _React$useState134[1];
   function patchRow(i, patch) {
     setRows(function (rs) {
       return rs.map(function (r, idx) {
@@ -9920,12 +9995,12 @@ function ColumnsEditorModal(_ref36) {
   var _useStandaloneData5 = useStandaloneData(),
     data = _useStandaloneData5.data,
     updateData = _useStandaloneData5.updateData;
-  var _React$useState133 = React.useState(function () {
+  var _React$useState135 = React.useState(function () {
       return new Set(data.hiddenColumns || []);
     }),
-    _React$useState134 = _slicedToArray(_React$useState133, 2),
-    hidden = _React$useState134[0],
-    setHidden = _React$useState134[1];
+    _React$useState136 = _slicedToArray(_React$useState135, 2),
+    hidden = _React$useState136[0],
+    setHidden = _React$useState136[1];
   function toggle(key) {
     setHidden(function (prev) {
       var next = new Set(prev);
@@ -10082,14 +10157,14 @@ function BackupModal(_ref37) {
     findProjectByName = _useStandaloneData6.findProjectByName,
     importProject = _useStandaloneData6.importProject,
     overwriteProject = _useStandaloneData6.overwriteProject;
-  var _React$useState135 = React.useState('idle'),
-    _React$useState136 = _slicedToArray(_React$useState135, 2),
-    status = _React$useState136[0],
-    setStatus = _React$useState136[1]; // idle | working | done | error
-  var _React$useState137 = React.useState(''),
+  var _React$useState137 = React.useState('idle'),
     _React$useState138 = _slicedToArray(_React$useState137, 2),
-    errMsg = _React$useState138[0],
-    setErrMsg = _React$useState138[1];
+    status = _React$useState138[0],
+    setStatus = _React$useState138[1]; // idle | working | done | error
+  var _React$useState139 = React.useState(''),
+    _React$useState140 = _slicedToArray(_React$useState139, 2),
+    errMsg = _React$useState140[0],
+    setErrMsg = _React$useState140[1];
   // A per-device Settings value always overrides the baked-in shared default -
   // that's what lets a fork on a different hosting URL use its own Client ID.
   var effectiveClientId = getEffectiveClientId(data);
@@ -10102,14 +10177,14 @@ function BackupModal(_ref37) {
   }, [data.rolls]);
 
   // Restore state
-  var _React$useState139 = React.useState(null),
-    _React$useState140 = _slicedToArray(_React$useState139, 2),
-    sheets = _React$useState140[0],
-    setSheets = _React$useState140[1]; // null = not looked yet
-  var _React$useState141 = React.useState(false),
+  var _React$useState141 = React.useState(null),
     _React$useState142 = _slicedToArray(_React$useState141, 2),
-    restoring = _React$useState142[0],
-    setRestoring = _React$useState142[1];
+    sheets = _React$useState142[0],
+    setSheets = _React$useState142[1]; // null = not looked yet
+  var _React$useState143 = React.useState(false),
+    _React$useState144 = _slicedToArray(_React$useState143, 2),
+    restoring = _React$useState144[0],
+    setRestoring = _React$useState144[1];
   function runBackup() {
     return _runBackup.apply(this, arguments);
   }
@@ -10545,43 +10620,43 @@ function App() {
   var _useTheme = useTheme(),
     themeName = _useTheme.themeName,
     toggleTheme = _useTheme.toggleTheme;
-  var _React$useState143 = React.useState(ensureProjectsSetup),
-    _React$useState144 = _slicedToArray(_React$useState143, 2),
-    projectIds = _React$useState144[0],
-    setProjectIds = _React$useState144[1];
-  var _React$useState145 = React.useState(function () {
+  var _React$useState145 = React.useState(ensureProjectsSetup),
+    _React$useState146 = _slicedToArray(_React$useState145, 2),
+    projectIds = _React$useState146[0],
+    setProjectIds = _React$useState146[1];
+  var _React$useState147 = React.useState(function () {
       return loadCurrentProjectId(projectIds);
     }),
-    _React$useState146 = _slicedToArray(_React$useState145, 2),
-    projectId = _React$useState146[0],
-    setProjectId = _React$useState146[1];
-  var _React$useState147 = React.useState(function () {
+    _React$useState148 = _slicedToArray(_React$useState147, 2),
+    projectId = _React$useState148[0],
+    setProjectId = _React$useState148[1];
+  var _React$useState149 = React.useState(function () {
       return loadProjectData(projectId);
     }),
-    _React$useState148 = _slicedToArray(_React$useState147, 2),
-    data = _React$useState148[0],
-    setData = _React$useState148[1];
-  var _React$useState149 = React.useState(false),
     _React$useState150 = _slicedToArray(_React$useState149, 2),
-    showSettings = _React$useState150[0],
-    setShowSettings = _React$useState150[1];
+    data = _React$useState150[0],
+    setData = _React$useState150[1];
   var _React$useState151 = React.useState(false),
     _React$useState152 = _slicedToArray(_React$useState151, 2),
-    showBackup = _React$useState152[0],
-    setShowBackup = _React$useState152[1];
+    showSettings = _React$useState152[0],
+    setShowSettings = _React$useState152[1];
   var _React$useState153 = React.useState(false),
     _React$useState154 = _slicedToArray(_React$useState153, 2),
-    showProjects = _React$useState154[0],
-    setShowProjects = _React$useState154[1];
+    showBackup = _React$useState154[0],
+    setShowBackup = _React$useState154[1];
+  var _React$useState155 = React.useState(false),
+    _React$useState156 = _slicedToArray(_React$useState155, 2),
+    showProjects = _React$useState156[0],
+    setShowProjects = _React$useState156[1];
   // True once a localStorage write has actually FAILED (quota full, private
   // browsing, storage blocked). Previously saveProjectData's false return was
   // discarded here, so the status pill kept saying "SAVED LOCALLY" while
   // nothing was being written - the worst possible failure mode for a camera
   // report you're relying on mid-shoot.
-  var _React$useState155 = React.useState(false),
-    _React$useState156 = _slicedToArray(_React$useState155, 2),
-    storageFailed = _React$useState156[0],
-    setStorageFailed = _React$useState156[1];
+  var _React$useState157 = React.useState(false),
+    _React$useState158 = _slicedToArray(_React$useState157, 2),
+    storageFailed = _React$useState158[0],
+    setStorageFailed = _React$useState158[1];
 
   // Pure state update - no side effects. It stays a functional updater because
   // two updateData calls can land in the same tick (e.g. adding a shoot day,
@@ -10901,28 +10976,28 @@ function ProjectSwitcherModal(_ref38) {
     switchProject = _useStandaloneData7.switchProject,
     createProject = _useStandaloneData7.createProject,
     deleteProject = _useStandaloneData7.deleteProject;
-  var _React$useState157 = React.useState(function () {
+  var _React$useState159 = React.useState(function () {
       var m = {};
       projectIds.forEach(function (id) {
         m[id] = id === projectId ? data.projectName : loadProjectData(id).projectName;
       });
       return m;
     }),
-    _React$useState158 = _slicedToArray(_React$useState157, 2),
-    names = _React$useState158[0],
-    setNames = _React$useState158[1];
-  var _React$useState159 = React.useState(null),
     _React$useState160 = _slicedToArray(_React$useState159, 2),
-    editingId = _React$useState160[0],
-    setEditingId = _React$useState160[1];
-  var _React$useState161 = React.useState(''),
+    names = _React$useState160[0],
+    setNames = _React$useState160[1];
+  var _React$useState161 = React.useState(null),
     _React$useState162 = _slicedToArray(_React$useState161, 2),
-    editName = _React$useState162[0],
-    setEditName = _React$useState162[1];
+    editingId = _React$useState162[0],
+    setEditingId = _React$useState162[1];
   var _React$useState163 = React.useState(''),
     _React$useState164 = _slicedToArray(_React$useState163, 2),
-    newName = _React$useState164[0],
-    setNewName = _React$useState164[1];
+    editName = _React$useState164[0],
+    setEditName = _React$useState164[1];
+  var _React$useState165 = React.useState(''),
+    _React$useState166 = _slicedToArray(_React$useState165, 2),
+    newName = _React$useState166[0],
+    setNewName = _React$useState166[1];
   function startEdit(id) {
     setEditingId(id);
     setEditName(names[id] || '');
@@ -11171,24 +11246,24 @@ var TRIAL_LIMITS = {
 };
 function AccessGate(_ref39) {
   var children = _ref39.children;
-  var _React$useState165 = React.useState(function () {
+  var _React$useState167 = React.useState(function () {
       return loadGateAuth() ? 'allowed' : 'trial';
     }),
-    _React$useState166 = _slicedToArray(_React$useState165, 2),
-    state = _React$useState166[0],
-    setState = _React$useState166[1]; // trial | working | denied | allowed | error
-  var _React$useState167 = React.useState(''),
     _React$useState168 = _slicedToArray(_React$useState167, 2),
-    errMsg = _React$useState168[0],
-    setErrMsg = _React$useState168[1];
-  var _React$useState169 = React.useState(false),
+    state = _React$useState168[0],
+    setState = _React$useState168[1]; // trial | working | denied | allowed | error
+  var _React$useState169 = React.useState(''),
     _React$useState170 = _slicedToArray(_React$useState169, 2),
-    showUnlock = _React$useState170[0],
-    setShowUnlock = _React$useState170[1];
-  var _React$useState171 = React.useState(''),
+    errMsg = _React$useState170[0],
+    setErrMsg = _React$useState170[1];
+  var _React$useState171 = React.useState(false),
     _React$useState172 = _slicedToArray(_React$useState171, 2),
-    unlockReason = _React$useState172[0],
-    setUnlockReason = _React$useState172[1];
+    showUnlock = _React$useState172[0],
+    setShowUnlock = _React$useState172[1];
+  var _React$useState173 = React.useState(''),
+    _React$useState174 = _slicedToArray(_React$useState173, 2),
+    unlockReason = _React$useState174[0],
+    setUnlockReason = _React$useState174[1];
   var checkedOnce = React.useRef(false);
   React.useEffect(function () {
     if (checkedOnce.current) return;
@@ -11474,10 +11549,10 @@ var ErrorBoundary = /*#__PURE__*/function (_React$Component) {
   }]);
 }(React.Component);
 function ThemedApp() {
-  var _React$useState173 = React.useState(loadThemeName),
-    _React$useState174 = _slicedToArray(_React$useState173, 2),
-    themeName = _React$useState174[0],
-    setThemeName = _React$useState174[1];
+  var _React$useState175 = React.useState(loadThemeName),
+    _React$useState176 = _slicedToArray(_React$useState175, 2),
+    themeName = _React$useState176[0],
+    setThemeName = _React$useState176[1];
   React.useEffect(function () {
     applyTheme(themeName);
   }, [themeName]);
