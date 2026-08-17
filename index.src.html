@@ -383,6 +383,20 @@ const THEMES={
     rule:"rgba(40,32,20,0.12)",surface2:"#ebe7dd",chip:"rgba(40,32,20,0.06)"
   }
 };
+/* Where the floating Actions button sits. Stored as an edge + a fraction of
+   the viewport height rather than pixels, so it lands in the same visual spot
+   after a rotate or on a different-sized screen. */
+const SB_FAB_KEY='camrep_fab_v1';
+function loadFabPos(){
+  try{
+    const v=JSON.parse(localStorage.getItem(SB_FAB_KEY)||'null');
+    if(v&&(v.side==='left'||v.side==='right')&&typeof v.y==='number')
+      return {side:v.side,y:Math.min(0.86,Math.max(0.08,v.y))};
+  }catch(e){}
+  return {side:'right',y:0.62};
+}
+function saveFabPos(p){ try{ localStorage.setItem(SB_FAB_KEY,JSON.stringify(p)); }catch(e){} }
+
 const SB_THEME_KEY='camrep_theme_v1';
 function loadThemeName(){
   try{ const v=localStorage.getItem(SB_THEME_KEY); if(v==='light'||v==='dark')return v; }catch(e){}
@@ -1147,7 +1161,7 @@ const SB_LENS_PRESETS_KEY='sb_camrep_lens_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-const APP_VERSION='v3.7';
+const APP_VERSION='v3.9';
 
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
@@ -1458,7 +1472,7 @@ function SearchInputAC({value,onChange,suggestions,placeholder}){
 /* normalize (optional): tidies the value once the user is DONE with the field -
    on blur, or when they pick from the dropdown - never on each keystroke, which
    would move the caret while they type. WB uses it to append the trailing K. */
-function LensFocalPicker({value,onChange,options,placeholder,inputStyle,align,noFilter,normalize}){
+function LensFocalPicker({value,onChange,options,placeholder,inputStyle,align,noFilter,normalize,onFocusChange}){
   const [open,setOpen]=React.useState(false);
   const [fixPos,setFixPos]=React.useState({top:0,left:0,width:150,up:false});
   const wrapRef=React.useRef(null);
@@ -1519,8 +1533,8 @@ function LensFocalPicker({value,onChange,options,placeholder,inputStyle,align,no
     <div ref={wrapRef} style={{position:'relative',width:'100%'}}>
       <div style={{display:'flex',alignItems:'center',gap:1}}>
         <input value={value||''} placeholder={placeholder||''} onChange={e=>{onChange(e.target.value);setOpen(true);}}
-          onFocus={openPicker}
-          onBlur={e=>{ if(normalize){ const n=normalize(e.target.value); if(n!==e.target.value) onChange(n); } }}
+          onFocus={e=>{ onFocusChange&&onFocusChange(true); openPicker(); }}
+          onBlur={e=>{ onFocusChange&&onFocusChange(false); if(normalize){ const n=normalize(e.target.value); if(n!==e.target.value) onChange(n); } }}
           style={{flex:1,minWidth:0,fontFamily:"'Geist Mono',monospace",
             background:'transparent',border:'none',padding:'4px 2px',fontSize:11,color:T.text,
             ...(inputStyle||{}),flex:1,minWidth:0}}/>
@@ -2012,6 +2026,20 @@ function CameraReport(){
   const [showDayMenu,setShowDayMenu]=React.useState(false);  // day dropdown
   const [showAddCam,setShowAddCam]=React.useState(false);    // "add camera to this day" picker
   const [showPrint,setShowPrint]=React.useState(false);      // print-scope picker
+  /* Floating Actions button. It used to be pinned to the right edge, where a
+     thumb has to reach past the screen border and where it could sit on top of
+     whatever was underneath. Now it can be dragged anywhere and settles
+     against the nearest side, so each user parks it where their hand is. */
+  /* Which cell currently has the caret, as "<takeId>:<field>". Repeated
+     scene/shot values are displayed blank, but that must never apply to the
+     cell being typed into: if the row above holds the same value, the
+     character would disappear the instant it matched - which is exactly how
+     "every digit works except 9" happened, on a roll whose previous row was
+     scene 9. While focused the real value is always shown. */
+  const [focusCell,setFocusCell]=React.useState('');
+  const [fabPos,setFabPos]=React.useState(loadFabPos);
+  const [fabDrag,setFabDrag]=React.useState(null);           // {x,y} px while held
+  const fabRef=React.useRef({});
   const [printCams,setPrintCams]=React.useState([]);         // cams ticked for printing
   const [selTakeIds,setSelTakeIds]=React.useState([]); // multi-selected clip rows (for moving)
   const [showSearch,setShowSearch]=React.useState(false);
@@ -3982,14 +4010,19 @@ function CameraReport(){
                         already holds a scene ID would filter the dropdown down to
                         just itself, making it impossible to browse/pick a different
                         one without clearing the field first. */}
-                    <LensFocalPicker value={sameScene?'':(t.scene||'')} placeholder={sameScene?'':'-'} options={sceneIds} inputStyle={cellInput} noFilter
+                    <LensFocalPicker value={(sameScene&&focusCell!==t.id+':scene')?'':(t.scene||'')}
+                      placeholder={(sameScene&&focusCell!==t.id+':scene')?'':'-'}
+                      onFocusChange={f=>setFocusCell(f?t.id+':scene':'')}
+                      options={sceneIds} inputStyle={cellInput} noFilter
                       onChange={v=>{
                         const first=v.split(',')[0].trim();
                         const newTake=first?takeNoFor(first,t.shot||'/',t.id):t.take;
                         patchTake(t.id,{scene:v,take:String(newTake)});
                       }}/>
                   </td>
-                  {!hiddenCols.has('shot')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={sameShot?'':(t.shot||'')} placeholder={sameShot?'':'/'} onChange={e=>changeTakeShot(t.id,e.target.value.toUpperCase())} style={{...cellInput,textAlign:'center'}}/></td>}
+                  {!hiddenCols.has('shot')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={(sameShot&&focusCell!==t.id+':shot')?'':(t.shot||'')} placeholder={(sameShot&&focusCell!==t.id+':shot')?'':'/'}
+                    onFocus={()=>setFocusCell(t.id+':shot')} onBlur={()=>setFocusCell('')}
+                    onChange={e=>changeTakeShot(t.id,e.target.value.toUpperCase())} style={{...cellInput,textAlign:'center'}}/></td>}
                   <td style={{...gb,borderRight:`1px solid ${T.rule}`}}><input value={t.take||''} onChange={e=>patchTake(t.id,{take:e.target.value})} style={{...cellInput,textAlign:'center'}} inputMode="numeric"/></td>
                   {!hiddenCols.has('tail')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,textAlign:'center'}}>
                     <button onClick={()=>patchTake(t.id,{tail:!t.tail})} title="Tail slate" aria-label="Toggle tail slate" style={{background:'transparent',border:'none',cursor:'pointer',fontSize:14,padding:'2px'}}>{t.tail?'\u2705':'\u2610'}</button>
@@ -4039,14 +4072,68 @@ function CameraReport(){
           ate into the table's own limited vertical space on a phone. Now a
           small fixed tab on the right edge opens it as a slide-in panel
           instead, so that space goes back to the table. */}
+      {/* Drag it anywhere; on release it settles against whichever side is
+          nearer, kept clear of the very edge so a thumb can land on it without
+          reaching past the bezel. Pointer events cover touch and mouse alike.
+          A press that barely moves counts as a tap and opens the drawer - the
+          same control both moves and opens, with the 6px threshold telling the
+          two apart. */}
       {roll&&!(showSearch&&hasSearch)&&!showActions&&(
-        <button onClick={()=>setShowActions(true)} title="Roll actions" aria-label="Open roll actions"
-          style={{position:'fixed',right:10,bottom:'14vh',zIndex:600,
-            background:CAM.accent,color:'#0e0d0b',border:'none',borderRadius:10,
-            padding:'12px 8px',fontSize:11,fontWeight:600,fontFamily:"'Geist Mono',monospace",
-            cursor:'pointer',writingMode:'vertical-rl',textOrientation:'mixed',
-            boxShadow:'0 4px 14px rgba(0,0,0,0.4)'}}>
-          {'\u25C2'} Actions
+        <button
+          onPointerDown={e=>{
+            const el=e.currentTarget, r=el.getBoundingClientRect();
+            try{ el.setPointerCapture(e.pointerId); }catch(err){}
+            /* `active` lives in the ref, not in state: a fast drag can deliver
+               pointermove before React has committed the pointerdown render,
+               and gating on state would drop those first moves - which reads
+               to the user as "it opened instead of moving". */
+            fabRef.current={active:true,sx:e.clientX,sy:e.clientY,
+              offX:e.clientX-r.left,offY:e.clientY-r.top,
+              w:r.width,h:r.height,moved:false};
+            setFabDrag({x:r.left,y:r.top});
+          }}
+          onPointerMove={e=>{
+            const s=fabRef.current;
+            if(!s||!s.active)return;
+            if(Math.abs(e.clientX-s.sx)>6||Math.abs(e.clientY-s.sy)>6)s.moved=true;
+            setFabDrag({x:e.clientX-s.offX,y:e.clientY-s.offY});
+          }}
+          onPointerUp={e=>{
+            const s=fabRef.current;
+            if(!s||!s.active)return;
+            if(!s.moved){ setFabDrag(null); fabRef.current={pointerHandled:true}; setShowActions(true); return; }
+            const cx=e.clientX-s.offX+s.w/2;              // centre of the button
+            const top=e.clientY-s.offY;
+            const vh=window.innerHeight||1;
+            const next={
+              side: cx < (window.innerWidth||0)/2 ? 'left' : 'right',
+              y: Math.min(0.86,Math.max(0.08, top/vh))
+            };
+            setFabPos(next); saveFabPos(next);
+            setFabDrag(null); fabRef.current={pointerHandled:true};
+          }}
+          onPointerCancel={()=>{ setFabDrag(null); fabRef.current={pointerHandled:true}; }}
+          /* Fallback for anything that doesn't deliver pointer events: a plain
+             click still opens the drawer. When pointer handling DID run it
+             already decided tap-vs-drag, so this must not fire a second time. */
+          onClick={()=>{
+            if(fabRef.current&&fabRef.current.pointerHandled){ fabRef.current={}; return; }
+            setShowActions(true);
+          }}
+          title="Roll actions - drag to move, tap to open"
+          aria-label="Open roll actions"
+          style={{position:'fixed',zIndex:600,
+            ...(fabDrag
+              ?{left:fabDrag.x,top:fabDrag.y}
+              :{[fabPos.side]:12,top:(fabPos.y*100)+'vh'}),
+            background:CAM.accent,color:'#0e0d0b',border:'none',borderRadius:12,
+            padding:'12px 9px',fontSize:11,fontWeight:600,fontFamily:"'Geist Mono',monospace",
+            cursor:fabDrag?'grabbing':'grab',writingMode:'vertical-rl',textOrientation:'mixed',
+            boxShadow:fabDrag?'0 8px 22px rgba(0,0,0,0.55)':'0 4px 14px rgba(0,0,0,0.4)',
+            opacity:fabDrag?0.9:1,
+            touchAction:'none',   // stop the page scrolling under the drag
+            userSelect:'none',WebkitUserSelect:'none',transition:fabDrag?'none':'box-shadow .15s'}}>
+          {fabPos.side==='right'?'\u25C2':'\u25B8'} Actions
         </button>
       )}
       {showActions&&roll&&(
