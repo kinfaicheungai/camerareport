@@ -1941,7 +1941,7 @@ var SB_TINT_PRESETS_KEY = 'sb_camrep_tint_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-var APP_VERSION = 'v4.2';
+var APP_VERSION = 'v4.3';
 var CAM_CONFIG = {
   A: {
     label: 'A',
@@ -4257,6 +4257,14 @@ function CameraReport() {
   var hiddenCols = React.useMemo(function () {
     return new Set(proj.hiddenColumns || []);
   }, [proj.hiddenColumns]);
+  // When on, the Action drawer stays open after Add take/New shot/etc. so a
+  // user logging several takes in a row doesn't have to keep reopening it.
+  // Off by default - most taps are one-and-done, so auto-closing right after
+  // is the more convenient default.
+  var keepDrawerOpen = !!proj.keepDrawerOpen;
+  var closeDrawer = function closeDrawer() {
+    if (!keepDrawerOpen) setShowActions(false);
+  };
   // Format a scene string ("S01, S23") into "S01 EXT, S23 INT" using slugs.
   function sceneWithIE(sceneStr) {
     var ids = String(sceneStr || '').split(',').map(function (x) {
@@ -8567,7 +8575,10 @@ function CameraReport() {
     }
   }, "\u26A0", " Duplicate roll number - fix ROLL # before logging clips."), /*#__PURE__*/React.createElement("button", {
     className: "cr-btn",
-    onClick: addTake,
+    onClick: function onClick() {
+      addTake();
+      closeDrawer();
+    },
     disabled: !!rollDupe,
     style: {
       padding: '9px 14px',
@@ -8583,7 +8594,10 @@ function CameraReport() {
     }
   }, "+ Add take"), /*#__PURE__*/React.createElement("button", {
     className: "cr-btn",
-    onClick: addShot,
+    onClick: function onClick() {
+      addShot();
+      closeDrawer();
+    },
     disabled: !!rollDupe,
     style: {
       padding: '9px 14px',
@@ -8599,7 +8613,10 @@ function CameraReport() {
     }
   }, "+ New shot"), /*#__PURE__*/React.createElement("button", {
     className: "cr-btn",
-    onClick: addNewScene,
+    onClick: function onClick() {
+      addNewScene();
+      closeDrawer();
+    },
     disabled: !!rollDupe,
     style: {
       padding: '9px 14px',
@@ -8734,7 +8751,10 @@ function CameraReport() {
     }, "Clear all")));
   }(), /*#__PURE__*/React.createElement("button", {
     className: "cr-btn",
-    onClick: resequenceClips,
+    onClick: function onClick() {
+      resequenceClips();
+      closeDrawer();
+    },
     title: "Renumber all clip names in sequence from the first one",
     style: {
       padding: '9px 12px',
@@ -8754,7 +8774,7 @@ function CameraReport() {
       setHighlightMode(function (v) {
         return !v;
       });
-      setShowActions(false);
+      closeDrawer();
     },
     title: "Tap cells or rows in the table to mark them yellow for the printed report",
     style: {
@@ -8797,7 +8817,7 @@ function CameraReport() {
         return;
       }
       moveRollToDay(roll.id, d);
-      setShowActions(false);
+      closeDrawer();
     },
     style: {
       width: '100%',
@@ -9183,25 +9203,30 @@ function SettingsModal(_ref33) {
     _React$useState124 = _slicedToArray(_React$useState123, 2),
     saved = _React$useState124[0],
     setSaved = _React$useState124[1];
-  var _React$useState125 = React.useState(false),
+  var _React$useState125 = React.useState(!!data.keepDrawerOpen),
     _React$useState126 = _slicedToArray(_React$useState125, 2),
-    showScenes = _React$useState126[0],
-    setShowScenes = _React$useState126[1];
+    keepDrawerOpen = _React$useState126[0],
+    setKeepDrawerOpen = _React$useState126[1];
   var _React$useState127 = React.useState(false),
     _React$useState128 = _slicedToArray(_React$useState127, 2),
-    showDays = _React$useState128[0],
-    setShowDays = _React$useState128[1];
+    showScenes = _React$useState128[0],
+    setShowScenes = _React$useState128[1];
   var _React$useState129 = React.useState(false),
     _React$useState130 = _slicedToArray(_React$useState129, 2),
-    showColumns = _React$useState130[0],
-    setShowColumns = _React$useState130[1];
+    showDays = _React$useState130[0],
+    setShowDays = _React$useState130[1];
+  var _React$useState131 = React.useState(false),
+    _React$useState132 = _slicedToArray(_React$useState131, 2),
+    showColumns = _React$useState132[0],
+    setShowColumns = _React$useState132[1];
   var sceneCount = (data.scenes || []).length;
   var dayCount = (data.shootDays || []).length;
   var hiddenColCount = (data.hiddenColumns || []).length;
   function save() {
     updateData({
       projectName: projectName.trim() || 'Untitled Production',
-      gsheetsClientId: clientId.trim()
+      gsheetsClientId: clientId.trim(),
+      keepDrawerOpen: keepDrawerOpen
     });
     setSaved(true);
     setTimeout(function () {
@@ -9343,7 +9368,40 @@ function SettingsModal(_ref33) {
     style: {
       color: T.textDim
     }
-  }, '›')), /*#__PURE__*/React.createElement("div", {
+  }, '›')), /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 10,
+      padding: '10px 2px',
+      cursor: 'pointer'
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: keepDrawerOpen,
+    onChange: function onChange(e) {
+      return setKeepDrawerOpen(e.target.checked);
+    },
+    style: {
+      cursor: 'pointer',
+      width: 16,
+      height: 16
+    }
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: T.text,
+      fontFamily: "'Geist Mono',monospace"
+    }
+  }, '📌', " Keep Action Drawer Open", /*#__PURE__*/React.createElement("span", {
+    style: {
+      display: 'block',
+      fontSize: 10,
+      color: T.textDim,
+      fontWeight: 400,
+      marginTop: 2
+    }
+  }, "Off (default): tapping Add take, New shot, etc. closes the drawer right after. On: it stays open so you can tap several in a row."))), /*#__PURE__*/React.createElement("div", {
     style: {
       borderTop: "1px solid ".concat(T.rule),
       paddingTop: 14
@@ -9390,15 +9448,18 @@ function SettingsModal(_ref33) {
   }, "Save")))), showScenes && /*#__PURE__*/React.createElement(ScenesEditorModal, {
     onClose: function onClose() {
       return setShowScenes(false);
-    }
+    },
+    onSaved: onClose
   }), showDays && /*#__PURE__*/React.createElement(ShootDaysEditorModal, {
     onClose: function onClose() {
       return setShowDays(false);
-    }
+    },
+    onSaved: onClose
   }), showColumns && /*#__PURE__*/React.createElement(ColumnsEditorModal, {
     onClose: function onClose() {
       return setShowColumns(false);
-    }
+    },
+    onSaved: onClose
   }));
 }
 
@@ -9411,7 +9472,8 @@ function SettingsModal(_ref33) {
    needed to change.
 ================================================================ */
 function ScenesEditorModal(_ref34) {
-  var onClose = _ref34.onClose;
+  var onClose = _ref34.onClose,
+    onSaved = _ref34.onSaved;
   var _useStandaloneData3 = useStandaloneData(),
     data = _useStandaloneData3.data,
     updateData = _useStandaloneData3.updateData;
@@ -9422,7 +9484,7 @@ function ScenesEditorModal(_ref34) {
      (and a focused field jumps to another scene mid-edit). A key that sticks
      to the row itself makes deletes and reorders behave. */
   var keySeq = React.useRef(0);
-  var _React$useState131 = React.useState(function () {
+  var _React$useState133 = React.useState(function () {
       return (data.scenes || []).map(function (s) {
         return _objectSpread({
           _k: keySeq.current++,
@@ -9430,9 +9492,9 @@ function ScenesEditorModal(_ref34) {
         }, decomposeSlug(s.slug));
       });
     }),
-    _React$useState132 = _slicedToArray(_React$useState131, 2),
-    rows = _React$useState132[0],
-    setRows = _React$useState132[1];
+    _React$useState134 = _slicedToArray(_React$useState133, 2),
+    rows = _React$useState134[0],
+    setRows = _React$useState134[1];
   function patchRow(i, patch) {
     setRows(function (rs) {
       return rs.map(function (r, idx) {
@@ -9470,6 +9532,7 @@ function ScenesEditorModal(_ref34) {
       scenes: scenes
     });
     onClose();
+    onSaved && onSaved();
   }
   var inp = {
     background: T.surface2,
@@ -9670,7 +9733,8 @@ function ScenesEditorModal(_ref34) {
    previous row's date, instead of starting blank every time.
 ================================================================ */
 function ShootDaysEditorModal(_ref35) {
-  var onClose = _ref35.onClose;
+  var onClose = _ref35.onClose,
+    onSaved = _ref35.onSaved;
   var _useStandaloneData4 = useStandaloneData(),
     data = _useStandaloneData4.data,
     updateData = _useStandaloneData4.updateData;
@@ -9683,7 +9747,7 @@ function ShootDaysEditorModal(_ref35) {
      schedule itself, and a calendar reads forwards. Ascending also makes a
      mis-typed date obvious at a glance, because the dates should march
      downwards in step with the day numbers. */
-  var _React$useState133 = React.useState(function () {
+  var _React$useState135 = React.useState(function () {
       return (data.shootDays || []).slice().sort(function (a, b) {
         return a.day - b.day;
       }).map(function (d) {
@@ -9692,9 +9756,9 @@ function ShootDaysEditorModal(_ref35) {
         });
       });
     }),
-    _React$useState134 = _slicedToArray(_React$useState133, 2),
-    rows = _React$useState134[0],
-    setRows = _React$useState134[1];
+    _React$useState136 = _slicedToArray(_React$useState135, 2),
+    rows = _React$useState136[0],
+    setRows = _React$useState136[1];
   function patchRow(i, patch) {
     setRows(function (rs) {
       return rs.map(function (r, idx) {
@@ -9769,6 +9833,7 @@ function ShootDaysEditorModal(_ref35) {
       shootDays: shootDays
     });
     onClose();
+    onSaved && onSaved();
   }
   var inp = {
     background: T.surface2,
@@ -9991,16 +10056,17 @@ function ShootDaysEditorModal(_ref35) {
    still read/written/auto-filled normally (see TAKE_COLUMNS above).
 ================================================================ */
 function ColumnsEditorModal(_ref36) {
-  var onClose = _ref36.onClose;
+  var onClose = _ref36.onClose,
+    onSaved = _ref36.onSaved;
   var _useStandaloneData5 = useStandaloneData(),
     data = _useStandaloneData5.data,
     updateData = _useStandaloneData5.updateData;
-  var _React$useState135 = React.useState(function () {
+  var _React$useState137 = React.useState(function () {
       return new Set(data.hiddenColumns || []);
     }),
-    _React$useState136 = _slicedToArray(_React$useState135, 2),
-    hidden = _React$useState136[0],
-    setHidden = _React$useState136[1];
+    _React$useState138 = _slicedToArray(_React$useState137, 2),
+    hidden = _React$useState138[0],
+    setHidden = _React$useState138[1];
   function toggle(key) {
     setHidden(function (prev) {
       var next = new Set(prev);
@@ -10013,6 +10079,7 @@ function ColumnsEditorModal(_ref36) {
       hiddenColumns: Array.from(hidden)
     });
     onClose();
+    onSaved && onSaved();
   }
   return /*#__PURE__*/React.createElement("div", {
     style: {
@@ -10157,14 +10224,14 @@ function BackupModal(_ref37) {
     findProjectByName = _useStandaloneData6.findProjectByName,
     importProject = _useStandaloneData6.importProject,
     overwriteProject = _useStandaloneData6.overwriteProject;
-  var _React$useState137 = React.useState('idle'),
-    _React$useState138 = _slicedToArray(_React$useState137, 2),
-    status = _React$useState138[0],
-    setStatus = _React$useState138[1]; // idle | working | done | error
-  var _React$useState139 = React.useState(''),
+  var _React$useState139 = React.useState('idle'),
     _React$useState140 = _slicedToArray(_React$useState139, 2),
-    errMsg = _React$useState140[0],
-    setErrMsg = _React$useState140[1];
+    status = _React$useState140[0],
+    setStatus = _React$useState140[1]; // idle | working | done | error
+  var _React$useState141 = React.useState(''),
+    _React$useState142 = _slicedToArray(_React$useState141, 2),
+    errMsg = _React$useState142[0],
+    setErrMsg = _React$useState142[1];
   // A per-device Settings value always overrides the baked-in shared default -
   // that's what lets a fork on a different hosting URL use its own Client ID.
   var effectiveClientId = getEffectiveClientId(data);
@@ -10177,14 +10244,14 @@ function BackupModal(_ref37) {
   }, [data.rolls]);
 
   // Restore state
-  var _React$useState141 = React.useState(null),
-    _React$useState142 = _slicedToArray(_React$useState141, 2),
-    sheets = _React$useState142[0],
-    setSheets = _React$useState142[1]; // null = not looked yet
-  var _React$useState143 = React.useState(false),
+  var _React$useState143 = React.useState(null),
     _React$useState144 = _slicedToArray(_React$useState143, 2),
-    restoring = _React$useState144[0],
-    setRestoring = _React$useState144[1];
+    sheets = _React$useState144[0],
+    setSheets = _React$useState144[1]; // null = not looked yet
+  var _React$useState145 = React.useState(false),
+    _React$useState146 = _slicedToArray(_React$useState145, 2),
+    restoring = _React$useState146[0],
+    setRestoring = _React$useState146[1];
   function runBackup() {
     return _runBackup.apply(this, arguments);
   }
@@ -10620,43 +10687,43 @@ function App() {
   var _useTheme = useTheme(),
     themeName = _useTheme.themeName,
     toggleTheme = _useTheme.toggleTheme;
-  var _React$useState145 = React.useState(ensureProjectsSetup),
-    _React$useState146 = _slicedToArray(_React$useState145, 2),
-    projectIds = _React$useState146[0],
-    setProjectIds = _React$useState146[1];
-  var _React$useState147 = React.useState(function () {
+  var _React$useState147 = React.useState(ensureProjectsSetup),
+    _React$useState148 = _slicedToArray(_React$useState147, 2),
+    projectIds = _React$useState148[0],
+    setProjectIds = _React$useState148[1];
+  var _React$useState149 = React.useState(function () {
       return loadCurrentProjectId(projectIds);
     }),
-    _React$useState148 = _slicedToArray(_React$useState147, 2),
-    projectId = _React$useState148[0],
-    setProjectId = _React$useState148[1];
-  var _React$useState149 = React.useState(function () {
+    _React$useState150 = _slicedToArray(_React$useState149, 2),
+    projectId = _React$useState150[0],
+    setProjectId = _React$useState150[1];
+  var _React$useState151 = React.useState(function () {
       return loadProjectData(projectId);
     }),
-    _React$useState150 = _slicedToArray(_React$useState149, 2),
-    data = _React$useState150[0],
-    setData = _React$useState150[1];
-  var _React$useState151 = React.useState(false),
     _React$useState152 = _slicedToArray(_React$useState151, 2),
-    showSettings = _React$useState152[0],
-    setShowSettings = _React$useState152[1];
+    data = _React$useState152[0],
+    setData = _React$useState152[1];
   var _React$useState153 = React.useState(false),
     _React$useState154 = _slicedToArray(_React$useState153, 2),
-    showBackup = _React$useState154[0],
-    setShowBackup = _React$useState154[1];
+    showSettings = _React$useState154[0],
+    setShowSettings = _React$useState154[1];
   var _React$useState155 = React.useState(false),
     _React$useState156 = _slicedToArray(_React$useState155, 2),
-    showProjects = _React$useState156[0],
-    setShowProjects = _React$useState156[1];
+    showBackup = _React$useState156[0],
+    setShowBackup = _React$useState156[1];
+  var _React$useState157 = React.useState(false),
+    _React$useState158 = _slicedToArray(_React$useState157, 2),
+    showProjects = _React$useState158[0],
+    setShowProjects = _React$useState158[1];
   // True once a localStorage write has actually FAILED (quota full, private
   // browsing, storage blocked). Previously saveProjectData's false return was
   // discarded here, so the status pill kept saying "SAVED LOCALLY" while
   // nothing was being written - the worst possible failure mode for a camera
   // report you're relying on mid-shoot.
-  var _React$useState157 = React.useState(false),
-    _React$useState158 = _slicedToArray(_React$useState157, 2),
-    storageFailed = _React$useState158[0],
-    setStorageFailed = _React$useState158[1];
+  var _React$useState159 = React.useState(false),
+    _React$useState160 = _slicedToArray(_React$useState159, 2),
+    storageFailed = _React$useState160[0],
+    setStorageFailed = _React$useState160[1];
 
   // Pure state update - no side effects. It stays a functional updater because
   // two updateData calls can land in the same tick (e.g. adding a shoot day,
@@ -10976,28 +11043,28 @@ function ProjectSwitcherModal(_ref38) {
     switchProject = _useStandaloneData7.switchProject,
     createProject = _useStandaloneData7.createProject,
     deleteProject = _useStandaloneData7.deleteProject;
-  var _React$useState159 = React.useState(function () {
+  var _React$useState161 = React.useState(function () {
       var m = {};
       projectIds.forEach(function (id) {
         m[id] = id === projectId ? data.projectName : loadProjectData(id).projectName;
       });
       return m;
     }),
-    _React$useState160 = _slicedToArray(_React$useState159, 2),
-    names = _React$useState160[0],
-    setNames = _React$useState160[1];
-  var _React$useState161 = React.useState(null),
     _React$useState162 = _slicedToArray(_React$useState161, 2),
-    editingId = _React$useState162[0],
-    setEditingId = _React$useState162[1];
-  var _React$useState163 = React.useState(''),
+    names = _React$useState162[0],
+    setNames = _React$useState162[1];
+  var _React$useState163 = React.useState(null),
     _React$useState164 = _slicedToArray(_React$useState163, 2),
-    editName = _React$useState164[0],
-    setEditName = _React$useState164[1];
+    editingId = _React$useState164[0],
+    setEditingId = _React$useState164[1];
   var _React$useState165 = React.useState(''),
     _React$useState166 = _slicedToArray(_React$useState165, 2),
-    newName = _React$useState166[0],
-    setNewName = _React$useState166[1];
+    editName = _React$useState166[0],
+    setEditName = _React$useState166[1];
+  var _React$useState167 = React.useState(''),
+    _React$useState168 = _slicedToArray(_React$useState167, 2),
+    newName = _React$useState168[0],
+    setNewName = _React$useState168[1];
   function startEdit(id) {
     setEditingId(id);
     setEditName(names[id] || '');
@@ -11246,24 +11313,24 @@ var TRIAL_LIMITS = {
 };
 function AccessGate(_ref39) {
   var children = _ref39.children;
-  var _React$useState167 = React.useState(function () {
+  var _React$useState169 = React.useState(function () {
       return loadGateAuth() ? 'allowed' : 'trial';
     }),
-    _React$useState168 = _slicedToArray(_React$useState167, 2),
-    state = _React$useState168[0],
-    setState = _React$useState168[1]; // trial | working | denied | allowed | error
-  var _React$useState169 = React.useState(''),
     _React$useState170 = _slicedToArray(_React$useState169, 2),
-    errMsg = _React$useState170[0],
-    setErrMsg = _React$useState170[1];
-  var _React$useState171 = React.useState(false),
+    state = _React$useState170[0],
+    setState = _React$useState170[1]; // trial | working | denied | allowed | error
+  var _React$useState171 = React.useState(''),
     _React$useState172 = _slicedToArray(_React$useState171, 2),
-    showUnlock = _React$useState172[0],
-    setShowUnlock = _React$useState172[1];
-  var _React$useState173 = React.useState(''),
+    errMsg = _React$useState172[0],
+    setErrMsg = _React$useState172[1];
+  var _React$useState173 = React.useState(false),
     _React$useState174 = _slicedToArray(_React$useState173, 2),
-    unlockReason = _React$useState174[0],
-    setUnlockReason = _React$useState174[1];
+    showUnlock = _React$useState174[0],
+    setShowUnlock = _React$useState174[1];
+  var _React$useState175 = React.useState(''),
+    _React$useState176 = _slicedToArray(_React$useState175, 2),
+    unlockReason = _React$useState176[0],
+    setUnlockReason = _React$useState176[1];
   var checkedOnce = React.useRef(false);
   React.useEffect(function () {
     if (checkedOnce.current) return;
@@ -11549,10 +11616,10 @@ var ErrorBoundary = /*#__PURE__*/function (_React$Component) {
   }]);
 }(React.Component);
 function ThemedApp() {
-  var _React$useState175 = React.useState(loadThemeName),
-    _React$useState176 = _slicedToArray(_React$useState175, 2),
-    themeName = _React$useState176[0],
-    setThemeName = _React$useState176[1];
+  var _React$useState177 = React.useState(loadThemeName),
+    _React$useState178 = _slicedToArray(_React$useState177, 2),
+    themeName = _React$useState178[0],
+    setThemeName = _React$useState178[1];
   React.useEffect(function () {
     applyTheme(themeName);
   }, [themeName]);

@@ -1172,7 +1172,7 @@ const SB_TINT_PRESETS_KEY='sb_camrep_tint_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-const APP_VERSION='v4.2';
+const APP_VERSION='v4.3';
 
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
@@ -2093,6 +2093,12 @@ function CameraReport(){
   // Which take-table columns this production has hidden via Project Settings
   // > Take table columns (default: none hidden, i.e. unchanged behaviour).
   const hiddenCols=React.useMemo(()=>new Set(proj.hiddenColumns||[]),[proj.hiddenColumns]);
+  // When on, the Action drawer stays open after Add take/New shot/etc. so a
+  // user logging several takes in a row doesn't have to keep reopening it.
+  // Off by default - most taps are one-and-done, so auto-closing right after
+  // is the more convenient default.
+  const keepDrawerOpen=!!proj.keepDrawerOpen;
+  const closeDrawer=()=>{ if(!keepDrawerOpen) setShowActions(false); };
   // Format a scene string ("S01, S23") into "S01 EXT, S23 INT" using slugs.
   function sceneWithIE(sceneStr){
     const ids=String(sceneStr||'').split(',').map(x=>x.trim()).filter(Boolean);
@@ -4278,9 +4284,9 @@ function CameraReport(){
               border:`1px solid ${T.danger}55`,borderRadius:5,padding:'7px 9px',fontFamily:"'Geist Mono',monospace"}}>
               {'\u26A0'} Duplicate roll number - fix ROLL # before logging clips.
             </div>}
-            <button className="cr-btn" onClick={addTake} disabled={!!rollDupe} style={{padding:'9px 14px',borderRadius:6,border:`1px dashed ${CAM.accent}66`,background:CAM.tint,color:CAM.accent,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:rollDupe?'not-allowed':'pointer',textAlign:'left',opacity:rollDupe?0.4:1}}>+ Add take</button>
-            <button className="cr-btn" onClick={addShot} disabled={!!rollDupe} style={{padding:'9px 14px',borderRadius:6,border:`1px dashed ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:rollDupe?'not-allowed':'pointer',textAlign:'left',opacity:rollDupe?0.4:1}}>+ New shot</button>
-            <button className="cr-btn" onClick={addNewScene} disabled={!!rollDupe} style={{padding:'9px 14px',borderRadius:6,border:`1px dashed ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:rollDupe?'not-allowed':'pointer',textAlign:'left',opacity:rollDupe?0.4:1}}>+ New scene</button>
+            <button className="cr-btn" onClick={()=>{addTake();closeDrawer();}} disabled={!!rollDupe} style={{padding:'9px 14px',borderRadius:6,border:`1px dashed ${CAM.accent}66`,background:CAM.tint,color:CAM.accent,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:rollDupe?'not-allowed':'pointer',textAlign:'left',opacity:rollDupe?0.4:1}}>+ Add take</button>
+            <button className="cr-btn" onClick={()=>{addShot();closeDrawer();}} disabled={!!rollDupe} style={{padding:'9px 14px',borderRadius:6,border:`1px dashed ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:rollDupe?'not-allowed':'pointer',textAlign:'left',opacity:rollDupe?0.4:1}}>+ New shot</button>
+            <button className="cr-btn" onClick={()=>{addNewScene();closeDrawer();}} disabled={!!rollDupe} style={{padding:'9px 14px',borderRadius:6,border:`1px dashed ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:rollDupe?'not-allowed':'pointer',textAlign:'left',opacity:rollDupe?0.4:1}}>+ New scene</button>
             {existingCams.length>1&&(()=>{
               const active=syncCams.includes(activeCam)&&syncCams.length>1;
               const label=syncCams.length>1?syncCams.join('+'):'off';
@@ -4328,15 +4334,16 @@ function CameraReport(){
                 </div>
               );
             })()}
-            <button className="cr-btn" onClick={resequenceClips} title="Renumber all clip names in sequence from the first one"
+            <button className="cr-btn" onClick={()=>{resequenceClips();closeDrawer();}} title="Renumber all clip names in sequence from the first one"
               style={{padding:'9px 12px',borderRadius:6,border:`1px solid ${T.border}`,background:'transparent',
                 color:T.textDim,fontSize:10,fontFamily:"'Geist Mono',monospace",cursor:'pointer',textAlign:'left',marginTop:2}}>
               {'\u21B3'} Resequence clips
             </button>
 
-            {/* Highlight mode: tap toggles it on and closes the drawer so the
-                table is immediately reachable for painting cells/rows. */}
-            <button className="cr-btn" onClick={()=>{setHighlightMode(v=>!v);setShowActions(false);}}
+            {/* Highlight mode: tap toggles it on and (unless "keep drawer
+                open" is set) closes the drawer so the table is immediately
+                reachable for painting cells/rows. */}
+            <button className="cr-btn" onClick={()=>{setHighlightMode(v=>!v);closeDrawer();}}
               title="Tap cells or rows in the table to mark them yellow for the printed report"
               style={{padding:'9px 12px',borderRadius:6,
                 border:`1px solid ${highlightMode?'#eab308':T.border}`,
@@ -4364,7 +4371,7 @@ function CameraReport(){
                       `${n} clip${n!==1?'s':''} will move with it, and the roll's date becomes that day's date.`
                     )){ e.target.value=String(roll.shootDay||''); return; }
                     moveRollToDay(roll.id,d);
-                    setShowActions(false);
+                    closeDrawer();
                   }}
                   style={{width:'100%',background:T.surface2,border:`1px solid ${T.border}`,borderRadius:6,
                     padding:'8px 10px',fontSize:11,color:T.text,fontFamily:"'Geist Mono',monospace",cursor:'pointer'}}>
@@ -4521,6 +4528,7 @@ function SettingsModal({onClose}){
   const [projectName,setProjectName]=React.useState(data.projectName||'');
   const [clientId,setClientId]=React.useState(data.gsheetsClientId||'');
   const [saved,setSaved]=React.useState(false);
+  const [keepDrawerOpen,setKeepDrawerOpen]=React.useState(!!data.keepDrawerOpen);
   const [showScenes,setShowScenes]=React.useState(false);
   const [showDays,setShowDays]=React.useState(false);
   const [showColumns,setShowColumns]=React.useState(false);
@@ -4531,7 +4539,8 @@ function SettingsModal({onClose}){
   function save(){
     updateData({
       projectName: projectName.trim()||'Untitled Production',
-      gsheetsClientId: clientId.trim()
+      gsheetsClientId: clientId.trim(),
+      keepDrawerOpen
     });
     setSaved(true);
     setTimeout(()=>setSaved(false),1600);
@@ -4578,6 +4587,18 @@ function SettingsModal({onClose}){
             <span style={{color:T.textDim}}>{'›'}</span>
           </button>
 
+          <label style={{display:'flex',alignItems:'center',gap:10,padding:'10px 2px',cursor:'pointer'}}>
+            <input type="checkbox" checked={keepDrawerOpen} onChange={e=>setKeepDrawerOpen(e.target.checked)}
+              style={{cursor:'pointer',width:16,height:16}}/>
+            <span style={{fontSize:12,color:T.text,fontFamily:"'Geist Mono',monospace"}}>
+              {'📌'} Keep Action Drawer Open
+              <span style={{display:'block',fontSize:10,color:T.textDim,fontWeight:400,marginTop:2}}>
+                Off (default): tapping Add take, New shot, etc. closes the drawer right after.
+                On: it stays open so you can tap several in a row.
+              </span>
+            </span>
+          </label>
+
           <div style={{borderTop:`1px solid ${T.rule}`,paddingTop:14}}>
             <span style={lbl}>GOOGLE SHEETS CLIENT ID (optional override - leave blank to use this deployment's default)</span>
             <input value={clientId} onChange={e=>setClientId(e.target.value)} style={inp} placeholder={DEFAULT_GSHEETS_CLIENT_ID}/>
@@ -4600,9 +4621,9 @@ function SettingsModal({onClose}){
           </div>
         </div>
       </div>
-      {showScenes&&<ScenesEditorModal onClose={()=>setShowScenes(false)}/>}
-      {showDays&&<ShootDaysEditorModal onClose={()=>setShowDays(false)}/>}
-      {showColumns&&<ColumnsEditorModal onClose={()=>setShowColumns(false)}/>}
+      {showScenes&&<ScenesEditorModal onClose={()=>setShowScenes(false)} onSaved={onClose}/>}
+      {showDays&&<ShootDaysEditorModal onClose={()=>setShowDays(false)} onSaved={onClose}/>}
+      {showColumns&&<ColumnsEditorModal onClose={()=>setShowColumns(false)} onSaved={onClose}/>}
     </div>
   );
 }
@@ -4615,7 +4636,7 @@ function SettingsModal({onClose}){
    same data, so nothing elsewhere (the INT/EXT badge, search, print)
    needed to change.
 ================================================================ */
-function ScenesEditorModal({onClose}){
+function ScenesEditorModal({onClose,onSaved}){
   const {data,updateData}=useStandaloneData();
   /* _k is a throwaway render key, never saved. Rows used to be keyed by array
      index, which lies to React whenever the list shifts: delete row 2 of 5 and
@@ -4633,6 +4654,7 @@ function ScenesEditorModal({onClose}){
     const scenes=rows.map(r=>({id:r.id.trim(),slug:composeSlug(r.intExt,r.desc)})).filter(s=>s.id);
     updateData({scenes});
     onClose();
+    onSaved&&onSaved();
   }
 
   const inp={background:T.surface2,border:'1px solid '+T.border,borderRadius:6,
@@ -4687,7 +4709,7 @@ function ScenesEditorModal({onClose}){
    next day and defaults its date to one calendar day after the
    previous row's date, instead of starting blank every time.
 ================================================================ */
-function ShootDaysEditorModal({onClose}){
+function ShootDaysEditorModal({onClose,onSaved}){
   const {data,updateData}=useStandaloneData();
   // _k: stable per-row render key, never persisted - see the ScenesEditorModal
   // note above for why array indices are the wrong key for an editable list.
@@ -4747,6 +4769,7 @@ function ShootDaysEditorModal({onClose}){
     const shootDays=rows.map(r=>({day:parseInt(r.day,10)||0,date:r.date||''})).filter(d=>d.day).sort((a,b)=>a.day-b.day);
     updateData({shootDays});
     onClose();
+    onSaved&&onSaved();
   }
 
   const inp={background:T.surface2,border:'1px solid '+T.border,borderRadius:6,
@@ -4823,7 +4846,7 @@ function ShootDaysEditorModal({onClose}){
    Hiding a column only hides its cell; the underlying data field is
    still read/written/auto-filled normally (see TAKE_COLUMNS above).
 ================================================================ */
-function ColumnsEditorModal({onClose}){
+function ColumnsEditorModal({onClose,onSaved}){
   const {data,updateData}=useStandaloneData();
   const [hidden,setHidden]=React.useState(()=>new Set(data.hiddenColumns||[]));
 
@@ -4837,6 +4860,7 @@ function ColumnsEditorModal({onClose}){
   function save(){
     updateData({hiddenColumns:Array.from(hidden)});
     onClose();
+    onSaved&&onSaved();
   }
 
   return(
