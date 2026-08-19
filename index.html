@@ -1941,7 +1941,7 @@ var SB_TINT_PRESETS_KEY = 'sb_camrep_tint_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-var APP_VERSION = 'v4.3';
+var APP_VERSION = 'v4.4';
 var CAM_CONFIG = {
   A: {
     label: 'A',
@@ -4221,14 +4221,33 @@ function CameraReport() {
     _React$useState110 = _slicedToArray(_React$useState109, 2),
     highlightMode = _React$useState110[0],
     setHighlightMode = _React$useState110[1];
-  var _React$useState111 = React.useState(false),
+  // Scroll-to-new-row: set to a take id right after it's created (Add take/
+  // New shot/New scene/Insert), and an effect below scrolls that row into
+  // view once it's actually in the DOM. rowRefs is a plain object, not
+  // React state, since it just needs to hold live DOM nodes for lookups -
+  // putting it in state would re-render on every row mount for no reason.
+  var _React$useState111 = React.useState(null),
     _React$useState112 = _slicedToArray(_React$useState111, 2),
-    showSearch = _React$useState112[0],
-    setShowSearch = _React$useState112[1];
-  var _React$useState113 = React.useState({}),
+    justAddedId = _React$useState112[0],
+    setJustAddedId = _React$useState112[1];
+  var rowRefs = React.useRef({});
+  React.useEffect(function () {
+    if (!justAddedId) return;
+    var el = rowRefs.current[justAddedId];
+    if (el && el.scrollIntoView) el.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center'
+    });
+    setJustAddedId(null);
+  }, [justAddedId]);
+  var _React$useState113 = React.useState(false),
     _React$useState114 = _slicedToArray(_React$useState113, 2),
-    searchQ = _React$useState114[0],
-    setSearchQ = _React$useState114[1]; // field -> search string
+    showSearch = _React$useState114[0],
+    setShowSearch = _React$useState114[1];
+  var _React$useState115 = React.useState({}),
+    _React$useState116 = _slicedToArray(_React$useState115, 2),
+    searchQ = _React$useState116[0],
+    setSearchQ = _React$useState116[1]; // field -> search string
 
   // ---- Take-table header, freeze-panes style ----
   // Two earlier attempts (CSS position:sticky, then a JS "floating clone"
@@ -4242,10 +4261,10 @@ function CameraReport() {
   // space), and the table gets its OWN dedicated scroll container below
   // them - with nothing else competing for that scroll, a plain CSS
   // position:sticky header (see `th` below) just works, no JS needed.
-  var _React$useState115 = React.useState(false),
-    _React$useState116 = _slicedToArray(_React$useState115, 2),
-    metaCollapsed = _React$useState116[0],
-    setMetaCollapsed = _React$useState116[1];
+  var _React$useState117 = React.useState(false),
+    _React$useState118 = _slicedToArray(_React$useState117, 2),
+    metaCollapsed = _React$useState118[0],
+    setMetaCollapsed = _React$useState118[1];
   var scenes = proj.scenes || [];
   var sceneIds = React.useMemo(function () {
     return scenes.map(function (s) {
@@ -4361,10 +4380,10 @@ function CameraReport() {
   var undoStack = React.useRef([]); // array of rolls-snapshots (JSON strings)
   var redoStack = React.useRef([]);
   var isTimeTravel = React.useRef(false); // true while applying an undo/redo
-  var _React$useState117 = React.useState(0),
-    _React$useState118 = _slicedToArray(_React$useState117, 2),
-    histTick = _React$useState118[0],
-    setHistTick = _React$useState118[1]; // force re-render for button enable
+  var _React$useState119 = React.useState(0),
+    _React$useState120 = _slicedToArray(_React$useState119, 2),
+    histTick = _React$useState120[0],
+    setHistTick = _React$useState120[1]; // force re-render for button enable
   var prevRollsSnap = React.useRef(null); // last-known rolls, to push on next change
   var HIST_LIMIT = 20;
   var persist = /*#__PURE__*/function () {
@@ -5320,11 +5339,13 @@ function CameraReport() {
       });
       setRolls(updated);
       saveRolls(updated);
+      setJustAddedId(primaryTake.id); // scroll the CURRENTLY VIEWED roll's new row, not the synced cams'
     } else {
       var nt = buildTake(roll, mode, null);
       patchRoll(roll.id, {
         takes: [].concat(_toConsumableArray(roll.takes), [nt])
       });
+      setJustAddedId(nt.id);
     }
   }
   function addTake() {
@@ -5701,6 +5722,7 @@ function CameraReport() {
     patchRoll(roll.id, {
       takes: next
     });
+    setJustAddedId(newTake.id);
   }
   function deleteTake(_x27) {
     return _deleteTake.apply(this, arguments);
@@ -8023,6 +8045,9 @@ function CameraReport() {
     };
     return /*#__PURE__*/React.createElement("tr", {
       key: t.id,
+      ref: function ref(el) {
+        if (el) rowRefs.current[t.id] = el;else delete rowRefs.current[t.id];
+      },
       style: {
         borderBottom: "1px solid ".concat(T.rule),
         background: t.rowHL ? HL_BG : isSel ? CAM.tint : i % 2 ? T.surface2 + '55' : 'transparent'
@@ -9191,18 +9216,14 @@ function SettingsModal(_ref33) {
   var _useStandaloneData2 = useStandaloneData(),
     data = _useStandaloneData2.data,
     updateData = _useStandaloneData2.updateData;
-  var _React$useState119 = React.useState(data.projectName || ''),
-    _React$useState120 = _slicedToArray(_React$useState119, 2),
-    projectName = _React$useState120[0],
-    setProjectName = _React$useState120[1];
-  var _React$useState121 = React.useState(data.gsheetsClientId || ''),
+  var _React$useState121 = React.useState(data.projectName || ''),
     _React$useState122 = _slicedToArray(_React$useState121, 2),
-    clientId = _React$useState122[0],
-    setClientId = _React$useState122[1];
-  var _React$useState123 = React.useState(false),
+    projectName = _React$useState122[0],
+    setProjectName = _React$useState122[1];
+  var _React$useState123 = React.useState(data.gsheetsClientId || ''),
     _React$useState124 = _slicedToArray(_React$useState123, 2),
-    saved = _React$useState124[0],
-    setSaved = _React$useState124[1];
+    clientId = _React$useState124[0],
+    setClientId = _React$useState124[1];
   var _React$useState125 = React.useState(!!data.keepDrawerOpen),
     _React$useState126 = _slicedToArray(_React$useState125, 2),
     keepDrawerOpen = _React$useState126[0],
@@ -9228,10 +9249,7 @@ function SettingsModal(_ref33) {
       gsheetsClientId: clientId.trim(),
       keepDrawerOpen: keepDrawerOpen
     });
-    setSaved(true);
-    setTimeout(function () {
-      return setSaved(false);
-    }, 1600);
+    onClose();
   }
   var inp = {
     width: '100%',
@@ -9427,13 +9445,7 @@ function SettingsModal(_ref33) {
       justifyContent: 'flex-end',
       gap: 8
     }
-  }, saved && /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 11,
-      color: T.success,
-      alignSelf: 'center'
-    }
-  }, '✓', " Saved"), /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("button", {
     onClick: save,
     style: {
       padding: '8px 20px',
