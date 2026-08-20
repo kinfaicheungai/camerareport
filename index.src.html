@@ -1172,7 +1172,7 @@ const SB_TINT_PRESETS_KEY='sb_camrep_tint_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-const APP_VERSION='v4.6';
+const APP_VERSION='v4.7';
 
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
@@ -4184,6 +4184,13 @@ function CameraReport(){
           const rg=selRange();
           const singleCol=rg&&rg.c0===rg.c1?SELECT_COLS[rg.c0]:null;
           const pickerCfg=singleCol?FILL_PICKER_CONFIG[singleCol]:null;
+          // cellInput is deliberately transparent/borderless for use INSIDE
+          // a table td, where the cell itself gives it visual boundaries.
+          // Floating in this action bar it has nothing to blend into and
+          // was effectively invisible - a real background/border here so
+          // it actually reads as a text field.
+          const fillInputStyle={...cellInput,width:110,background:T.surface2,
+            border:`1px solid ${T.border}`,borderRadius:5,padding:'5px 7px'};
           return(
             <div style={{padding:'8px 16px',display:'flex',alignItems:'center',gap:10,flexShrink:0,
               background:'#3b82f622',borderBottom:'1px solid #3b82f666',flexWrap:'wrap'}}>
@@ -4194,10 +4201,10 @@ function CameraReport(){
               {rg&&(<>
                 {pickerCfg?(
                   <LensFocalPicker value={fillValue} onChange={setFillValue} options={pickerCfg.options}
-                    normalize={pickerCfg.normalize} inputStyle={{...cellInput,width:110}}/>
+                    normalize={pickerCfg.normalize} inputStyle={fillInputStyle}/>
                 ):(
                   <input value={fillValue} onChange={e=>setFillValue(e.target.value)} placeholder="value to fill"
-                    style={{...cellInput,width:110}}/>
+                    style={fillInputStyle}/>
                 )}
                 <button onClick={()=>{fillSelectedCells(fillValue);}}
                   style={{padding:'5px 12px',borderRadius:5,fontSize:11,fontFamily:"'Geist Mono',monospace",

@@ -1942,7 +1942,7 @@ var SB_TINT_PRESETS_KEY = 'sb_camrep_tint_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-var APP_VERSION = 'v4.6';
+var APP_VERSION = 'v4.7';
 var CAM_CONFIG = {
   A: {
     label: 'A',
@@ -8110,6 +8110,18 @@ function CameraReport() {
     var rg = selRange();
     var singleCol = rg && rg.c0 === rg.c1 ? SELECT_COLS[rg.c0] : null;
     var pickerCfg = singleCol ? FILL_PICKER_CONFIG[singleCol] : null;
+    // cellInput is deliberately transparent/borderless for use INSIDE
+    // a table td, where the cell itself gives it visual boundaries.
+    // Floating in this action bar it has nothing to blend into and
+    // was effectively invisible - a real background/border here so
+    // it actually reads as a text field.
+    var fillInputStyle = _objectSpread(_objectSpread({}, cellInput), {}, {
+      width: 110,
+      background: T.surface2,
+      border: "1px solid ".concat(T.border),
+      borderRadius: 5,
+      padding: '5px 7px'
+    });
     return /*#__PURE__*/React.createElement("div", {
       style: {
         padding: '8px 16px',
@@ -8137,18 +8149,14 @@ function CameraReport() {
       onChange: setFillValue,
       options: pickerCfg.options,
       normalize: pickerCfg.normalize,
-      inputStyle: _objectSpread(_objectSpread({}, cellInput), {}, {
-        width: 110
-      })
+      inputStyle: fillInputStyle
     }) : /*#__PURE__*/React.createElement("input", {
       value: fillValue,
       onChange: function onChange(e) {
         return setFillValue(e.target.value);
       },
       placeholder: "value to fill",
-      style: _objectSpread(_objectSpread({}, cellInput), {}, {
-        width: 110
-      })
+      style: fillInputStyle
     }), /*#__PURE__*/React.createElement("button", {
       onClick: function onClick() {
         fillSelectedCells(fillValue);
