@@ -1172,7 +1172,7 @@ const SB_TINT_PRESETS_KEY='sb_camrep_tint_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-const APP_VERSION='v4.4';
+const APP_VERSION='v4.6';
 
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
@@ -2034,7 +2034,7 @@ function CameraReport(){
   const [syncCams,setSyncCams]=React.useState([]);   // array of cam letters to sync together, e.g. ['A','B']
   const [showSyncMenu,setShowSyncMenu]=React.useState(false);
   const [showActions,setShowActions]=React.useState(false); // roll-actions side drawer (Add take/New shot/etc.)
-  const [showToolbar,setShowToolbar]=React.useState(false); // collapses undo/search/AIFill/presets/CSV/PDF/day-filter row
+  const [showToolbar,setShowToolbar]=React.useState(false); // collapses search/AIFill/presets/CSV/PDF/day-filter row (undo/redo stay always-visible, see toolbar render)
   const [camActiveRoll,setCamActiveRoll]=React.useState({}); // cam -> last selected roll id
   const [syncStatus,setSyncStatus]=React.useState('offline');
   const [exporting,setExporting]=React.useState(false);
@@ -2067,10 +2067,6 @@ function CameraReport(){
   const fabRef=React.useRef({});
   const [printCams,setPrintCams]=React.useState([]);         // cams ticked for printing
   const [selTakeIds,setSelTakeIds]=React.useState([]); // multi-selected clip rows (for moving)
-  // Highlight mode: while on, tapping a cell/row paints it yellow instead of
-  // opening it for editing (see paintOverlay below). Off by default so
-  // normal logging is never affected.
-  const [highlightMode,setHighlightMode]=React.useState(false);
   // Scroll-to-new-row: set to a take id right after it's created (Add take/
   // New shot/New scene/Insert), and an effect below scrolls that row into
   // view once it's actually in the DOM. rowRefs is a plain object, not
@@ -2084,6 +2080,111 @@ function CameraReport(){
     if(el&&el.scrollIntoView) el.scrollIntoView({behavior:'smooth',block:'center'});
     setJustAddedId(null);
   },[justAddedId]);
+
+  /* Select Cells: an Excel-style rectangular bulk-select, for clearing,
+     mass-filling, or highlighting a range of takes x columns in one go.
+     cellSel = {r1,c1,r2,c2} where r is a row index into roll.takes and c is
+     an index into SELECT_COLS. (r1,c1) is the fixed anchor from the first
+     tap; (r2,c2) is the current "far corner", the one the drag handle
+     renders at and the one dragging moves. Releasing the handle PAUSES the
+     drag (so the user can scroll) without clearing the selection - grabbing
+     the handle again, wherever it now sits, continues extending it. */
+  const [selectMode,setSelectMode]=React.useState(false);
+  const [cellSel,setCellSel]=React.useState(null);
+  const [fillValue,setFillValue]=React.useState('');
+  const cellSelDragging=React.useRef(false);
+  function selRange(){
+    if(!cellSel)return null;
+    return {
+      r0:Math.min(cellSel.r1,cellSel.r2), r1:Math.max(cellSel.r1,cellSel.r2),
+      c0:Math.min(cellSel.c1,cellSel.c2), c1:Math.max(cellSel.c1,cellSel.c2)
+    };
+  }
+  function inSel(rowIdx,colIdx){
+    const rg=selRange();
+    return !!rg&&rowIdx>=rg.r0&&rowIdx<=rg.r1&&colIdx>=rg.c0&&colIdx<=rg.c1;
+  }
+  function handlePointerMove(e){
+    if(!cellSelDragging.current)return;
+    const x=e.touches?e.touches[0].clientX:e.clientX, y=e.touches?e.touches[0].clientY:e.clientY;
+    const under=doc_elementFromPoint(x,y);
+    const marker=under&&under.closest&&under.closest('[data-sel-r]');
+    if(!marker)return;
+    const r=parseInt(marker.getAttribute('data-sel-r'),10);
+    const c=parseInt(marker.getAttribute('data-sel-c'),10);
+    setCellSel(prev=>prev?{...prev,r2:r,c2:c}:prev);
+  }
+  function handlePointerUp(){
+    cellSelDragging.current=false;
+    window.removeEventListener('pointermove',handlePointerMove);
+    window.removeEventListener('pointerup',handlePointerUp);
+  }
+  function startHandleDrag(e){
+    e.preventDefault(); e.stopPropagation();
+    cellSelDragging.current=true;
+    window.addEventListener('pointermove',handlePointerMove);
+    window.addEventListener('pointerup',handlePointerUp);
+  }
+  // Thin wrapper so tests can stub document.elementFromPoint (jsdom doesn't
+  // implement it at all) without touching the real call site's semantics.
+  function doc_elementFromPoint(x,y){
+    return document.elementFromPoint?document.elementFromPoint(x,y):null;
+  }
+  // All four bulk actions (Clear/Fill/Highlight/Highlight Row) apply the
+  // whole range in a SINGLE patchRoll call, deliberately not one patchTake
+  // per row: patchTake/patchRoll compute their update from the current
+  // `roll`/`rolls` closure, so several calls fired synchronously in a loop
+  // each read the same pre-edit snapshot and only the last one's change
+  // actually survives - exactly the kind of bug a 4-row fill would otherwise
+  // hit silently (rows 0-2 would look filled for an instant, then revert).
+  // Building the full array first and patching once sidesteps that.
+  function clearSelectedCells(){
+    const rg=selRange(); if(!rg||!roll)return;
+    const next=roll.takes.map((take,r)=>{
+      if(r<rg.r0||r>rg.r1)return take;
+      const patch={};
+      for(let c=rg.c0;c<=rg.c1;c++) patch[SELECT_COLS[c]]='';
+      return {...take,...patch};
+    });
+    patchRoll(roll.id,{takes:next});
+  }
+  function fillSelectedCells(value){
+    const rg=selRange(); if(!rg||!roll)return;
+    const next=roll.takes.map((take,r)=>{
+      if(r<rg.r0||r>rg.r1)return take;
+      const patch={};
+      for(let c=rg.c0;c<=rg.c1;c++) patch[SELECT_COLS[c]]=value;
+      return {...take,...patch};
+    });
+    patchRoll(roll.id,{takes:next});
+  }
+  // Highlight/Unhighlight only ever touches the SELECT_COLS cells actually
+  // inside the selection rectangle (Tail/Photo were never selectable to
+  // begin with, so they're untouched here by construction).
+  function highlightSelectedCells(on){
+    const rg=selRange(); if(!rg||!roll)return;
+    const next=roll.takes.map((take,r)=>{
+      if(r<rg.r0||r>rg.r1)return take;
+      const cur={...(take.cellHL||{})};
+      for(let c=rg.c0;c<=rg.c1;c++) cur[SELECT_COLS[c]]=on;
+      return {...take,cellHL:cur};
+    });
+    patchRoll(roll.id,{takes:next});
+  }
+  // Highlight Row/Unhighlight Row ignores the column bounds of the current
+  // selection entirely and marks the WHOLE row (rowHL) for every take the
+  // selection's row range spans - this is how Tail and Photo (never
+  // selectable as individual cells) still get covered by a highlight, since
+  // print reads rowHL to shade the entire printed row regardless of column.
+  function highlightSelectedRows(on){
+    const rg=selRange(); if(!rg||!roll)return;
+    const next=roll.takes.map((take,r)=>{
+      if(r<rg.r0||r>rg.r1)return take;
+      return {...take,rowHL:on};
+    });
+    patchRoll(roll.id,{takes:next});
+  }
+
   const [showSearch,setShowSearch]=React.useState(false);
   const [searchQ,setSearchQ]=React.useState({});  // field -> search string
 
@@ -2106,6 +2207,27 @@ function CameraReport(){
   // Which take-table columns this production has hidden via Project Settings
   // > Take table columns (default: none hidden, i.e. unchanged behaviour).
   const hiddenCols=React.useMemo(()=>new Set(proj.hiddenColumns||[]),[proj.hiddenColumns]);
+  // Ordered list of columns the new "Select Cells" bulk-edit feature can
+  // span, left-to-right same as the table - filtered by hiddenCols so a
+  // drag never silently jumps over a column the user can't even see.
+  // Tail (checkbox) and Photo (attachments) are deliberately excluded -
+  // "same value for every selected cell" doesn't map onto either of those.
+  const SELECT_COLS=React.useMemo(()=>{
+    const all=['scene','shot','take','clip','lens','focal','stop','shutter','ei',
+      'intFilters','filters','filters3','wb','tint','focus','notes'];
+    return all.filter(k=>k==='scene'||k==='take'||!hiddenCols.has(k));
+  },[hiddenCols]);
+  // Fill With... reuses each column's own preset picker when a selection
+  // spans exactly ONE column (so filling WB, say, works the same way typing
+  // WB normally does - dropdown + free text). Columns with no curated preset
+  // list (scene/shot/take/clip/ei/focus/notes) fall back to a plain text
+  // input, same as a selection spanning more than one column does.
+  const FILL_PICKER_CONFIG={
+    lens:{options:LENS_OPTIONS}, focal:{options:FOCAL_OPTIONS}, stop:{options:STOP_OPTIONS},
+    shutter:{options:SHUTTER_OPTIONS}, intFilters:{options:FILTER1_OPTIONS},
+    filters:{options:FILTER2_OPTIONS}, filters3:{options:FILTER3_OPTIONS},
+    wb:{options:WB_OPTIONS,normalize:withK}, tint:{options:TINT_OPTIONS}
+  };
   // When on, the Action drawer stays open after Add take/New shot/etc. so a
   // user logging several takes in a row doesn't have to keep reopening it.
   // Off by default - most taps are one-and-done, so auto-closing right after
@@ -3446,11 +3568,13 @@ function CameraReport(){
      the real bug the whole time, not border-collapse or sticky itself. */
   return(
     <div style={{flex:1,display:'flex',flexDirection:'column',minHeight:0,overflow:'hidden',border:`1px solid ${T.border}`,borderTop:'none',background:T.panel}}>
-      {/* Toolbar - collapsed by default. Only a sync-status dot and a single
-          "Tools" toggle stay visible; tapping it reveals undo/redo, search,
-          AI Fill, presets, icon guide, CSV/PDF export, New Roll, and the Day
-          filter row - the block Tim circled as taking up too much vertical
-          space above the table on a phone screen. */}
+      {/* Toolbar - collapsed by default. Only a sync-status dot, Undo/Redo,
+          and a single "Tools" toggle stay visible; tapping Tools reveals
+          search, AI Fill, presets, icon guide, CSV/PDF export, New Roll, and
+          the Day filter row - the block Tim circled as taking up too much
+          vertical space above the table on a phone screen. Undo/Redo stay
+          OUT of that collapsible block deliberately (see below) since
+          they're used far too often to hide behind a toggle. */}
       <div style={{padding:mob?'8px 10px':'10px 16px',borderBottom:`1px solid ${T.rule}`,display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
         {(()=>{
           // storageFailed reflects a REAL failed localStorage write, so it
@@ -3465,7 +3589,30 @@ function CameraReport(){
           );
         })()}
         <div style={{flex:1}}/>
-        <button onClick={()=>setShowToolbar(v=>!v)} title="Tools: undo/redo, search, AI Fill, presets, CSV/PDF export, day filter"
+        {/* Undo/Redo live here, on the always-visible row, deliberately
+            separate from the collapsible Tools section below - they're used
+            constantly on set and must stay reachable even with Tools
+            collapsed, unlike the once-in-a-while stuff (search/AI Fill/
+            presets/exports) that's fine to tuck away. */}
+        {(()=>{ const _=histTick; const canU=undoStack.current.length>0, canR=redoStack.current.length>0;
+          return(
+            <div style={{display:'flex',gap:3,paddingLeft:8,marginLeft:2,borderLeft:`1px solid ${T.rule}`}}>
+              <button onClick={undo} disabled={!canU} title="Undo" aria-label="Undo"
+                style={{padding:'4px 9px',borderRadius:5,fontSize:12,fontFamily:"'Geist Mono',monospace",
+                  background:'transparent',border:`1px solid ${T.border}`,
+                  color:canU?T.text:T.textDim,cursor:canU?'pointer':'default',opacity:canU?1:0.4}}>
+                {'\u21B6'}
+              </button>
+              <button onClick={redo} disabled={!canR} title="Redo" aria-label="Redo"
+                style={{padding:'4px 9px',borderRadius:5,fontSize:12,fontFamily:"'Geist Mono',monospace",
+                  background:'transparent',border:`1px solid ${T.border}`,
+                  color:canR?T.text:T.textDim,cursor:canR?'pointer':'default',opacity:canR?1:0.4}}>
+                {'\u21B7'}
+              </button>
+            </div>
+          );
+        })()}
+        <button onClick={()=>setShowToolbar(v=>!v)} title="Tools: search, AI Fill, presets, CSV/PDF export, day filter"
           aria-label="Toggle tools"
           style={{padding:'4px 12px',borderRadius:5,fontSize:10,fontFamily:"'Geist Mono',monospace",
             background:showToolbar?T.chip:'transparent',
@@ -3500,24 +3647,6 @@ function CameraReport(){
 
       {showToolbar&&(
         <div style={{padding:mob?'8px 10px':'10px 16px',borderBottom:`1px solid ${T.rule}`,display:'flex',alignItems:'center',gap:8,flexShrink:0,flexWrap:'wrap'}}>
-          {(()=>{ const _=histTick; const canU=undoStack.current.length>0, canR=redoStack.current.length>0;
-            return(
-              <div style={{display:'flex',gap:3}}>
-                <button onClick={undo} disabled={!canU} title="Undo" aria-label="Undo"
-                  style={{padding:'4px 9px',borderRadius:5,fontSize:12,fontFamily:"'Geist Mono',monospace",
-                    background:'transparent',border:`1px solid ${T.border}`,
-                    color:canU?T.text:T.textDim,cursor:canU?'pointer':'default',opacity:canU?1:0.4}}>
-                  {'\u21B6'}
-                </button>
-                <button onClick={redo} disabled={!canR} title="Redo" aria-label="Redo"
-                  style={{padding:'4px 9px',borderRadius:5,fontSize:12,fontFamily:"'Geist Mono',monospace",
-                    background:'transparent',border:`1px solid ${T.border}`,
-                    color:canR?T.text:T.textDim,cursor:canR?'pointer':'default',opacity:canR?1:0.4}}>
-                  {'\u21B7'}
-                </button>
-              </div>
-            );
-          })()}
           <button onClick={()=>setShowSearch(s=>!s)}
             style={{padding:'4px 12px',borderRadius:5,fontSize:10,fontFamily:"'Geist Mono',monospace",
               background:showSearch?T.chip:'transparent',
@@ -4042,20 +4171,60 @@ function CameraReport(){
           );
         })()}
 
-        {/* Highlight-mode banner - outside the table's scroll container so it
-            stays visible without scrolling, same pattern as the multi-select
-            bar above. */}
-        {highlightMode&&(
-          <div style={{padding:'8px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',
-            gap:10,flexShrink:0,background:'#eab30822',borderBottom:'1px solid #eab30866'}}>
-            <span style={{fontSize:11,fontWeight:600,color:'#eab308',fontFamily:"'Geist Mono',monospace"}}>
-              {'\uD83D\uDD8D'} Highlight mode on - tap a cell or row to mark it
-            </span>
-            <button onClick={()=>setHighlightMode(false)}
-              style={{padding:'4px 10px',borderRadius:5,fontSize:10,fontFamily:"'Geist Mono',monospace",
-                background:'transparent',border:'1px solid #eab30866',color:'#eab308',cursor:'pointer'}}>Done</button>
-          </div>
-        )}
+        {/* Select Cells banner + action bar. Shown whenever the mode is on;
+            the action controls only appear once an actual selection exists
+            (cellSel is set - a single tap already counts as a 1x1
+            selection). Highlight/Unhighlight act on just the cells inside
+            the selected range; Highlight Row/Unhighlight Row act on every
+            take the selection's ROW range spans regardless of which
+            columns were selected, since that's the only way to reach
+            Tail/Photo - never individually selectable - the way a printed
+            report's row-shading always has. */}
+        {selectMode&&(()=>{
+          const rg=selRange();
+          const singleCol=rg&&rg.c0===rg.c1?SELECT_COLS[rg.c0]:null;
+          const pickerCfg=singleCol?FILL_PICKER_CONFIG[singleCol]:null;
+          return(
+            <div style={{padding:'8px 16px',display:'flex',alignItems:'center',gap:10,flexShrink:0,
+              background:'#3b82f622',borderBottom:'1px solid #3b82f666',flexWrap:'wrap'}}>
+              <span style={{fontSize:11,fontWeight:600,color:'#3b82f6',fontFamily:"'Geist Mono',monospace"}}>
+                {'\u25A6'} Select Cells {rg?`- ${rg.r1-rg.r0+1} row${rg.r1>rg.r0?'s':''} \u00D7 ${rg.c1-rg.c0+1} col${rg.c1>rg.c0?'s':''}`:'- tap a cell, then drag its corner handle'}
+              </span>
+              <div style={{flex:1}}/>
+              {rg&&(<>
+                {pickerCfg?(
+                  <LensFocalPicker value={fillValue} onChange={setFillValue} options={pickerCfg.options}
+                    normalize={pickerCfg.normalize} inputStyle={{...cellInput,width:110}}/>
+                ):(
+                  <input value={fillValue} onChange={e=>setFillValue(e.target.value)} placeholder="value to fill"
+                    style={{...cellInput,width:110}}/>
+                )}
+                <button onClick={()=>{fillSelectedCells(fillValue);}}
+                  style={{padding:'5px 12px',borderRadius:5,fontSize:11,fontFamily:"'Geist Mono',monospace",
+                    background:'#3b82f6',border:'none',color:'#fff',fontWeight:600,cursor:'pointer'}}>Fill</button>
+                <button onClick={clearSelectedCells}
+                  style={{padding:'5px 12px',borderRadius:5,fontSize:11,fontFamily:"'Geist Mono',monospace",
+                    background:'transparent',border:'1px solid #3b82f666',color:'#3b82f6',cursor:'pointer'}}>Clear</button>
+                <div style={{width:1,alignSelf:'stretch',background:'#3b82f666'}}/>
+                <button onClick={()=>highlightSelectedCells(true)} title="Mark the selected cells yellow for the printed report"
+                  style={{padding:'5px 12px',borderRadius:5,fontSize:11,fontFamily:"'Geist Mono',monospace",
+                    background:'#eab308',border:'none',color:'#0e0d0b',fontWeight:600,cursor:'pointer'}}>Highlight</button>
+                <button onClick={()=>highlightSelectedCells(false)} title="Remove yellow from the selected cells"
+                  style={{padding:'5px 12px',borderRadius:5,fontSize:11,fontFamily:"'Geist Mono',monospace",
+                    background:'transparent',border:'1px solid #eab30888',color:'#eab308',cursor:'pointer'}}>Unhighlight</button>
+                <button onClick={()=>highlightSelectedRows(true)} title="Mark every row the selection spans yellow (incl. T/S and Photo)"
+                  style={{padding:'5px 12px',borderRadius:5,fontSize:11,fontFamily:"'Geist Mono',monospace",
+                    background:'#eab308',border:'none',color:'#0e0d0b',fontWeight:600,cursor:'pointer'}}>Highlight Row</button>
+                <button onClick={()=>highlightSelectedRows(false)} title="Remove yellow from every row the selection spans"
+                  style={{padding:'5px 12px',borderRadius:5,fontSize:11,fontFamily:"'Geist Mono',monospace",
+                    background:'transparent',border:'1px solid #eab30888',color:'#eab308',cursor:'pointer'}}>Unhighlight Row</button>
+              </>)}
+              <button onClick={()=>{setSelectMode(false);setCellSel(null);setFillValue('');}}
+                style={{padding:'5px 10px',borderRadius:5,fontSize:10,fontFamily:"'Geist Mono',monospace",
+                  background:'transparent',border:'1px solid #3b82f666',color:'#3b82f6',cursor:'pointer'}}>Done</button>
+            </div>
+          );
+        })()}
 
         {/* Take table - its OWN dedicated scroll container, with nothing
             else sharing it, which is what makes the plain CSS sticky header
@@ -4097,36 +4266,64 @@ function CameraReport(){
                 // applied to every <td> in the row instead, spread in first so it never
                 // clobbers each cell's own borderRight/background.
                 const gb=newGroup?{borderTop:`2px solid ${T.accent}66`}:{};
-                // Highlight-mode helpers, scoped per row so they close over
-                // `t`. One yellow tone for both row and cell painting; it
-                // deliberately wins over the needFocal/needStop red
-                // required-field flash (spread after reqStyle below) since a
-                // highlight the user just tapped is a more current signal.
+                // Cell/row highlight is now set only via the Select Cells
+                // action bar's Highlight/Highlight Row buttons (bulk, not a
+                // tap-per-cell mode) - these two just RENDER whatever's
+                // already stored, same yellow for both. It deliberately wins
+                // over the needFocal/needStop red required-field flash
+                // (spread after reqStyle below) since a highlight is a more
+                // deliberate, current signal than a standing reminder.
                 const HL_BG='#facc1550';
                 const hasHL=key=>!!(t.cellHL&&t.cellHL[key]);
                 const cellBg=key=>hasHL(key)?{background:HL_BG}:{};
-                const toggleCellHL=key=>{
-                  const cur={...(t.cellHL||{})};
-                  cur[key]=!cur[key];
-                  patchTake(t.id,{cellHL:cur});
+
+                // Select Cells helpers - same per-row scope, closing over `t`
+                // and `i` (this row's index, which doubles as the row
+                // coordinate for the selection rectangle).
+                const SEL_BG='#3b82f640';
+                const colIdxOf=key=>SELECT_COLS.indexOf(key);
+                const selBg=key=>{
+                  const ci=colIdxOf(key);
+                  return (selectMode&&ci>=0&&inSel(i,ci))?{background:SEL_BG}:{};
                 };
-                // While highlight mode is on, this transparent overlay sits
-                // on top of the cell's normal control and intercepts the tap
-                // - so painting never also opens a field for editing.
-                const paintOverlay=key=>highlightMode?(
-                  <div onClick={()=>toggleCellHL(key)} title="Tap to highlight"
-                    style={{position:'absolute',inset:0,cursor:'pointer',zIndex:5}}/>
-                ):null;
+                // data-sel-r/-c let the drag handler (which only has a raw
+                // screen point from elementFromPoint) recover which take-row
+                // and SELECT_COLS index a given cell corresponds to.
+                const selMarker=key=>{
+                  const ci=colIdxOf(key);
+                  return selectMode&&ci>=0?{'data-sel-r':i,'data-sel-c':ci}:{};
+                };
+                const selectOverlay=key=>{
+                  const ci=colIdxOf(key);
+                  if(!selectMode||ci<0)return null;
+                  return (
+                    <div onClick={()=>setCellSel({r1:i,c1:ci,r2:i,c2:ci})} title="Tap to start a selection"
+                      style={{position:'absolute',inset:0,cursor:'pointer',zIndex:5}}/>
+                  );
+                };
+                // The little drag handle only ever renders on whichever cell
+                // is CURRENTLY the far corner of the selection (r2,c2) - not
+                // fixed at the anchor - so grabbing it always continues
+                // extending the same selection from wherever it now sits.
+                const selHandle=key=>{
+                  const ci=colIdxOf(key);
+                  if(!selectMode||!cellSel||ci<0)return null;
+                  if(cellSel.r2!==i||cellSel.c2!==ci)return null;
+                  return (
+                    <div onPointerDown={startHandleDrag} title="Drag to extend the selection"
+                      style={{position:'absolute',right:-6,bottom:-6,width:14,height:14,borderRadius:3,
+                        background:'#3b82f6',border:'2px solid #fff',boxShadow:'0 0 0 1px #3b82f6',
+                        cursor:'nwse-resize',touchAction:'none',zIndex:6}}/>
+                  );
+                };
                 return(
                 <tr key={t.id} ref={el=>{ if(el) rowRefs.current[t.id]=el; else delete rowRefs.current[t.id]; }}
                   style={{borderBottom:`1px solid ${T.rule}`,
                   background:t.rowHL?HL_BG:(isSel?(CAM.tint):(i%2?T.surface2+'55':'transparent'))}}>
                   <td style={{...gb,borderRight:`1px solid ${T.rule}`,textAlign:'center',position:'relative'}}>
                     <input type="checkbox" checked={isSel} onChange={()=>toggleTakeSel(t.id)} style={{cursor:'pointer'}}/>
-                    {highlightMode&&<div onClick={()=>patchTake(t.id,{rowHL:!t.rowHL})} title="Tap to highlight row"
-                      style={{position:'absolute',inset:0,cursor:'pointer',zIndex:5}}/>}
                   </td>
-                  <td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('scene')}}>
+                  <td {...selMarker('scene')} style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('scene'),...selBg('scene')}}>
                     {/* noFilter: same fix as Lens below - without it, a cell that
                         already holds a scene ID would filter the dropdown down to
                         just itself, making it impossible to browse/pick a different
@@ -4145,45 +4342,45 @@ function CameraReport(){
                         const newTake=first?takeNoFor(first,t.shot||'/',t.id):t.take;
                         patchTake(t.id,{scene:v,take:String(newTake)});
                       }}/>
-                    {paintOverlay('scene')}
+                    {selectOverlay('scene')}{selHandle('scene')}
                   </td>
-                  {!hiddenCols.has('shot')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('shot')}}><input value={focusCell===t.id+':shot'?cellDraft:(sameShot?'':(t.shot||''))} placeholder={sameShot?'':'/'}
+                  {!hiddenCols.has('shot')&&<td {...selMarker('shot')} style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('shot'),...selBg('shot')}}><input value={focusCell===t.id+':shot'?cellDraft:(sameShot?'':(t.shot||''))} placeholder={sameShot?'':'/'}
                     onFocus={()=>{ setFocusCell(t.id+':shot'); setCellDraft(sameShot?'':(t.shot||'')); }}
                     onBlur={()=>{ setFocusCell(''); setCellDraft(''); }}
                     onChange={e=>{ const v=e.target.value.toUpperCase(); setCellDraft(v); changeTakeShot(t.id,v); }}
-                    style={{...cellInput,textAlign:'center'}}/>{paintOverlay('shot')}</td>}
-                  <td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('take')}}><input value={t.take||''} onChange={e=>patchTake(t.id,{take:e.target.value})} style={{...cellInput,textAlign:'center'}} inputMode="numeric"/>{paintOverlay('take')}</td>
+                    style={{...cellInput,textAlign:'center'}}/>{selectOverlay('shot')}{selHandle('shot')}</td>}
+                  <td {...selMarker('take')} style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('take'),...selBg('take')}}><input value={t.take||''} onChange={e=>patchTake(t.id,{take:e.target.value})} style={{...cellInput,textAlign:'center'}} inputMode="numeric"/>{selectOverlay('take')}{selHandle('take')}</td>
                   {!hiddenCols.has('tail')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,textAlign:'center',position:'relative',...cellBg('tail')}}>
                     <button onClick={()=>patchTake(t.id,{tail:!t.tail})} title="Tail slate" aria-label="Toggle tail slate" style={{background:'transparent',border:'none',cursor:'pointer',fontSize:14,padding:'2px'}}>{t.tail?'\u2705':'\u2610'}</button>
-                    {paintOverlay('tail')}
+                    
                   </td>}
-                  {!hiddenCols.has('clip')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('clip')}}><input value={t.clip||''} onChange={e=>patchTake(t.id,{clip:e.target.value})} style={{...cellInput,textAlign:'right'}}/>{paintOverlay('clip')}</td>}
-                  {!hiddenCols.has('lens')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('lens')}}><LensFocalPicker value={t.lens||''} onChange={v=>patchTake(t.id,{lens:v})} options={LENS_OPTIONS} inputStyle={cellInput} noFilter/>{paintOverlay('lens')}</td>}
-                  {!hiddenCols.has('focal')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...(needFocal?reqStyle:{}),...cellBg('focal')}}><LensFocalPicker value={t.focal||''} onChange={v=>patchTake(t.id,{focal:v})} options={FOCAL_OPTIONS} inputStyle={cellInput}/>{paintOverlay('focal')}</td>}
-                  {!hiddenCols.has('stop')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...(needStop?reqStyle:{}),...cellBg('stop')}}><LensFocalPicker value={t.stop||''} onChange={v=>patchTake(t.id,{stop:v})} options={STOP_OPTIONS} inputStyle={cellInput}/>{paintOverlay('stop')}</td>}
-                  {!hiddenCols.has('shutter')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('shutter')}}><LensFocalPicker value={t.shutter||''} onChange={v=>patchTake(t.id,{shutter:v})} options={SHUTTER_OPTIONS} placeholder={roll.shutter||''} inputStyle={{...cellInput,textAlign:'center'}}/>{paintOverlay('shutter')}</td>}
-                  {!hiddenCols.has('ei')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('ei')}}><input value={t.ei||''} onChange={e=>patchTake(t.id,{ei:e.target.value})} style={cellInput}/>{paintOverlay('ei')}</td>}
-                  {!hiddenCols.has('intFilters')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('intFilters')}}><LensFocalPicker value={t.intFilters||''} onChange={v=>patchTake(t.id,{intFilters:v})} options={FILTER1_OPTIONS} inputStyle={cellInput}/>{paintOverlay('intFilters')}</td>}
-                  {!hiddenCols.has('filters')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('filters')}}><LensFocalPicker value={t.filters||''} onChange={v=>patchTake(t.id,{filters:v})} options={FILTER2_OPTIONS} inputStyle={cellInput}/>{paintOverlay('filters')}</td>}
-                  {!hiddenCols.has('filters3')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('filters3')}}><LensFocalPicker value={t.filters3||''} onChange={v=>patchTake(t.id,{filters3:v})} options={FILTER3_OPTIONS} inputStyle={cellInput}/>{paintOverlay('filters3')}</td>}
-                  {!hiddenCols.has('wb')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('wb')}}><LensFocalPicker value={t.wb||''} onChange={v=>patchTake(t.id,{wb:v})} options={WB_OPTIONS} inputStyle={cellInput} normalize={withK}/>{paintOverlay('wb')}</td>}
-                  {!hiddenCols.has('tint')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('tint')}}><LensFocalPicker value={t.tint||''} onChange={v=>patchTake(t.id,{tint:v})} options={TINT_OPTIONS} inputStyle={cellInput}/>{paintOverlay('tint')}</td>}
+                  {!hiddenCols.has('clip')&&<td {...selMarker('clip')} style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('clip'),...selBg('clip')}}><input value={t.clip||''} onChange={e=>patchTake(t.id,{clip:e.target.value})} style={{...cellInput,textAlign:'right'}}/>{selectOverlay('clip')}{selHandle('clip')}</td>}
+                  {!hiddenCols.has('lens')&&<td {...selMarker('lens')} style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('lens'),...selBg('lens')}}><LensFocalPicker value={t.lens||''} onChange={v=>patchTake(t.id,{lens:v})} options={LENS_OPTIONS} inputStyle={cellInput} noFilter/>{selectOverlay('lens')}{selHandle('lens')}</td>}
+                  {!hiddenCols.has('focal')&&<td {...selMarker('focal')} style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...(needFocal?reqStyle:{}),...cellBg('focal'),...selBg('focal')}}><LensFocalPicker value={t.focal||''} onChange={v=>patchTake(t.id,{focal:v})} options={FOCAL_OPTIONS} inputStyle={cellInput}/>{selectOverlay('focal')}{selHandle('focal')}</td>}
+                  {!hiddenCols.has('stop')&&<td {...selMarker('stop')} style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...(needStop?reqStyle:{}),...cellBg('stop'),...selBg('stop')}}><LensFocalPicker value={t.stop||''} onChange={v=>patchTake(t.id,{stop:v})} options={STOP_OPTIONS} inputStyle={cellInput}/>{selectOverlay('stop')}{selHandle('stop')}</td>}
+                  {!hiddenCols.has('shutter')&&<td {...selMarker('shutter')} style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('shutter'),...selBg('shutter')}}><LensFocalPicker value={t.shutter||''} onChange={v=>patchTake(t.id,{shutter:v})} options={SHUTTER_OPTIONS} placeholder={roll.shutter||''} inputStyle={{...cellInput,textAlign:'center'}}/>{selectOverlay('shutter')}{selHandle('shutter')}</td>}
+                  {!hiddenCols.has('ei')&&<td {...selMarker('ei')} style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('ei'),...selBg('ei')}}><input value={t.ei||''} onChange={e=>patchTake(t.id,{ei:e.target.value})} style={cellInput}/>{selectOverlay('ei')}{selHandle('ei')}</td>}
+                  {!hiddenCols.has('intFilters')&&<td {...selMarker('intFilters')} style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('intFilters'),...selBg('intFilters')}}><LensFocalPicker value={t.intFilters||''} onChange={v=>patchTake(t.id,{intFilters:v})} options={FILTER1_OPTIONS} inputStyle={cellInput}/>{selectOverlay('intFilters')}{selHandle('intFilters')}</td>}
+                  {!hiddenCols.has('filters')&&<td {...selMarker('filters')} style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('filters'),...selBg('filters')}}><LensFocalPicker value={t.filters||''} onChange={v=>patchTake(t.id,{filters:v})} options={FILTER2_OPTIONS} inputStyle={cellInput}/>{selectOverlay('filters')}{selHandle('filters')}</td>}
+                  {!hiddenCols.has('filters3')&&<td {...selMarker('filters3')} style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('filters3'),...selBg('filters3')}}><LensFocalPicker value={t.filters3||''} onChange={v=>patchTake(t.id,{filters3:v})} options={FILTER3_OPTIONS} inputStyle={cellInput}/>{selectOverlay('filters3')}{selHandle('filters3')}</td>}
+                  {!hiddenCols.has('wb')&&<td {...selMarker('wb')} style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('wb'),...selBg('wb')}}><LensFocalPicker value={t.wb||''} onChange={v=>patchTake(t.id,{wb:v})} options={WB_OPTIONS} inputStyle={cellInput} normalize={withK}/>{selectOverlay('wb')}{selHandle('wb')}</td>}
+                  {!hiddenCols.has('tint')&&<td {...selMarker('tint')} style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('tint'),...selBg('tint')}}><LensFocalPicker value={t.tint||''} onChange={v=>patchTake(t.id,{tint:v})} options={TINT_OPTIONS} inputStyle={cellInput}/>{selectOverlay('tint')}{selHandle('tint')}</td>}
                   {/* Focus is plain free text now - no feet mark. ACs write
                       distances in whatever form the shot needs ("5'6", "4'6-4'",
                       "20'-8'"), so a blanket auto-suffix got in the way more
                       often than it helped. */}
-                  {!hiddenCols.has('focus')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('focus')}}>
+                  {!hiddenCols.has('focus')&&<td {...selMarker('focus')} style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('focus'),...selBg('focus')}}>
                     <input value={t.focus||''} onChange={e=>patchTake(t.id,{focus:e.target.value})} style={cellInput}/>
-                    {paintOverlay('focus')}
+                    {selectOverlay('focus')}{selHandle('focus')}
                   </td>}
-                  {!hiddenCols.has('notes')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('notes')}}><NotesPicker value={t.notes||''} onChange={v=>patchTake(t.id,{notes:v})}/>{paintOverlay('notes')}</td>}
+                  {!hiddenCols.has('notes')&&<td {...selMarker('notes')} style={{...gb,borderRight:`1px solid ${T.rule}`,position:'relative',...cellBg('notes'),...selBg('notes')}}><NotesPicker value={t.notes||''} onChange={v=>patchTake(t.id,{notes:v})}/>{selectOverlay('notes')}{selHandle('notes')}</td>}
                   {!hiddenCols.has('photo')&&<td style={{...gb,borderRight:`1px solid ${T.rule}`,padding:'4px 2px',position:'relative',...cellBg('photo')}}>
                     <TakePhotoCell projId={projId} take={t}
                       onAddPhoto={imgId=>patchTake(t.id,{photoIds:[...(t.photoIds||[]),imgId]})}
                       onRemovePhoto={imgId=>{
                         patchTake(t.id,{photoIds:(t.photoIds||[]).filter(x=>x!==imgId)});
                       }}/>
-                    {paintOverlay('photo')}
+                    
                   </td>}
                   <td style={{...gb,textAlign:'center',whiteSpace:'nowrap',padding:'4px 2px'}}>
                     <button onClick={()=>insertTakeAfter(t.id)} title="Insert row below" aria-label="Insert row below"
@@ -4357,17 +4554,24 @@ function CameraReport(){
               {'\u21B3'} Resequence clips
             </button>
 
-            {/* Highlight mode: tap toggles it on and (unless "keep drawer
-                open" is set) closes the drawer so the table is immediately
-                reachable for painting cells/rows. */}
-            <button className="cr-btn" onClick={()=>{setHighlightMode(v=>!v);closeDrawer();}}
-              title="Tap cells or rows in the table to mark them yellow for the printed report"
+            {/* Select Cells: Excel-style rectangular multi-select for bulk
+                clear/fill/highlight. Tap a cell to anchor, then drag the
+                little handle that appears at its corner - horizontally or
+                vertically - to grow the selection. Releasing the handle
+                just pauses the drag (so normal scrolling still works);
+                grabbing it again wherever it now sits continues extending
+                the same selection. Highlighting used to be a separate mode
+                with its own tap-per-cell interaction - folded in here since
+                dragging a range is strictly faster than tapping cells one
+                at a time, and one toggle is simpler than two. */}
+            <button className="cr-btn" onClick={()=>{setSelectMode(v=>!v);setCellSel(null);setFillValue('');closeDrawer();}}
+              title="Drag-select a range of cells to clear, fill, or highlight them all at once"
               style={{padding:'9px 12px',borderRadius:6,
-                border:`1px solid ${highlightMode?'#eab308':T.border}`,
-                background:highlightMode?'#eab30822':'transparent',
-                color:highlightMode?'#eab308':T.textDim,fontSize:11,fontFamily:"'Geist Mono',monospace",
+                border:`1px solid ${selectMode?'#3b82f6':T.border}`,
+                background:selectMode?'#3b82f622':'transparent',
+                color:selectMode?'#3b82f6':T.textDim,fontSize:11,fontFamily:"'Geist Mono',monospace",
                 cursor:'pointer',textAlign:'left',marginTop:2}}>
-              {'\uD83D\uDD8D'} Highlight Mode{highlightMode?' \u2713':''}
+              {'\u25A6'} Select Cells{selectMode?' \u2713':''}
             </button>
 
             {/* Correction, not routine use - which is why it sits at the bottom

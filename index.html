@@ -370,6 +370,7 @@ function _isNativeReflectConstruct() { try { var t = !Boolean.prototype.valueOf.
 function _getPrototypeOf(t) { return _getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf.bind() : function (t) { return t.__proto__ || Object.getPrototypeOf(t); }, _getPrototypeOf(t); }
 function _inherits(t, e) { if ("function" != typeof e && null !== e) throw new TypeError("Super expression must either be null or a function"); t.prototype = Object.create(e && e.prototype, { constructor: { value: t, writable: !0, configurable: !0 } }), Object.defineProperty(t, "prototype", { writable: !1 }), e && _setPrototypeOf(t, e); }
 function _setPrototypeOf(t, e) { return _setPrototypeOf = Object.setPrototypeOf ? Object.setPrototypeOf.bind() : function (t, e) { return t.__proto__ = e, t; }, _setPrototypeOf(t, e); }
+function _extends() { return _extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, _extends.apply(null, arguments); }
 function _createForOfIteratorHelper(r, e) { var t = "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (!t) { if (Array.isArray(r) || (t = _unsupportedIterableToArray(r)) || e && r && "number" == typeof r.length) { t && (r = t); var _n2 = 0, F = function F() {}; return { s: F, n: function n() { return _n2 >= r.length ? { done: !0 } : { done: !1, value: r[_n2++] }; }, e: function e(r) { throw r; }, f: F }; } throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); } var o, a = !0, u = !1; return { s: function s() { t = t.call(r); }, n: function n() { var r = t.next(); return a = r.done, r; }, e: function e(r) { u = !0, o = r; }, f: function f() { try { a || null == t["return"] || t["return"](); } finally { if (u) throw o; } } }; }
 function _regeneratorRuntime() { "use strict"; /*! regenerator-runtime -- Copyright (c) 2014-present, Facebook, Inc. -- license (MIT): https://github.com/facebook/regenerator/blob/main/LICENSE */ _regeneratorRuntime = function _regeneratorRuntime() { return e; }; var t, e = {}, r = Object.prototype, n = r.hasOwnProperty, o = Object.defineProperty || function (t, e, r) { t[e] = r.value; }, i = "function" == typeof Symbol ? Symbol : {}, a = i.iterator || "@@iterator", c = i.asyncIterator || "@@asyncIterator", u = i.toStringTag || "@@toStringTag"; function define(t, e, r) { return Object.defineProperty(t, e, { value: r, enumerable: !0, configurable: !0, writable: !0 }), t[e]; } try { define({}, ""); } catch (t) { define = function define(t, e, r) { return t[e] = r; }; } function wrap(t, e, r, n) { var i = e && e.prototype instanceof Generator ? e : Generator, a = Object.create(i.prototype), c = new Context(n || []); return o(a, "_invoke", { value: makeInvokeMethod(t, r, c) }), a; } function tryCatch(t, e, r) { try { return { type: "normal", arg: t.call(e, r) }; } catch (t) { return { type: "throw", arg: t }; } } e.wrap = wrap; var h = "suspendedStart", l = "suspendedYield", f = "executing", s = "completed", y = {}; function Generator() {} function GeneratorFunction() {} function GeneratorFunctionPrototype() {} var p = {}; define(p, a, function () { return this; }); var d = Object.getPrototypeOf, v = d && d(d(values([]))); v && v !== r && n.call(v, a) && (p = v); var g = GeneratorFunctionPrototype.prototype = Generator.prototype = Object.create(p); function defineIteratorMethods(t) { ["next", "throw", "return"].forEach(function (e) { define(t, e, function (t) { return this._invoke(e, t); }); }); } function AsyncIterator(t, e) { function invoke(r, o, i, a) { var c = tryCatch(t[r], t, o); if ("throw" !== c.type) { var u = c.arg, h = u.value; return h && "object" == _typeof(h) && n.call(h, "__await") ? e.resolve(h.__await).then(function (t) { invoke("next", t, i, a); }, function (t) { invoke("throw", t, i, a); }) : e.resolve(h).then(function (t) { u.value = t, i(u); }, function (t) { return invoke("throw", t, i, a); }); } a(c.arg); } var r; o(this, "_invoke", { value: function value(t, n) { function callInvokeWithMethodAndArg() { return new e(function (e, r) { invoke(t, n, e, r); }); } return r = r ? r.then(callInvokeWithMethodAndArg, callInvokeWithMethodAndArg) : callInvokeWithMethodAndArg(); } }); } function makeInvokeMethod(e, r, n) { var o = h; return function (i, a) { if (o === f) throw Error("Generator is already running"); if (o === s) { if ("throw" === i) throw a; return { value: t, done: !0 }; } for (n.method = i, n.arg = a;;) { var c = n.delegate; if (c) { var u = maybeInvokeDelegate(c, n); if (u) { if (u === y) continue; return u; } } if ("next" === n.method) n.sent = n._sent = n.arg;else if ("throw" === n.method) { if (o === h) throw o = s, n.arg; n.dispatchException(n.arg); } else "return" === n.method && n.abrupt("return", n.arg); o = f; var p = tryCatch(e, r, n); if ("normal" === p.type) { if (o = n.done ? s : l, p.arg === y) continue; return { value: p.arg, done: n.done }; } "throw" === p.type && (o = s, n.method = "throw", n.arg = p.arg); } }; } function maybeInvokeDelegate(e, r) { var n = r.method, o = e.iterator[n]; if (o === t) return r.delegate = null, "throw" === n && e.iterator["return"] && (r.method = "return", r.arg = t, maybeInvokeDelegate(e, r), "throw" === r.method) || "return" !== n && (r.method = "throw", r.arg = new TypeError("The iterator does not provide a '" + n + "' method")), y; var i = tryCatch(o, e.iterator, r.arg); if ("throw" === i.type) return r.method = "throw", r.arg = i.arg, r.delegate = null, y; var a = i.arg; return a ? a.done ? (r[e.resultName] = a.value, r.next = e.nextLoc, "return" !== r.method && (r.method = "next", r.arg = t), r.delegate = null, y) : a : (r.method = "throw", r.arg = new TypeError("iterator result is not an object"), r.delegate = null, y); } function pushTryEntry(t) { var e = { tryLoc: t[0] }; 1 in t && (e.catchLoc = t[1]), 2 in t && (e.finallyLoc = t[2], e.afterLoc = t[3]), this.tryEntries.push(e); } function resetTryEntry(t) { var e = t.completion || {}; e.type = "normal", delete e.arg, t.completion = e; } function Context(t) { this.tryEntries = [{ tryLoc: "root" }], t.forEach(pushTryEntry, this), this.reset(!0); } function values(e) { if (e || "" === e) { var r = e[a]; if (r) return r.call(e); if ("function" == typeof e.next) return e; if (!isNaN(e.length)) { var o = -1, i = function next() { for (; ++o < e.length;) if (n.call(e, o)) return next.value = e[o], next.done = !1, next; return next.value = t, next.done = !0, next; }; return i.next = i; } } throw new TypeError(_typeof(e) + " is not iterable"); } return GeneratorFunction.prototype = GeneratorFunctionPrototype, o(g, "constructor", { value: GeneratorFunctionPrototype, configurable: !0 }), o(GeneratorFunctionPrototype, "constructor", { value: GeneratorFunction, configurable: !0 }), GeneratorFunction.displayName = define(GeneratorFunctionPrototype, u, "GeneratorFunction"), e.isGeneratorFunction = function (t) { var e = "function" == typeof t && t.constructor; return !!e && (e === GeneratorFunction || "GeneratorFunction" === (e.displayName || e.name)); }, e.mark = function (t) { return Object.setPrototypeOf ? Object.setPrototypeOf(t, GeneratorFunctionPrototype) : (t.__proto__ = GeneratorFunctionPrototype, define(t, u, "GeneratorFunction")), t.prototype = Object.create(g), t; }, e.awrap = function (t) { return { __await: t }; }, defineIteratorMethods(AsyncIterator.prototype), define(AsyncIterator.prototype, c, function () { return this; }), e.AsyncIterator = AsyncIterator, e.async = function (t, r, n, o, i) { void 0 === i && (i = Promise); var a = new AsyncIterator(wrap(t, r, n, o), i); return e.isGeneratorFunction(r) ? a : a.next().then(function (t) { return t.done ? t.value : a.next(); }); }, defineIteratorMethods(g), define(g, u, "Generator"), define(g, a, function () { return this; }), define(g, "toString", function () { return "[object Generator]"; }), e.keys = function (t) { var e = Object(t), r = []; for (var n in e) r.push(n); return r.reverse(), function next() { for (; r.length;) { var t = r.pop(); if (t in e) return next.value = t, next.done = !1, next; } return next.done = !0, next; }; }, e.values = values, Context.prototype = { constructor: Context, reset: function reset(e) { if (this.prev = 0, this.next = 0, this.sent = this._sent = t, this.done = !1, this.delegate = null, this.method = "next", this.arg = t, this.tryEntries.forEach(resetTryEntry), !e) for (var r in this) "t" === r.charAt(0) && n.call(this, r) && !isNaN(+r.slice(1)) && (this[r] = t); }, stop: function stop() { this.done = !0; var t = this.tryEntries[0].completion; if ("throw" === t.type) throw t.arg; return this.rval; }, dispatchException: function dispatchException(e) { if (this.done) throw e; var r = this; function handle(n, o) { return a.type = "throw", a.arg = e, r.next = n, o && (r.method = "next", r.arg = t), !!o; } for (var o = this.tryEntries.length - 1; o >= 0; --o) { var i = this.tryEntries[o], a = i.completion; if ("root" === i.tryLoc) return handle("end"); if (i.tryLoc <= this.prev) { var c = n.call(i, "catchLoc"), u = n.call(i, "finallyLoc"); if (c && u) { if (this.prev < i.catchLoc) return handle(i.catchLoc, !0); if (this.prev < i.finallyLoc) return handle(i.finallyLoc); } else if (c) { if (this.prev < i.catchLoc) return handle(i.catchLoc, !0); } else { if (!u) throw Error("try statement without catch or finally"); if (this.prev < i.finallyLoc) return handle(i.finallyLoc); } } } }, abrupt: function abrupt(t, e) { for (var r = this.tryEntries.length - 1; r >= 0; --r) { var o = this.tryEntries[r]; if (o.tryLoc <= this.prev && n.call(o, "finallyLoc") && this.prev < o.finallyLoc) { var i = o; break; } } i && ("break" === t || "continue" === t) && i.tryLoc <= e && e <= i.finallyLoc && (i = null); var a = i ? i.completion : {}; return a.type = t, a.arg = e, i ? (this.method = "next", this.next = i.finallyLoc, y) : this.complete(a); }, complete: function complete(t, e) { if ("throw" === t.type) throw t.arg; return "break" === t.type || "continue" === t.type ? this.next = t.arg : "return" === t.type ? (this.rval = this.arg = t.arg, this.method = "return", this.next = "end") : "normal" === t.type && e && (this.next = e), y; }, finish: function finish(t) { for (var e = this.tryEntries.length - 1; e >= 0; --e) { var r = this.tryEntries[e]; if (r.finallyLoc === t) return this.complete(r.completion, r.afterLoc), resetTryEntry(r), y; } }, "catch": function _catch(t) { for (var e = this.tryEntries.length - 1; e >= 0; --e) { var r = this.tryEntries[e]; if (r.tryLoc === t) { var n = r.completion; if ("throw" === n.type) { var o = n.arg; resetTryEntry(r); } return o; } } throw Error("illegal catch attempt"); }, delegateYield: function delegateYield(e, r, n) { return this.delegate = { iterator: values(e), resultName: r, nextLoc: n }, "next" === this.method && (this.arg = t), y; } }, e; }
 function _toConsumableArray(r) { return _arrayWithoutHoles(r) || _iterableToArray(r) || _unsupportedIterableToArray(r) || _nonIterableSpread(); }
@@ -1941,7 +1942,7 @@ var SB_TINT_PRESETS_KEY = 'sb_camrep_tint_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-var APP_VERSION = 'v4.4';
+var APP_VERSION = 'v4.6';
 var CAM_CONFIG = {
   A: {
     label: 'A',
@@ -4136,7 +4137,7 @@ function CameraReport() {
   var _React$useState77 = React.useState(false),
     _React$useState78 = _slicedToArray(_React$useState77, 2),
     showToolbar = _React$useState78[0],
-    setShowToolbar = _React$useState78[1]; // collapses undo/search/AIFill/presets/CSV/PDF/day-filter row
+    setShowToolbar = _React$useState78[1]; // collapses search/AIFill/presets/CSV/PDF/day-filter row (undo/redo stay always-visible, see toolbar render)
   var _React$useState79 = React.useState({}),
     _React$useState80 = _slicedToArray(_React$useState79, 2),
     camActiveRoll = _React$useState80[0],
@@ -4214,22 +4215,15 @@ function CameraReport() {
     _React$useState108 = _slicedToArray(_React$useState107, 2),
     selTakeIds = _React$useState108[0],
     setSelTakeIds = _React$useState108[1]; // multi-selected clip rows (for moving)
-  // Highlight mode: while on, tapping a cell/row paints it yellow instead of
-  // opening it for editing (see paintOverlay below). Off by default so
-  // normal logging is never affected.
-  var _React$useState109 = React.useState(false),
-    _React$useState110 = _slicedToArray(_React$useState109, 2),
-    highlightMode = _React$useState110[0],
-    setHighlightMode = _React$useState110[1];
   // Scroll-to-new-row: set to a take id right after it's created (Add take/
   // New shot/New scene/Insert), and an effect below scrolls that row into
   // view once it's actually in the DOM. rowRefs is a plain object, not
   // React state, since it just needs to hold live DOM nodes for lookups -
   // putting it in state would re-render on every row mount for no reason.
-  var _React$useState111 = React.useState(null),
-    _React$useState112 = _slicedToArray(_React$useState111, 2),
-    justAddedId = _React$useState112[0],
-    setJustAddedId = _React$useState112[1];
+  var _React$useState109 = React.useState(null),
+    _React$useState110 = _slicedToArray(_React$useState109, 2),
+    justAddedId = _React$useState110[0],
+    setJustAddedId = _React$useState110[1];
   var rowRefs = React.useRef({});
   React.useEffect(function () {
     if (!justAddedId) return;
@@ -4240,14 +4234,152 @@ function CameraReport() {
     });
     setJustAddedId(null);
   }, [justAddedId]);
-  var _React$useState113 = React.useState(false),
+
+  /* Select Cells: an Excel-style rectangular bulk-select, for clearing,
+     mass-filling, or highlighting a range of takes x columns in one go.
+     cellSel = {r1,c1,r2,c2} where r is a row index into roll.takes and c is
+     an index into SELECT_COLS. (r1,c1) is the fixed anchor from the first
+     tap; (r2,c2) is the current "far corner", the one the drag handle
+     renders at and the one dragging moves. Releasing the handle PAUSES the
+     drag (so the user can scroll) without clearing the selection - grabbing
+     the handle again, wherever it now sits, continues extending it. */
+  var _React$useState111 = React.useState(false),
+    _React$useState112 = _slicedToArray(_React$useState111, 2),
+    selectMode = _React$useState112[0],
+    setSelectMode = _React$useState112[1];
+  var _React$useState113 = React.useState(null),
     _React$useState114 = _slicedToArray(_React$useState113, 2),
-    showSearch = _React$useState114[0],
-    setShowSearch = _React$useState114[1];
-  var _React$useState115 = React.useState({}),
+    cellSel = _React$useState114[0],
+    setCellSel = _React$useState114[1];
+  var _React$useState115 = React.useState(''),
     _React$useState116 = _slicedToArray(_React$useState115, 2),
-    searchQ = _React$useState116[0],
-    setSearchQ = _React$useState116[1]; // field -> search string
+    fillValue = _React$useState116[0],
+    setFillValue = _React$useState116[1];
+  var cellSelDragging = React.useRef(false);
+  function selRange() {
+    if (!cellSel) return null;
+    return {
+      r0: Math.min(cellSel.r1, cellSel.r2),
+      r1: Math.max(cellSel.r1, cellSel.r2),
+      c0: Math.min(cellSel.c1, cellSel.c2),
+      c1: Math.max(cellSel.c1, cellSel.c2)
+    };
+  }
+  function inSel(rowIdx, colIdx) {
+    var rg = selRange();
+    return !!rg && rowIdx >= rg.r0 && rowIdx <= rg.r1 && colIdx >= rg.c0 && colIdx <= rg.c1;
+  }
+  function handlePointerMove(e) {
+    if (!cellSelDragging.current) return;
+    var x = e.touches ? e.touches[0].clientX : e.clientX,
+      y = e.touches ? e.touches[0].clientY : e.clientY;
+    var under = doc_elementFromPoint(x, y);
+    var marker = under && under.closest && under.closest('[data-sel-r]');
+    if (!marker) return;
+    var r = parseInt(marker.getAttribute('data-sel-r'), 10);
+    var c = parseInt(marker.getAttribute('data-sel-c'), 10);
+    setCellSel(function (prev) {
+      return prev ? _objectSpread(_objectSpread({}, prev), {}, {
+        r2: r,
+        c2: c
+      }) : prev;
+    });
+  }
+  function handlePointerUp() {
+    cellSelDragging.current = false;
+    window.removeEventListener('pointermove', handlePointerMove);
+    window.removeEventListener('pointerup', handlePointerUp);
+  }
+  function startHandleDrag(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    cellSelDragging.current = true;
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+  }
+  // Thin wrapper so tests can stub document.elementFromPoint (jsdom doesn't
+  // implement it at all) without touching the real call site's semantics.
+  function doc_elementFromPoint(x, y) {
+    return document.elementFromPoint ? document.elementFromPoint(x, y) : null;
+  }
+  // All four bulk actions (Clear/Fill/Highlight/Highlight Row) apply the
+  // whole range in a SINGLE patchRoll call, deliberately not one patchTake
+  // per row: patchTake/patchRoll compute their update from the current
+  // `roll`/`rolls` closure, so several calls fired synchronously in a loop
+  // each read the same pre-edit snapshot and only the last one's change
+  // actually survives - exactly the kind of bug a 4-row fill would otherwise
+  // hit silently (rows 0-2 would look filled for an instant, then revert).
+  // Building the full array first and patching once sidesteps that.
+  function clearSelectedCells() {
+    var rg = selRange();
+    if (!rg || !roll) return;
+    var next = roll.takes.map(function (take, r) {
+      if (r < rg.r0 || r > rg.r1) return take;
+      var patch = {};
+      for (var c = rg.c0; c <= rg.c1; c++) patch[SELECT_COLS[c]] = '';
+      return _objectSpread(_objectSpread({}, take), patch);
+    });
+    patchRoll(roll.id, {
+      takes: next
+    });
+  }
+  function fillSelectedCells(value) {
+    var rg = selRange();
+    if (!rg || !roll) return;
+    var next = roll.takes.map(function (take, r) {
+      if (r < rg.r0 || r > rg.r1) return take;
+      var patch = {};
+      for (var c = rg.c0; c <= rg.c1; c++) patch[SELECT_COLS[c]] = value;
+      return _objectSpread(_objectSpread({}, take), patch);
+    });
+    patchRoll(roll.id, {
+      takes: next
+    });
+  }
+  // Highlight/Unhighlight only ever touches the SELECT_COLS cells actually
+  // inside the selection rectangle (Tail/Photo were never selectable to
+  // begin with, so they're untouched here by construction).
+  function highlightSelectedCells(on) {
+    var rg = selRange();
+    if (!rg || !roll) return;
+    var next = roll.takes.map(function (take, r) {
+      if (r < rg.r0 || r > rg.r1) return take;
+      var cur = _objectSpread({}, take.cellHL || {});
+      for (var c = rg.c0; c <= rg.c1; c++) cur[SELECT_COLS[c]] = on;
+      return _objectSpread(_objectSpread({}, take), {}, {
+        cellHL: cur
+      });
+    });
+    patchRoll(roll.id, {
+      takes: next
+    });
+  }
+  // Highlight Row/Unhighlight Row ignores the column bounds of the current
+  // selection entirely and marks the WHOLE row (rowHL) for every take the
+  // selection's row range spans - this is how Tail and Photo (never
+  // selectable as individual cells) still get covered by a highlight, since
+  // print reads rowHL to shade the entire printed row regardless of column.
+  function highlightSelectedRows(on) {
+    var rg = selRange();
+    if (!rg || !roll) return;
+    var next = roll.takes.map(function (take, r) {
+      if (r < rg.r0 || r > rg.r1) return take;
+      return _objectSpread(_objectSpread({}, take), {}, {
+        rowHL: on
+      });
+    });
+    patchRoll(roll.id, {
+      takes: next
+    });
+  }
+  var _React$useState117 = React.useState(false),
+    _React$useState118 = _slicedToArray(_React$useState117, 2),
+    showSearch = _React$useState118[0],
+    setShowSearch = _React$useState118[1];
+  var _React$useState119 = React.useState({}),
+    _React$useState120 = _slicedToArray(_React$useState119, 2),
+    searchQ = _React$useState120[0],
+    setSearchQ = _React$useState120[1]; // field -> search string
 
   // ---- Take-table header, freeze-panes style ----
   // Two earlier attempts (CSS position:sticky, then a JS "floating clone"
@@ -4261,10 +4393,10 @@ function CameraReport() {
   // space), and the table gets its OWN dedicated scroll container below
   // them - with nothing else competing for that scroll, a plain CSS
   // position:sticky header (see `th` below) just works, no JS needed.
-  var _React$useState117 = React.useState(false),
-    _React$useState118 = _slicedToArray(_React$useState117, 2),
-    metaCollapsed = _React$useState118[0],
-    setMetaCollapsed = _React$useState118[1];
+  var _React$useState121 = React.useState(false),
+    _React$useState122 = _slicedToArray(_React$useState121, 2),
+    metaCollapsed = _React$useState122[0],
+    setMetaCollapsed = _React$useState122[1];
   var scenes = proj.scenes || [];
   var sceneIds = React.useMemo(function () {
     return scenes.map(function (s) {
@@ -4276,6 +4408,52 @@ function CameraReport() {
   var hiddenCols = React.useMemo(function () {
     return new Set(proj.hiddenColumns || []);
   }, [proj.hiddenColumns]);
+  // Ordered list of columns the new "Select Cells" bulk-edit feature can
+  // span, left-to-right same as the table - filtered by hiddenCols so a
+  // drag never silently jumps over a column the user can't even see.
+  // Tail (checkbox) and Photo (attachments) are deliberately excluded -
+  // "same value for every selected cell" doesn't map onto either of those.
+  var SELECT_COLS = React.useMemo(function () {
+    var all = ['scene', 'shot', 'take', 'clip', 'lens', 'focal', 'stop', 'shutter', 'ei', 'intFilters', 'filters', 'filters3', 'wb', 'tint', 'focus', 'notes'];
+    return all.filter(function (k) {
+      return k === 'scene' || k === 'take' || !hiddenCols.has(k);
+    });
+  }, [hiddenCols]);
+  // Fill With... reuses each column's own preset picker when a selection
+  // spans exactly ONE column (so filling WB, say, works the same way typing
+  // WB normally does - dropdown + free text). Columns with no curated preset
+  // list (scene/shot/take/clip/ei/focus/notes) fall back to a plain text
+  // input, same as a selection spanning more than one column does.
+  var FILL_PICKER_CONFIG = {
+    lens: {
+      options: LENS_OPTIONS
+    },
+    focal: {
+      options: FOCAL_OPTIONS
+    },
+    stop: {
+      options: STOP_OPTIONS
+    },
+    shutter: {
+      options: SHUTTER_OPTIONS
+    },
+    intFilters: {
+      options: FILTER1_OPTIONS
+    },
+    filters: {
+      options: FILTER2_OPTIONS
+    },
+    filters3: {
+      options: FILTER3_OPTIONS
+    },
+    wb: {
+      options: WB_OPTIONS,
+      normalize: withK
+    },
+    tint: {
+      options: TINT_OPTIONS
+    }
+  };
   // When on, the Action drawer stays open after Add take/New shot/etc. so a
   // user logging several takes in a row doesn't have to keep reopening it.
   // Off by default - most taps are one-and-done, so auto-closing right after
@@ -4380,10 +4558,10 @@ function CameraReport() {
   var undoStack = React.useRef([]); // array of rolls-snapshots (JSON strings)
   var redoStack = React.useRef([]);
   var isTimeTravel = React.useRef(false); // true while applying an undo/redo
-  var _React$useState119 = React.useState(0),
-    _React$useState120 = _slicedToArray(_React$useState119, 2),
-    histTick = _React$useState120[0],
-    setHistTick = _React$useState120[1]; // force re-render for button enable
+  var _React$useState123 = React.useState(0),
+    _React$useState124 = _slicedToArray(_React$useState123, 2),
+    histTick = _React$useState124[0],
+    setHistTick = _React$useState124[1]; // force re-render for button enable
   var prevRollsSnap = React.useRef(null); // last-known rolls, to push on next change
   var HIST_LIMIT = 20;
   var persist = /*#__PURE__*/function () {
@@ -6423,13 +6601,58 @@ function CameraReport() {
     style: {
       flex: 1
     }
-  }), /*#__PURE__*/React.createElement("button", {
+  }), function () {
+    var _ = histTick;
+    var canU = undoStack.current.length > 0,
+      canR = redoStack.current.length > 0;
+    return /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: 3,
+        paddingLeft: 8,
+        marginLeft: 2,
+        borderLeft: "1px solid ".concat(T.rule)
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: undo,
+      disabled: !canU,
+      title: "Undo",
+      "aria-label": "Undo",
+      style: {
+        padding: '4px 9px',
+        borderRadius: 5,
+        fontSize: 12,
+        fontFamily: "'Geist Mono',monospace",
+        background: 'transparent',
+        border: "1px solid ".concat(T.border),
+        color: canU ? T.text : T.textDim,
+        cursor: canU ? 'pointer' : 'default',
+        opacity: canU ? 1 : 0.4
+      }
+    }, "\u21B6"), /*#__PURE__*/React.createElement("button", {
+      onClick: redo,
+      disabled: !canR,
+      title: "Redo",
+      "aria-label": "Redo",
+      style: {
+        padding: '4px 9px',
+        borderRadius: 5,
+        fontSize: 12,
+        fontFamily: "'Geist Mono',monospace",
+        background: 'transparent',
+        border: "1px solid ".concat(T.border),
+        color: canR ? T.text : T.textDim,
+        cursor: canR ? 'pointer' : 'default',
+        opacity: canR ? 1 : 0.4
+      }
+    }, "\u21B7"));
+  }(), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       return setShowToolbar(function (v) {
         return !v;
       });
     },
-    title: "Tools: undo/redo, search, AI Fill, presets, CSV/PDF export, day filter",
+    title: "Tools: search, AI Fill, presets, CSV/PDF export, day filter",
     "aria-label": "Toggle tools",
     style: {
       padding: '4px 12px',
@@ -6502,49 +6725,7 @@ function CameraReport() {
       flexShrink: 0,
       flexWrap: 'wrap'
     }
-  }, function () {
-    var _ = histTick;
-    var canU = undoStack.current.length > 0,
-      canR = redoStack.current.length > 0;
-    return /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: 'flex',
-        gap: 3
-      }
-    }, /*#__PURE__*/React.createElement("button", {
-      onClick: undo,
-      disabled: !canU,
-      title: "Undo",
-      "aria-label": "Undo",
-      style: {
-        padding: '4px 9px',
-        borderRadius: 5,
-        fontSize: 12,
-        fontFamily: "'Geist Mono',monospace",
-        background: 'transparent',
-        border: "1px solid ".concat(T.border),
-        color: canU ? T.text : T.textDim,
-        cursor: canU ? 'pointer' : 'default',
-        opacity: canU ? 1 : 0.4
-      }
-    }, "\u21B6"), /*#__PURE__*/React.createElement("button", {
-      onClick: redo,
-      disabled: !canR,
-      title: "Redo",
-      "aria-label": "Redo",
-      style: {
-        padding: '4px 9px',
-        borderRadius: 5,
-        fontSize: 12,
-        fontFamily: "'Geist Mono',monospace",
-        background: 'transparent',
-        border: "1px solid ".concat(T.border),
-        color: canR ? T.text : T.textDim,
-        cursor: canR ? 'pointer' : 'default',
-        opacity: canR ? 1 : 0.4
-      }
-    }, "\u21B7"));
-  }(), /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       return setShowSearch(function (s) {
         return !s;
@@ -7925,39 +8106,162 @@ function CameraReport() {
         cursor: 'pointer'
       }
     }, "Clear"));
-  }(), highlightMode && /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: '8px 16px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: 10,
-      flexShrink: 0,
-      background: '#eab30822',
-      borderBottom: '1px solid #eab30866'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 11,
-      fontWeight: 600,
-      color: '#eab308',
-      fontFamily: "'Geist Mono',monospace"
-    }
-  }, "\uD83D\uDD8D", " Highlight mode on - tap a cell or row to mark it"), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setHighlightMode(false);
-    },
-    style: {
-      padding: '4px 10px',
-      borderRadius: 5,
-      fontSize: 10,
-      fontFamily: "'Geist Mono',monospace",
-      background: 'transparent',
-      border: '1px solid #eab30866',
-      color: '#eab308',
-      cursor: 'pointer'
-    }
-  }, "Done")), /*#__PURE__*/React.createElement("div", {
+  }(), selectMode && function () {
+    var rg = selRange();
+    var singleCol = rg && rg.c0 === rg.c1 ? SELECT_COLS[rg.c0] : null;
+    var pickerCfg = singleCol ? FILL_PICKER_CONFIG[singleCol] : null;
+    return /*#__PURE__*/React.createElement("div", {
+      style: {
+        padding: '8px 16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        flexShrink: 0,
+        background: '#3b82f622',
+        borderBottom: '1px solid #3b82f666',
+        flexWrap: 'wrap'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        fontWeight: 600,
+        color: '#3b82f6',
+        fontFamily: "'Geist Mono',monospace"
+      }
+    }, "\u25A6", " Select Cells ", rg ? "- ".concat(rg.r1 - rg.r0 + 1, " row").concat(rg.r1 > rg.r0 ? 's' : '', " \xD7 ").concat(rg.c1 - rg.c0 + 1, " col").concat(rg.c1 > rg.c0 ? 's' : '') : '- tap a cell, then drag its corner handle'), /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1
+      }
+    }), rg && /*#__PURE__*/React.createElement(React.Fragment, null, pickerCfg ? /*#__PURE__*/React.createElement(LensFocalPicker, {
+      value: fillValue,
+      onChange: setFillValue,
+      options: pickerCfg.options,
+      normalize: pickerCfg.normalize,
+      inputStyle: _objectSpread(_objectSpread({}, cellInput), {}, {
+        width: 110
+      })
+    }) : /*#__PURE__*/React.createElement("input", {
+      value: fillValue,
+      onChange: function onChange(e) {
+        return setFillValue(e.target.value);
+      },
+      placeholder: "value to fill",
+      style: _objectSpread(_objectSpread({}, cellInput), {}, {
+        width: 110
+      })
+    }), /*#__PURE__*/React.createElement("button", {
+      onClick: function onClick() {
+        fillSelectedCells(fillValue);
+      },
+      style: {
+        padding: '5px 12px',
+        borderRadius: 5,
+        fontSize: 11,
+        fontFamily: "'Geist Mono',monospace",
+        background: '#3b82f6',
+        border: 'none',
+        color: '#fff',
+        fontWeight: 600,
+        cursor: 'pointer'
+      }
+    }, "Fill"), /*#__PURE__*/React.createElement("button", {
+      onClick: clearSelectedCells,
+      style: {
+        padding: '5px 12px',
+        borderRadius: 5,
+        fontSize: 11,
+        fontFamily: "'Geist Mono',monospace",
+        background: 'transparent',
+        border: '1px solid #3b82f666',
+        color: '#3b82f6',
+        cursor: 'pointer'
+      }
+    }, "Clear"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: 1,
+        alignSelf: 'stretch',
+        background: '#3b82f666'
+      }
+    }), /*#__PURE__*/React.createElement("button", {
+      onClick: function onClick() {
+        return highlightSelectedCells(true);
+      },
+      title: "Mark the selected cells yellow for the printed report",
+      style: {
+        padding: '5px 12px',
+        borderRadius: 5,
+        fontSize: 11,
+        fontFamily: "'Geist Mono',monospace",
+        background: '#eab308',
+        border: 'none',
+        color: '#0e0d0b',
+        fontWeight: 600,
+        cursor: 'pointer'
+      }
+    }, "Highlight"), /*#__PURE__*/React.createElement("button", {
+      onClick: function onClick() {
+        return highlightSelectedCells(false);
+      },
+      title: "Remove yellow from the selected cells",
+      style: {
+        padding: '5px 12px',
+        borderRadius: 5,
+        fontSize: 11,
+        fontFamily: "'Geist Mono',monospace",
+        background: 'transparent',
+        border: '1px solid #eab30888',
+        color: '#eab308',
+        cursor: 'pointer'
+      }
+    }, "Unhighlight"), /*#__PURE__*/React.createElement("button", {
+      onClick: function onClick() {
+        return highlightSelectedRows(true);
+      },
+      title: "Mark every row the selection spans yellow (incl. T/S and Photo)",
+      style: {
+        padding: '5px 12px',
+        borderRadius: 5,
+        fontSize: 11,
+        fontFamily: "'Geist Mono',monospace",
+        background: '#eab308',
+        border: 'none',
+        color: '#0e0d0b',
+        fontWeight: 600,
+        cursor: 'pointer'
+      }
+    }, "Highlight Row"), /*#__PURE__*/React.createElement("button", {
+      onClick: function onClick() {
+        return highlightSelectedRows(false);
+      },
+      title: "Remove yellow from every row the selection spans",
+      style: {
+        padding: '5px 12px',
+        borderRadius: 5,
+        fontSize: 11,
+        fontFamily: "'Geist Mono',monospace",
+        background: 'transparent',
+        border: '1px solid #eab30888',
+        color: '#eab308',
+        cursor: 'pointer'
+      }
+    }, "Unhighlight Row")), /*#__PURE__*/React.createElement("button", {
+      onClick: function onClick() {
+        setSelectMode(false);
+        setCellSel(null);
+        setFillValue('');
+      },
+      style: {
+        padding: '5px 10px',
+        borderRadius: 5,
+        fontSize: 10,
+        fontFamily: "'Geist Mono',monospace",
+        background: 'transparent',
+        border: '1px solid #3b82f666',
+        color: '#3b82f6',
+        cursor: 'pointer'
+      }
+    }, "Done"));
+  }(), /*#__PURE__*/React.createElement("div", {
     style: {
       flex: 1,
       overflow: 'auto',
@@ -8005,11 +8309,13 @@ function CameraReport() {
     var gb = newGroup ? {
       borderTop: "2px solid ".concat(T.accent, "66")
     } : {};
-    // Highlight-mode helpers, scoped per row so they close over
-    // `t`. One yellow tone for both row and cell painting; it
-    // deliberately wins over the needFocal/needStop red
-    // required-field flash (spread after reqStyle below) since a
-    // highlight the user just tapped is a more current signal.
+    // Cell/row highlight is now set only via the Select Cells
+    // action bar's Highlight/Highlight Row buttons (bulk, not a
+    // tap-per-cell mode) - these two just RENDER whatever's
+    // already stored, same yellow for both. It deliberately wins
+    // over the needFocal/needStop red required-field flash
+    // (spread after reqStyle below) since a highlight is a more
+    // deliberate, current signal than a standing reminder.
     var HL_BG = '#facc1550';
     var hasHL = function hasHL(key) {
       return !!(t.cellHL && t.cellHL[key]);
@@ -8019,29 +8325,77 @@ function CameraReport() {
         background: HL_BG
       } : {};
     };
-    var toggleCellHL = function toggleCellHL(key) {
-      var cur = _objectSpread({}, t.cellHL || {});
-      cur[key] = !cur[key];
-      patchTake(t.id, {
-        cellHL: cur
-      });
+
+    // Select Cells helpers - same per-row scope, closing over `t`
+    // and `i` (this row's index, which doubles as the row
+    // coordinate for the selection rectangle).
+    var SEL_BG = '#3b82f640';
+    var colIdxOf = function colIdxOf(key) {
+      return SELECT_COLS.indexOf(key);
     };
-    // While highlight mode is on, this transparent overlay sits
-    // on top of the cell's normal control and intercepts the tap
-    // - so painting never also opens a field for editing.
-    var paintOverlay = function paintOverlay(key) {
-      return highlightMode ? /*#__PURE__*/React.createElement("div", {
+    var selBg = function selBg(key) {
+      var ci = colIdxOf(key);
+      return selectMode && ci >= 0 && inSel(i, ci) ? {
+        background: SEL_BG
+      } : {};
+    };
+    // data-sel-r/-c let the drag handler (which only has a raw
+    // screen point from elementFromPoint) recover which take-row
+    // and SELECT_COLS index a given cell corresponds to.
+    var selMarker = function selMarker(key) {
+      var ci = colIdxOf(key);
+      return selectMode && ci >= 0 ? {
+        'data-sel-r': i,
+        'data-sel-c': ci
+      } : {};
+    };
+    var selectOverlay = function selectOverlay(key) {
+      var ci = colIdxOf(key);
+      if (!selectMode || ci < 0) return null;
+      return /*#__PURE__*/React.createElement("div", {
         onClick: function onClick() {
-          return toggleCellHL(key);
+          return setCellSel({
+            r1: i,
+            c1: ci,
+            r2: i,
+            c2: ci
+          });
         },
-        title: "Tap to highlight",
+        title: "Tap to start a selection",
         style: {
           position: 'absolute',
           inset: 0,
           cursor: 'pointer',
           zIndex: 5
         }
-      }) : null;
+      });
+    };
+    // The little drag handle only ever renders on whichever cell
+    // is CURRENTLY the far corner of the selection (r2,c2) - not
+    // fixed at the anchor - so grabbing it always continues
+    // extending the same selection from wherever it now sits.
+    var selHandle = function selHandle(key) {
+      var ci = colIdxOf(key);
+      if (!selectMode || !cellSel || ci < 0) return null;
+      if (cellSel.r2 !== i || cellSel.c2 !== ci) return null;
+      return /*#__PURE__*/React.createElement("div", {
+        onPointerDown: startHandleDrag,
+        title: "Drag to extend the selection",
+        style: {
+          position: 'absolute',
+          right: -6,
+          bottom: -6,
+          width: 14,
+          height: 14,
+          borderRadius: 3,
+          background: '#3b82f6',
+          border: '2px solid #fff',
+          boxShadow: '0 0 0 1px #3b82f6',
+          cursor: 'nwse-resize',
+          touchAction: 'none',
+          zIndex: 6
+        }
+      });
     };
     return /*#__PURE__*/React.createElement("tr", {
       key: t.id,
@@ -8067,25 +8421,12 @@ function CameraReport() {
       style: {
         cursor: 'pointer'
       }
-    }), highlightMode && /*#__PURE__*/React.createElement("div", {
-      onClick: function onClick() {
-        return patchTake(t.id, {
-          rowHL: !t.rowHL
-        });
-      },
-      title: "Tap to highlight row",
-      style: {
-        position: 'absolute',
-        inset: 0,
-        cursor: 'pointer',
-        zIndex: 5
-      }
-    })), /*#__PURE__*/React.createElement("td", {
-      style: _objectSpread(_objectSpread({}, gb), {}, {
+    })), /*#__PURE__*/React.createElement("td", _extends({}, selMarker('scene'), {
+      style: _objectSpread(_objectSpread(_objectSpread({}, gb), {}, {
         borderRight: "1px solid ".concat(T.rule),
         position: 'relative'
-      }, cellBg('scene'))
-    }, /*#__PURE__*/React.createElement(LensFocalPicker, {
+      }, cellBg('scene')), selBg('scene'))
+    }), /*#__PURE__*/React.createElement(LensFocalPicker, {
       value: focusCell === t.id + ':scene' ? cellDraft : sameScene ? '' : t.scene || '',
       placeholder: sameScene ? '' : '-',
       onFocusChange: function onFocusChange(f) {
@@ -8109,12 +8450,12 @@ function CameraReport() {
           take: String(newTake)
         });
       }
-    }), paintOverlay('scene')), !hiddenCols.has('shot') && /*#__PURE__*/React.createElement("td", {
-      style: _objectSpread(_objectSpread({}, gb), {}, {
+    }), selectOverlay('scene'), selHandle('scene')), !hiddenCols.has('shot') && /*#__PURE__*/React.createElement("td", _extends({}, selMarker('shot'), {
+      style: _objectSpread(_objectSpread(_objectSpread({}, gb), {}, {
         borderRight: "1px solid ".concat(T.rule),
         position: 'relative'
-      }, cellBg('shot'))
-    }, /*#__PURE__*/React.createElement("input", {
+      }, cellBg('shot')), selBg('shot'))
+    }), /*#__PURE__*/React.createElement("input", {
       value: focusCell === t.id + ':shot' ? cellDraft : sameShot ? '' : t.shot || '',
       placeholder: sameShot ? '' : '/',
       onFocus: function onFocus() {
@@ -8133,12 +8474,12 @@ function CameraReport() {
       style: _objectSpread(_objectSpread({}, cellInput), {}, {
         textAlign: 'center'
       })
-    }), paintOverlay('shot')), /*#__PURE__*/React.createElement("td", {
-      style: _objectSpread(_objectSpread({}, gb), {}, {
+    }), selectOverlay('shot'), selHandle('shot')), /*#__PURE__*/React.createElement("td", _extends({}, selMarker('take'), {
+      style: _objectSpread(_objectSpread(_objectSpread({}, gb), {}, {
         borderRight: "1px solid ".concat(T.rule),
         position: 'relative'
-      }, cellBg('take'))
-    }, /*#__PURE__*/React.createElement("input", {
+      }, cellBg('take')), selBg('take'))
+    }), /*#__PURE__*/React.createElement("input", {
       value: t.take || '',
       onChange: function onChange(e) {
         return patchTake(t.id, {
@@ -8149,7 +8490,7 @@ function CameraReport() {
         textAlign: 'center'
       }),
       inputMode: "numeric"
-    }), paintOverlay('take')), !hiddenCols.has('tail') && /*#__PURE__*/React.createElement("td", {
+    }), selectOverlay('take'), selHandle('take')), !hiddenCols.has('tail') && /*#__PURE__*/React.createElement("td", {
       style: _objectSpread(_objectSpread({}, gb), {}, {
         borderRight: "1px solid ".concat(T.rule),
         textAlign: 'center',
@@ -8170,12 +8511,12 @@ function CameraReport() {
         fontSize: 14,
         padding: '2px'
       }
-    }, t.tail ? "\u2705" : "\u2610"), paintOverlay('tail')), !hiddenCols.has('clip') && /*#__PURE__*/React.createElement("td", {
-      style: _objectSpread(_objectSpread({}, gb), {}, {
+    }, t.tail ? "\u2705" : "\u2610")), !hiddenCols.has('clip') && /*#__PURE__*/React.createElement("td", _extends({}, selMarker('clip'), {
+      style: _objectSpread(_objectSpread(_objectSpread({}, gb), {}, {
         borderRight: "1px solid ".concat(T.rule),
         position: 'relative'
-      }, cellBg('clip'))
-    }, /*#__PURE__*/React.createElement("input", {
+      }, cellBg('clip')), selBg('clip'))
+    }), /*#__PURE__*/React.createElement("input", {
       value: t.clip || '',
       onChange: function onChange(e) {
         return patchTake(t.id, {
@@ -8185,12 +8526,12 @@ function CameraReport() {
       style: _objectSpread(_objectSpread({}, cellInput), {}, {
         textAlign: 'right'
       })
-    }), paintOverlay('clip')), !hiddenCols.has('lens') && /*#__PURE__*/React.createElement("td", {
-      style: _objectSpread(_objectSpread({}, gb), {}, {
+    }), selectOverlay('clip'), selHandle('clip')), !hiddenCols.has('lens') && /*#__PURE__*/React.createElement("td", _extends({}, selMarker('lens'), {
+      style: _objectSpread(_objectSpread(_objectSpread({}, gb), {}, {
         borderRight: "1px solid ".concat(T.rule),
         position: 'relative'
-      }, cellBg('lens'))
-    }, /*#__PURE__*/React.createElement(LensFocalPicker, {
+      }, cellBg('lens')), selBg('lens'))
+    }), /*#__PURE__*/React.createElement(LensFocalPicker, {
       value: t.lens || '',
       onChange: function onChange(v) {
         return patchTake(t.id, {
@@ -8200,12 +8541,12 @@ function CameraReport() {
       options: LENS_OPTIONS,
       inputStyle: cellInput,
       noFilter: true
-    }), paintOverlay('lens')), !hiddenCols.has('focal') && /*#__PURE__*/React.createElement("td", {
-      style: _objectSpread(_objectSpread(_objectSpread({}, gb), {}, {
+    }), selectOverlay('lens'), selHandle('lens')), !hiddenCols.has('focal') && /*#__PURE__*/React.createElement("td", _extends({}, selMarker('focal'), {
+      style: _objectSpread(_objectSpread(_objectSpread(_objectSpread({}, gb), {}, {
         borderRight: "1px solid ".concat(T.rule),
         position: 'relative'
-      }, needFocal ? reqStyle : {}), cellBg('focal'))
-    }, /*#__PURE__*/React.createElement(LensFocalPicker, {
+      }, needFocal ? reqStyle : {}), cellBg('focal')), selBg('focal'))
+    }), /*#__PURE__*/React.createElement(LensFocalPicker, {
       value: t.focal || '',
       onChange: function onChange(v) {
         return patchTake(t.id, {
@@ -8214,12 +8555,12 @@ function CameraReport() {
       },
       options: FOCAL_OPTIONS,
       inputStyle: cellInput
-    }), paintOverlay('focal')), !hiddenCols.has('stop') && /*#__PURE__*/React.createElement("td", {
-      style: _objectSpread(_objectSpread(_objectSpread({}, gb), {}, {
+    }), selectOverlay('focal'), selHandle('focal')), !hiddenCols.has('stop') && /*#__PURE__*/React.createElement("td", _extends({}, selMarker('stop'), {
+      style: _objectSpread(_objectSpread(_objectSpread(_objectSpread({}, gb), {}, {
         borderRight: "1px solid ".concat(T.rule),
         position: 'relative'
-      }, needStop ? reqStyle : {}), cellBg('stop'))
-    }, /*#__PURE__*/React.createElement(LensFocalPicker, {
+      }, needStop ? reqStyle : {}), cellBg('stop')), selBg('stop'))
+    }), /*#__PURE__*/React.createElement(LensFocalPicker, {
       value: t.stop || '',
       onChange: function onChange(v) {
         return patchTake(t.id, {
@@ -8228,12 +8569,12 @@ function CameraReport() {
       },
       options: STOP_OPTIONS,
       inputStyle: cellInput
-    }), paintOverlay('stop')), !hiddenCols.has('shutter') && /*#__PURE__*/React.createElement("td", {
-      style: _objectSpread(_objectSpread({}, gb), {}, {
+    }), selectOverlay('stop'), selHandle('stop')), !hiddenCols.has('shutter') && /*#__PURE__*/React.createElement("td", _extends({}, selMarker('shutter'), {
+      style: _objectSpread(_objectSpread(_objectSpread({}, gb), {}, {
         borderRight: "1px solid ".concat(T.rule),
         position: 'relative'
-      }, cellBg('shutter'))
-    }, /*#__PURE__*/React.createElement(LensFocalPicker, {
+      }, cellBg('shutter')), selBg('shutter'))
+    }), /*#__PURE__*/React.createElement(LensFocalPicker, {
       value: t.shutter || '',
       onChange: function onChange(v) {
         return patchTake(t.id, {
@@ -8245,12 +8586,12 @@ function CameraReport() {
       inputStyle: _objectSpread(_objectSpread({}, cellInput), {}, {
         textAlign: 'center'
       })
-    }), paintOverlay('shutter')), !hiddenCols.has('ei') && /*#__PURE__*/React.createElement("td", {
-      style: _objectSpread(_objectSpread({}, gb), {}, {
+    }), selectOverlay('shutter'), selHandle('shutter')), !hiddenCols.has('ei') && /*#__PURE__*/React.createElement("td", _extends({}, selMarker('ei'), {
+      style: _objectSpread(_objectSpread(_objectSpread({}, gb), {}, {
         borderRight: "1px solid ".concat(T.rule),
         position: 'relative'
-      }, cellBg('ei'))
-    }, /*#__PURE__*/React.createElement("input", {
+      }, cellBg('ei')), selBg('ei'))
+    }), /*#__PURE__*/React.createElement("input", {
       value: t.ei || '',
       onChange: function onChange(e) {
         return patchTake(t.id, {
@@ -8258,12 +8599,12 @@ function CameraReport() {
         });
       },
       style: cellInput
-    }), paintOverlay('ei')), !hiddenCols.has('intFilters') && /*#__PURE__*/React.createElement("td", {
-      style: _objectSpread(_objectSpread({}, gb), {}, {
+    }), selectOverlay('ei'), selHandle('ei')), !hiddenCols.has('intFilters') && /*#__PURE__*/React.createElement("td", _extends({}, selMarker('intFilters'), {
+      style: _objectSpread(_objectSpread(_objectSpread({}, gb), {}, {
         borderRight: "1px solid ".concat(T.rule),
         position: 'relative'
-      }, cellBg('intFilters'))
-    }, /*#__PURE__*/React.createElement(LensFocalPicker, {
+      }, cellBg('intFilters')), selBg('intFilters'))
+    }), /*#__PURE__*/React.createElement(LensFocalPicker, {
       value: t.intFilters || '',
       onChange: function onChange(v) {
         return patchTake(t.id, {
@@ -8272,12 +8613,12 @@ function CameraReport() {
       },
       options: FILTER1_OPTIONS,
       inputStyle: cellInput
-    }), paintOverlay('intFilters')), !hiddenCols.has('filters') && /*#__PURE__*/React.createElement("td", {
-      style: _objectSpread(_objectSpread({}, gb), {}, {
+    }), selectOverlay('intFilters'), selHandle('intFilters')), !hiddenCols.has('filters') && /*#__PURE__*/React.createElement("td", _extends({}, selMarker('filters'), {
+      style: _objectSpread(_objectSpread(_objectSpread({}, gb), {}, {
         borderRight: "1px solid ".concat(T.rule),
         position: 'relative'
-      }, cellBg('filters'))
-    }, /*#__PURE__*/React.createElement(LensFocalPicker, {
+      }, cellBg('filters')), selBg('filters'))
+    }), /*#__PURE__*/React.createElement(LensFocalPicker, {
       value: t.filters || '',
       onChange: function onChange(v) {
         return patchTake(t.id, {
@@ -8286,12 +8627,12 @@ function CameraReport() {
       },
       options: FILTER2_OPTIONS,
       inputStyle: cellInput
-    }), paintOverlay('filters')), !hiddenCols.has('filters3') && /*#__PURE__*/React.createElement("td", {
-      style: _objectSpread(_objectSpread({}, gb), {}, {
+    }), selectOverlay('filters'), selHandle('filters')), !hiddenCols.has('filters3') && /*#__PURE__*/React.createElement("td", _extends({}, selMarker('filters3'), {
+      style: _objectSpread(_objectSpread(_objectSpread({}, gb), {}, {
         borderRight: "1px solid ".concat(T.rule),
         position: 'relative'
-      }, cellBg('filters3'))
-    }, /*#__PURE__*/React.createElement(LensFocalPicker, {
+      }, cellBg('filters3')), selBg('filters3'))
+    }), /*#__PURE__*/React.createElement(LensFocalPicker, {
       value: t.filters3 || '',
       onChange: function onChange(v) {
         return patchTake(t.id, {
@@ -8300,12 +8641,12 @@ function CameraReport() {
       },
       options: FILTER3_OPTIONS,
       inputStyle: cellInput
-    }), paintOverlay('filters3')), !hiddenCols.has('wb') && /*#__PURE__*/React.createElement("td", {
-      style: _objectSpread(_objectSpread({}, gb), {}, {
+    }), selectOverlay('filters3'), selHandle('filters3')), !hiddenCols.has('wb') && /*#__PURE__*/React.createElement("td", _extends({}, selMarker('wb'), {
+      style: _objectSpread(_objectSpread(_objectSpread({}, gb), {}, {
         borderRight: "1px solid ".concat(T.rule),
         position: 'relative'
-      }, cellBg('wb'))
-    }, /*#__PURE__*/React.createElement(LensFocalPicker, {
+      }, cellBg('wb')), selBg('wb'))
+    }), /*#__PURE__*/React.createElement(LensFocalPicker, {
       value: t.wb || '',
       onChange: function onChange(v) {
         return patchTake(t.id, {
@@ -8315,12 +8656,12 @@ function CameraReport() {
       options: WB_OPTIONS,
       inputStyle: cellInput,
       normalize: withK
-    }), paintOverlay('wb')), !hiddenCols.has('tint') && /*#__PURE__*/React.createElement("td", {
-      style: _objectSpread(_objectSpread({}, gb), {}, {
+    }), selectOverlay('wb'), selHandle('wb')), !hiddenCols.has('tint') && /*#__PURE__*/React.createElement("td", _extends({}, selMarker('tint'), {
+      style: _objectSpread(_objectSpread(_objectSpread({}, gb), {}, {
         borderRight: "1px solid ".concat(T.rule),
         position: 'relative'
-      }, cellBg('tint'))
-    }, /*#__PURE__*/React.createElement(LensFocalPicker, {
+      }, cellBg('tint')), selBg('tint'))
+    }), /*#__PURE__*/React.createElement(LensFocalPicker, {
       value: t.tint || '',
       onChange: function onChange(v) {
         return patchTake(t.id, {
@@ -8329,12 +8670,12 @@ function CameraReport() {
       },
       options: TINT_OPTIONS,
       inputStyle: cellInput
-    }), paintOverlay('tint')), !hiddenCols.has('focus') && /*#__PURE__*/React.createElement("td", {
-      style: _objectSpread(_objectSpread({}, gb), {}, {
+    }), selectOverlay('tint'), selHandle('tint')), !hiddenCols.has('focus') && /*#__PURE__*/React.createElement("td", _extends({}, selMarker('focus'), {
+      style: _objectSpread(_objectSpread(_objectSpread({}, gb), {}, {
         borderRight: "1px solid ".concat(T.rule),
         position: 'relative'
-      }, cellBg('focus'))
-    }, /*#__PURE__*/React.createElement("input", {
+      }, cellBg('focus')), selBg('focus'))
+    }), /*#__PURE__*/React.createElement("input", {
       value: t.focus || '',
       onChange: function onChange(e) {
         return patchTake(t.id, {
@@ -8342,19 +8683,19 @@ function CameraReport() {
         });
       },
       style: cellInput
-    }), paintOverlay('focus')), !hiddenCols.has('notes') && /*#__PURE__*/React.createElement("td", {
-      style: _objectSpread(_objectSpread({}, gb), {}, {
+    }), selectOverlay('focus'), selHandle('focus')), !hiddenCols.has('notes') && /*#__PURE__*/React.createElement("td", _extends({}, selMarker('notes'), {
+      style: _objectSpread(_objectSpread(_objectSpread({}, gb), {}, {
         borderRight: "1px solid ".concat(T.rule),
         position: 'relative'
-      }, cellBg('notes'))
-    }, /*#__PURE__*/React.createElement(NotesPicker, {
+      }, cellBg('notes')), selBg('notes'))
+    }), /*#__PURE__*/React.createElement(NotesPicker, {
       value: t.notes || '',
       onChange: function onChange(v) {
         return patchTake(t.id, {
           notes: v
         });
       }
-    }), paintOverlay('notes')), !hiddenCols.has('photo') && /*#__PURE__*/React.createElement("td", {
+    }), selectOverlay('notes'), selHandle('notes')), !hiddenCols.has('photo') && /*#__PURE__*/React.createElement("td", {
       style: _objectSpread(_objectSpread({}, gb), {}, {
         borderRight: "1px solid ".concat(T.rule),
         padding: '4px 2px',
@@ -8375,7 +8716,7 @@ function CameraReport() {
           })
         });
       }
-    }), paintOverlay('photo')), /*#__PURE__*/React.createElement("td", {
+    })), /*#__PURE__*/React.createElement("td", {
       style: _objectSpread(_objectSpread({}, gb), {}, {
         textAlign: 'center',
         whiteSpace: 'nowrap',
@@ -8796,25 +9137,27 @@ function CameraReport() {
   }, "\u21B3", " Resequence clips"), /*#__PURE__*/React.createElement("button", {
     className: "cr-btn",
     onClick: function onClick() {
-      setHighlightMode(function (v) {
+      setSelectMode(function (v) {
         return !v;
       });
+      setCellSel(null);
+      setFillValue('');
       closeDrawer();
     },
-    title: "Tap cells or rows in the table to mark them yellow for the printed report",
+    title: "Drag-select a range of cells to clear, fill, or highlight them all at once",
     style: {
       padding: '9px 12px',
       borderRadius: 6,
-      border: "1px solid ".concat(highlightMode ? '#eab308' : T.border),
-      background: highlightMode ? '#eab30822' : 'transparent',
-      color: highlightMode ? '#eab308' : T.textDim,
+      border: "1px solid ".concat(selectMode ? '#3b82f6' : T.border),
+      background: selectMode ? '#3b82f622' : 'transparent',
+      color: selectMode ? '#3b82f6' : T.textDim,
       fontSize: 11,
       fontFamily: "'Geist Mono',monospace",
       cursor: 'pointer',
       textAlign: 'left',
       marginTop: 2
     }
-  }, "\uD83D\uDD8D", " Highlight Mode", highlightMode ? " \u2713" : ''), allDayNums.length > 0 && (allDayNums.length > 1 || !roll.shootDay) && /*#__PURE__*/React.createElement("div", {
+  }, "\u25A6", " Select Cells", selectMode ? " \u2713" : ''), allDayNums.length > 0 && (allDayNums.length > 1 || !roll.shootDay) && /*#__PURE__*/React.createElement("div", {
     style: {
       borderTop: "1px solid ".concat(T.rule),
       paddingTop: 10,
@@ -9216,30 +9559,30 @@ function SettingsModal(_ref33) {
   var _useStandaloneData2 = useStandaloneData(),
     data = _useStandaloneData2.data,
     updateData = _useStandaloneData2.updateData;
-  var _React$useState121 = React.useState(data.projectName || ''),
-    _React$useState122 = _slicedToArray(_React$useState121, 2),
-    projectName = _React$useState122[0],
-    setProjectName = _React$useState122[1];
-  var _React$useState123 = React.useState(data.gsheetsClientId || ''),
-    _React$useState124 = _slicedToArray(_React$useState123, 2),
-    clientId = _React$useState124[0],
-    setClientId = _React$useState124[1];
-  var _React$useState125 = React.useState(!!data.keepDrawerOpen),
+  var _React$useState125 = React.useState(data.projectName || ''),
     _React$useState126 = _slicedToArray(_React$useState125, 2),
-    keepDrawerOpen = _React$useState126[0],
-    setKeepDrawerOpen = _React$useState126[1];
-  var _React$useState127 = React.useState(false),
+    projectName = _React$useState126[0],
+    setProjectName = _React$useState126[1];
+  var _React$useState127 = React.useState(data.gsheetsClientId || ''),
     _React$useState128 = _slicedToArray(_React$useState127, 2),
-    showScenes = _React$useState128[0],
-    setShowScenes = _React$useState128[1];
-  var _React$useState129 = React.useState(false),
+    clientId = _React$useState128[0],
+    setClientId = _React$useState128[1];
+  var _React$useState129 = React.useState(!!data.keepDrawerOpen),
     _React$useState130 = _slicedToArray(_React$useState129, 2),
-    showDays = _React$useState130[0],
-    setShowDays = _React$useState130[1];
+    keepDrawerOpen = _React$useState130[0],
+    setKeepDrawerOpen = _React$useState130[1];
   var _React$useState131 = React.useState(false),
     _React$useState132 = _slicedToArray(_React$useState131, 2),
-    showColumns = _React$useState132[0],
-    setShowColumns = _React$useState132[1];
+    showScenes = _React$useState132[0],
+    setShowScenes = _React$useState132[1];
+  var _React$useState133 = React.useState(false),
+    _React$useState134 = _slicedToArray(_React$useState133, 2),
+    showDays = _React$useState134[0],
+    setShowDays = _React$useState134[1];
+  var _React$useState135 = React.useState(false),
+    _React$useState136 = _slicedToArray(_React$useState135, 2),
+    showColumns = _React$useState136[0],
+    setShowColumns = _React$useState136[1];
   var sceneCount = (data.scenes || []).length;
   var dayCount = (data.shootDays || []).length;
   var hiddenColCount = (data.hiddenColumns || []).length;
@@ -9496,7 +9839,7 @@ function ScenesEditorModal(_ref34) {
      (and a focused field jumps to another scene mid-edit). A key that sticks
      to the row itself makes deletes and reorders behave. */
   var keySeq = React.useRef(0);
-  var _React$useState133 = React.useState(function () {
+  var _React$useState137 = React.useState(function () {
       return (data.scenes || []).map(function (s) {
         return _objectSpread({
           _k: keySeq.current++,
@@ -9504,9 +9847,9 @@ function ScenesEditorModal(_ref34) {
         }, decomposeSlug(s.slug));
       });
     }),
-    _React$useState134 = _slicedToArray(_React$useState133, 2),
-    rows = _React$useState134[0],
-    setRows = _React$useState134[1];
+    _React$useState138 = _slicedToArray(_React$useState137, 2),
+    rows = _React$useState138[0],
+    setRows = _React$useState138[1];
   function patchRow(i, patch) {
     setRows(function (rs) {
       return rs.map(function (r, idx) {
@@ -9759,7 +10102,7 @@ function ShootDaysEditorModal(_ref35) {
      schedule itself, and a calendar reads forwards. Ascending also makes a
      mis-typed date obvious at a glance, because the dates should march
      downwards in step with the day numbers. */
-  var _React$useState135 = React.useState(function () {
+  var _React$useState139 = React.useState(function () {
       return (data.shootDays || []).slice().sort(function (a, b) {
         return a.day - b.day;
       }).map(function (d) {
@@ -9768,9 +10111,9 @@ function ShootDaysEditorModal(_ref35) {
         });
       });
     }),
-    _React$useState136 = _slicedToArray(_React$useState135, 2),
-    rows = _React$useState136[0],
-    setRows = _React$useState136[1];
+    _React$useState140 = _slicedToArray(_React$useState139, 2),
+    rows = _React$useState140[0],
+    setRows = _React$useState140[1];
   function patchRow(i, patch) {
     setRows(function (rs) {
       return rs.map(function (r, idx) {
@@ -10073,12 +10416,12 @@ function ColumnsEditorModal(_ref36) {
   var _useStandaloneData5 = useStandaloneData(),
     data = _useStandaloneData5.data,
     updateData = _useStandaloneData5.updateData;
-  var _React$useState137 = React.useState(function () {
+  var _React$useState141 = React.useState(function () {
       return new Set(data.hiddenColumns || []);
     }),
-    _React$useState138 = _slicedToArray(_React$useState137, 2),
-    hidden = _React$useState138[0],
-    setHidden = _React$useState138[1];
+    _React$useState142 = _slicedToArray(_React$useState141, 2),
+    hidden = _React$useState142[0],
+    setHidden = _React$useState142[1];
   function toggle(key) {
     setHidden(function (prev) {
       var next = new Set(prev);
@@ -10236,14 +10579,14 @@ function BackupModal(_ref37) {
     findProjectByName = _useStandaloneData6.findProjectByName,
     importProject = _useStandaloneData6.importProject,
     overwriteProject = _useStandaloneData6.overwriteProject;
-  var _React$useState139 = React.useState('idle'),
-    _React$useState140 = _slicedToArray(_React$useState139, 2),
-    status = _React$useState140[0],
-    setStatus = _React$useState140[1]; // idle | working | done | error
-  var _React$useState141 = React.useState(''),
-    _React$useState142 = _slicedToArray(_React$useState141, 2),
-    errMsg = _React$useState142[0],
-    setErrMsg = _React$useState142[1];
+  var _React$useState143 = React.useState('idle'),
+    _React$useState144 = _slicedToArray(_React$useState143, 2),
+    status = _React$useState144[0],
+    setStatus = _React$useState144[1]; // idle | working | done | error
+  var _React$useState145 = React.useState(''),
+    _React$useState146 = _slicedToArray(_React$useState145, 2),
+    errMsg = _React$useState146[0],
+    setErrMsg = _React$useState146[1];
   // A per-device Settings value always overrides the baked-in shared default -
   // that's what lets a fork on a different hosting URL use its own Client ID.
   var effectiveClientId = getEffectiveClientId(data);
@@ -10256,14 +10599,14 @@ function BackupModal(_ref37) {
   }, [data.rolls]);
 
   // Restore state
-  var _React$useState143 = React.useState(null),
-    _React$useState144 = _slicedToArray(_React$useState143, 2),
-    sheets = _React$useState144[0],
-    setSheets = _React$useState144[1]; // null = not looked yet
-  var _React$useState145 = React.useState(false),
-    _React$useState146 = _slicedToArray(_React$useState145, 2),
-    restoring = _React$useState146[0],
-    setRestoring = _React$useState146[1];
+  var _React$useState147 = React.useState(null),
+    _React$useState148 = _slicedToArray(_React$useState147, 2),
+    sheets = _React$useState148[0],
+    setSheets = _React$useState148[1]; // null = not looked yet
+  var _React$useState149 = React.useState(false),
+    _React$useState150 = _slicedToArray(_React$useState149, 2),
+    restoring = _React$useState150[0],
+    setRestoring = _React$useState150[1];
   function runBackup() {
     return _runBackup.apply(this, arguments);
   }
@@ -10699,43 +11042,43 @@ function App() {
   var _useTheme = useTheme(),
     themeName = _useTheme.themeName,
     toggleTheme = _useTheme.toggleTheme;
-  var _React$useState147 = React.useState(ensureProjectsSetup),
-    _React$useState148 = _slicedToArray(_React$useState147, 2),
-    projectIds = _React$useState148[0],
-    setProjectIds = _React$useState148[1];
-  var _React$useState149 = React.useState(function () {
+  var _React$useState151 = React.useState(ensureProjectsSetup),
+    _React$useState152 = _slicedToArray(_React$useState151, 2),
+    projectIds = _React$useState152[0],
+    setProjectIds = _React$useState152[1];
+  var _React$useState153 = React.useState(function () {
       return loadCurrentProjectId(projectIds);
     }),
-    _React$useState150 = _slicedToArray(_React$useState149, 2),
-    projectId = _React$useState150[0],
-    setProjectId = _React$useState150[1];
-  var _React$useState151 = React.useState(function () {
+    _React$useState154 = _slicedToArray(_React$useState153, 2),
+    projectId = _React$useState154[0],
+    setProjectId = _React$useState154[1];
+  var _React$useState155 = React.useState(function () {
       return loadProjectData(projectId);
     }),
-    _React$useState152 = _slicedToArray(_React$useState151, 2),
-    data = _React$useState152[0],
-    setData = _React$useState152[1];
-  var _React$useState153 = React.useState(false),
-    _React$useState154 = _slicedToArray(_React$useState153, 2),
-    showSettings = _React$useState154[0],
-    setShowSettings = _React$useState154[1];
-  var _React$useState155 = React.useState(false),
     _React$useState156 = _slicedToArray(_React$useState155, 2),
-    showBackup = _React$useState156[0],
-    setShowBackup = _React$useState156[1];
+    data = _React$useState156[0],
+    setData = _React$useState156[1];
   var _React$useState157 = React.useState(false),
     _React$useState158 = _slicedToArray(_React$useState157, 2),
-    showProjects = _React$useState158[0],
-    setShowProjects = _React$useState158[1];
+    showSettings = _React$useState158[0],
+    setShowSettings = _React$useState158[1];
+  var _React$useState159 = React.useState(false),
+    _React$useState160 = _slicedToArray(_React$useState159, 2),
+    showBackup = _React$useState160[0],
+    setShowBackup = _React$useState160[1];
+  var _React$useState161 = React.useState(false),
+    _React$useState162 = _slicedToArray(_React$useState161, 2),
+    showProjects = _React$useState162[0],
+    setShowProjects = _React$useState162[1];
   // True once a localStorage write has actually FAILED (quota full, private
   // browsing, storage blocked). Previously saveProjectData's false return was
   // discarded here, so the status pill kept saying "SAVED LOCALLY" while
   // nothing was being written - the worst possible failure mode for a camera
   // report you're relying on mid-shoot.
-  var _React$useState159 = React.useState(false),
-    _React$useState160 = _slicedToArray(_React$useState159, 2),
-    storageFailed = _React$useState160[0],
-    setStorageFailed = _React$useState160[1];
+  var _React$useState163 = React.useState(false),
+    _React$useState164 = _slicedToArray(_React$useState163, 2),
+    storageFailed = _React$useState164[0],
+    setStorageFailed = _React$useState164[1];
 
   // Pure state update - no side effects. It stays a functional updater because
   // two updateData calls can land in the same tick (e.g. adding a shoot day,
@@ -11055,28 +11398,28 @@ function ProjectSwitcherModal(_ref38) {
     switchProject = _useStandaloneData7.switchProject,
     createProject = _useStandaloneData7.createProject,
     deleteProject = _useStandaloneData7.deleteProject;
-  var _React$useState161 = React.useState(function () {
+  var _React$useState165 = React.useState(function () {
       var m = {};
       projectIds.forEach(function (id) {
         m[id] = id === projectId ? data.projectName : loadProjectData(id).projectName;
       });
       return m;
     }),
-    _React$useState162 = _slicedToArray(_React$useState161, 2),
-    names = _React$useState162[0],
-    setNames = _React$useState162[1];
-  var _React$useState163 = React.useState(null),
-    _React$useState164 = _slicedToArray(_React$useState163, 2),
-    editingId = _React$useState164[0],
-    setEditingId = _React$useState164[1];
-  var _React$useState165 = React.useState(''),
     _React$useState166 = _slicedToArray(_React$useState165, 2),
-    editName = _React$useState166[0],
-    setEditName = _React$useState166[1];
-  var _React$useState167 = React.useState(''),
+    names = _React$useState166[0],
+    setNames = _React$useState166[1];
+  var _React$useState167 = React.useState(null),
     _React$useState168 = _slicedToArray(_React$useState167, 2),
-    newName = _React$useState168[0],
-    setNewName = _React$useState168[1];
+    editingId = _React$useState168[0],
+    setEditingId = _React$useState168[1];
+  var _React$useState169 = React.useState(''),
+    _React$useState170 = _slicedToArray(_React$useState169, 2),
+    editName = _React$useState170[0],
+    setEditName = _React$useState170[1];
+  var _React$useState171 = React.useState(''),
+    _React$useState172 = _slicedToArray(_React$useState171, 2),
+    newName = _React$useState172[0],
+    setNewName = _React$useState172[1];
   function startEdit(id) {
     setEditingId(id);
     setEditName(names[id] || '');
@@ -11325,24 +11668,24 @@ var TRIAL_LIMITS = {
 };
 function AccessGate(_ref39) {
   var children = _ref39.children;
-  var _React$useState169 = React.useState(function () {
+  var _React$useState173 = React.useState(function () {
       return loadGateAuth() ? 'allowed' : 'trial';
     }),
-    _React$useState170 = _slicedToArray(_React$useState169, 2),
-    state = _React$useState170[0],
-    setState = _React$useState170[1]; // trial | working | denied | allowed | error
-  var _React$useState171 = React.useState(''),
-    _React$useState172 = _slicedToArray(_React$useState171, 2),
-    errMsg = _React$useState172[0],
-    setErrMsg = _React$useState172[1];
-  var _React$useState173 = React.useState(false),
     _React$useState174 = _slicedToArray(_React$useState173, 2),
-    showUnlock = _React$useState174[0],
-    setShowUnlock = _React$useState174[1];
+    state = _React$useState174[0],
+    setState = _React$useState174[1]; // trial | working | denied | allowed | error
   var _React$useState175 = React.useState(''),
     _React$useState176 = _slicedToArray(_React$useState175, 2),
-    unlockReason = _React$useState176[0],
-    setUnlockReason = _React$useState176[1];
+    errMsg = _React$useState176[0],
+    setErrMsg = _React$useState176[1];
+  var _React$useState177 = React.useState(false),
+    _React$useState178 = _slicedToArray(_React$useState177, 2),
+    showUnlock = _React$useState178[0],
+    setShowUnlock = _React$useState178[1];
+  var _React$useState179 = React.useState(''),
+    _React$useState180 = _slicedToArray(_React$useState179, 2),
+    unlockReason = _React$useState180[0],
+    setUnlockReason = _React$useState180[1];
   var checkedOnce = React.useRef(false);
   React.useEffect(function () {
     if (checkedOnce.current) return;
@@ -11628,10 +11971,10 @@ var ErrorBoundary = /*#__PURE__*/function (_React$Component) {
   }]);
 }(React.Component);
 function ThemedApp() {
-  var _React$useState177 = React.useState(loadThemeName),
-    _React$useState178 = _slicedToArray(_React$useState177, 2),
-    themeName = _React$useState178[0],
-    setThemeName = _React$useState178[1];
+  var _React$useState181 = React.useState(loadThemeName),
+    _React$useState182 = _slicedToArray(_React$useState181, 2),
+    themeName = _React$useState182[0],
+    setThemeName = _React$useState182[1];
   React.useEffect(function () {
     applyTheme(themeName);
   }, [themeName]);
