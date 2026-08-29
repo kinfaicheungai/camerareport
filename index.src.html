@@ -1172,7 +1172,7 @@ const SB_TINT_PRESETS_KEY='sb_camrep_tint_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-const APP_VERSION='v4.7';
+const APP_VERSION='v4.8';
 
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
@@ -1302,7 +1302,7 @@ function ScenePicker({value,onChange,scenes,displayValue}){
 
 function NotesPicker({value,onChange}){
   const [open,setOpen]=React.useState(false);
-  const [fixPos,setFixPos]=React.useState({top:0,left:0,width:240});
+  const [fixPos,setFixPos]=React.useState({top:0,left:0,width:240,maxHeight:260});
   const wrapRef=React.useRef(null);
   const presets=React.useMemo(()=>{
     try{return JSON.parse(localStorage.getItem(SB_NOTE_PRESETS_KEY)||'[]');}catch{return[];}
@@ -1330,11 +1330,20 @@ function NotesPicker({value,onChange}){
   }
   const selectedTokens=parseTokens(value);
 
+  // Same fix as LensFocalPicker: window.innerHeight ignores the iOS
+  // keyboard, so measuring against it let a long preset list get rendered
+  // partly hidden underneath it.
+  function visibleViewportHeight(){
+    return (window.visualViewport&&window.visualViewport.height)||window.innerHeight;
+  }
   function openPicker(){
     if(!wrapRef.current||presets.length===0)return;
     const r=wrapRef.current.getBoundingClientRect();
-    const up=window.innerHeight-r.bottom<200&&r.top>window.innerHeight-r.bottom;
-    setFixPos({top:up?undefined:r.bottom+2,bottom:up?(window.innerHeight-r.top+2):undefined,left:r.left,width:Math.max(r.width,240)});
+    const visibleBottom=visibleViewportHeight();
+    const spaceBelow=visibleBottom-r.bottom, spaceAbove=r.top;
+    const up=spaceBelow<200&&spaceAbove>spaceBelow;
+    const maxHeight=Math.max(120,Math.min(260,(up?spaceAbove:spaceBelow)-10));
+    setFixPos({top:up?undefined:r.bottom+2,bottom:up?(visibleBottom-r.top+2):undefined,left:r.left,width:Math.max(r.width,240),maxHeight});
     setOpen(true);
   }
   React.useEffect(()=>{
@@ -1342,6 +1351,13 @@ function NotesPicker({value,onChange}){
     const fn=e=>{if(wrapRef.current&&!wrapRef.current.contains(e.target))setOpen(false);};
     document.addEventListener('mousedown',fn); document.addEventListener('touchstart',fn);
     return()=>{document.removeEventListener('mousedown',fn); document.removeEventListener('touchstart',fn);};
+  },[open]);
+  React.useEffect(()=>{
+    if(!open||!window.visualViewport)return;
+    const onResize=()=>openPicker();
+    window.visualViewport.addEventListener('resize',onResize);
+    return ()=>window.visualViewport.removeEventListener('resize',onResize);
+    // eslint-disable-next-line
   },[open]);
 
   return(
@@ -1351,7 +1367,7 @@ function NotesPicker({value,onChange}){
           color:T.text,width:'100%',fontFamily:"'Geist Mono',monospace"}}/>
       {open&&presets.length>0&&(
         <div style={{position:'fixed',top:fixPos.top,bottom:fixPos.bottom,left:fixPos.left,
-          width:fixPos.width,zIndex:9500,maxHeight:260,overflowY:'auto',
+          width:fixPos.width,zIndex:9500,maxHeight:fixPos.maxHeight,overflowY:'auto',
           background:T.panel,border:`1px solid ${T.border}`,borderRadius:7,boxShadow:'0 8px 24px rgba(0,0,0,0.5)'}}>
           <div style={{padding:'5px 10px 3px',display:'flex',alignItems:'center',gap:8}}>
             <span style={{flex:1,fontSize:8,fontFamily:"'Geist Mono',monospace",color:T.textDim,letterSpacing:'0.08em'}}>QUICK SELECT {'\u00B7'} TAP TO TOGGLE</span>
@@ -1485,7 +1501,7 @@ function SearchInputAC({value,onChange,suggestions,placeholder}){
    would move the caret while they type. WB uses it to append the trailing K. */
 function LensFocalPicker({value,onChange,options,placeholder,inputStyle,align,noFilter,normalize,onFocusChange}){
   const [open,setOpen]=React.useState(false);
-  const [fixPos,setFixPos]=React.useState({top:0,left:0,width:150,up:false});
+  const [fixPos,setFixPos]=React.useState({top:0,left:0,width:150,up:false,maxHeight:230});
   const wrapRef=React.useRef(null);
   const listRef=React.useRef(null);
   const selectedRef=React.useRef(null);
@@ -1500,22 +1516,53 @@ function LensFocalPicker({value,onChange,options,placeholder,inputStyle,align,no
   const q='';
   const filteredOptions=options;
 
+  // window.innerHeight does NOT shrink when the iOS on-screen keyboard
+  // appears - it stays the full screen height as if the keyboard weren't
+  // there. visualViewport.height DOES shrink to the actually-visible area,
+  // which is exactly what "is there room below" needs to be measured
+  // against - without this, a long dropdown could report plenty of space
+  // below the field and get rendered partly UNDER the keyboard, unreachable.
+  function visibleViewportHeight(){
+    return (window.visualViewport&&window.visualViewport.height)||window.innerHeight;
+  }
+
   // Use position:fixed + getBoundingClientRect so the dropdown is NEVER
   // clipped by overflow:auto/hidden on any ancestor (e.g. the table wrapper).
   function openPicker(){
     if(!wrapRef.current)return;
     if(!(options&&options.length))return;   // nothing to suggest yet
     const r=wrapRef.current.getBoundingClientRect();
-    const spaceBelow=window.innerHeight-r.bottom;
-    const up=spaceBelow<240&&r.top>spaceBelow;
+    const visibleBottom=visibleViewportHeight();
+    const spaceBelow=visibleBottom-r.bottom;
+    const spaceAbove=r.top;
+    const up=spaceBelow<240&&spaceAbove>spaceBelow;
+    // Cap the list to whatever room is actually visible on whichever side
+    // it opens - never taller than that, so it can never end up partly
+    // hidden behind the keyboard (or off the top of the screen) regardless
+    // of how long the option list is.
+    const maxHeight=Math.max(120,Math.min(230,(up?spaceAbove:spaceBelow)-10));
     setFixPos({
       top: up ? undefined : r.bottom+2,
-      bottom: up ? (window.innerHeight-r.top+2) : undefined,
+      bottom: up ? (visibleBottom-r.top+2) : undefined,
       left: r.left,
-      width: Math.max(r.width,150)
+      width: Math.max(r.width,150),
+      maxHeight
     });
     setOpen(true);
   }
+
+  // The keyboard can still be animating into place right when the field
+  // gains focus, so the geometry read at that instant may be a hair stale.
+  // Re-run the same positioning logic whenever the visible viewport itself
+  // changes size while the dropdown is open (keyboard finishing its slide,
+  // or being dismissed) so the list never gets stranded behind it.
+  React.useEffect(()=>{
+    if(!open||!window.visualViewport)return;
+    const onResize=()=>openPicker();
+    window.visualViewport.addEventListener('resize',onResize);
+    return ()=>window.visualViewport.removeEventListener('resize',onResize);
+    // eslint-disable-next-line
+  },[open]);
 
   React.useEffect(()=>{
     if(!open)return;
@@ -1566,7 +1613,7 @@ function LensFocalPicker({value,onChange,options,placeholder,inputStyle,align,no
           left: fixPos.left,
           width: fixPos.width,
           zIndex:9500,
-          maxHeight:230,overflowY:'auto',
+          maxHeight:fixPos.maxHeight,overflowY:'auto',
           background:T.panel,border:`1px solid ${T.border}`,borderRadius:7,
           boxShadow:'0 8px 24px rgba(0,0,0,0.5)'}}>
           {filteredOptions.length===0&&(
@@ -2234,6 +2281,13 @@ function CameraReport(){
   // is the more convenient default.
   const keepDrawerOpen=!!proj.keepDrawerOpen;
   const closeDrawer=()=>{ if(!keepDrawerOpen) setShowActions(false); };
+  // When ON, editing SCENE or SHOT auto-renumbers TAKE (via takeNoFor) based
+  // on what looks like a continuation vs a new scene/shot. Off by default -
+  // ACs sometimes write a series-style tag into SCENE that isn't really a
+  // new scene, and the auto-renumber would silently reassign TAKE in a way
+  // nobody asked for. With it off, SCENE/SHOT edits only ever change that
+  // field; TAKE stays exactly as typed until touched directly.
+  const autoTakeOnSceneShot=!!proj.autoTakeOnSceneShot;
   // Format a scene string ("S01, S23") into "S01 EXT, S23 INT" using slugs.
   function sceneWithIE(sceneStr){
     const ids=String(sceneStr||'').split(',').map(x=>x.trim()).filter(Boolean);
@@ -3121,8 +3175,12 @@ function CameraReport(){
     if(!roll)return;
     const row=roll.takes.find(t=>t.id===takeId);
     if(!row)return;
-    const newTake=takeNoFor(row.scene,shot,takeId);
-    patchRoll(roll.id,{takes:roll.takes.map(t=>t.id===takeId?{...t,shot:shot,take:newTake+''}:t)});
+    if(autoTakeOnSceneShot){
+      const newTake=takeNoFor(row.scene,shot,takeId);
+      patchRoll(roll.id,{takes:roll.takes.map(t=>t.id===takeId?{...t,shot:shot,take:newTake+''}:t)});
+    }else{
+      patchRoll(roll.id,{takes:roll.takes.map(t=>t.id===takeId?{...t,shot:shot}:t)});
+    }
   }
 
   // Parse a clip name into its numeric parts: "B04" → {pre:'B', num:4, digits:2, suf:''}
@@ -4345,9 +4403,13 @@ function CameraReport(){
                       options={sceneIds} inputStyle={cellInput} noFilter
                       onChange={v=>{
                         setCellDraft(v);
-                        const first=v.split(',')[0].trim();
-                        const newTake=first?takeNoFor(first,t.shot||'/',t.id):t.take;
-                        patchTake(t.id,{scene:v,take:String(newTake)});
+                        if(autoTakeOnSceneShot){
+                          const first=v.split(',')[0].trim();
+                          const newTake=first?takeNoFor(first,t.shot||'/',t.id):t.take;
+                          patchTake(t.id,{scene:v,take:String(newTake)});
+                        }else{
+                          patchTake(t.id,{scene:v});
+                        }
                       }}/>
                     {selectOverlay('scene')}{selHandle('scene')}
                   </td>
@@ -4756,6 +4818,7 @@ function SettingsModal({onClose}){
   const [projectName,setProjectName]=React.useState(data.projectName||'');
   const [clientId,setClientId]=React.useState(data.gsheetsClientId||'');
   const [keepDrawerOpen,setKeepDrawerOpen]=React.useState(!!data.keepDrawerOpen);
+  const [autoTakeOnSceneShot,setAutoTakeOnSceneShot]=React.useState(!!data.autoTakeOnSceneShot);
   const [showScenes,setShowScenes]=React.useState(false);
   const [showDays,setShowDays]=React.useState(false);
   const [showColumns,setShowColumns]=React.useState(false);
@@ -4767,7 +4830,8 @@ function SettingsModal({onClose}){
     updateData({
       projectName: projectName.trim()||'Untitled Production',
       gsheetsClientId: clientId.trim(),
-      keepDrawerOpen
+      keepDrawerOpen,
+      autoTakeOnSceneShot
     });
     onClose();
   }
@@ -4821,6 +4885,18 @@ function SettingsModal({onClose}){
               <span style={{display:'block',fontSize:10,color:T.textDim,fontWeight:400,marginTop:2}}>
                 Off (default): tapping Add take, New shot, etc. closes the drawer right after.
                 On: it stays open so you can tap several in a row.
+              </span>
+            </span>
+          </label>
+
+          <label style={{display:'flex',alignItems:'center',gap:10,padding:'10px 2px',cursor:'pointer'}}>
+            <input type="checkbox" checked={autoTakeOnSceneShot} onChange={e=>setAutoTakeOnSceneShot(e.target.checked)}
+              style={{cursor:'pointer',width:16,height:16}}/>
+            <span style={{fontSize:12,color:T.text,fontFamily:"'Geist Mono',monospace"}}>
+              {'🔢'} Auto-renumber Take on Scene/Shot edit
+              <span style={{display:'block',fontSize:10,color:T.textDim,fontWeight:400,marginTop:2}}>
+                Off (default): editing SCENE or SHOT only changes that field - TAKE stays put until you touch it.
+                On: TAKE recalculates automatically, same as older versions of this app.
               </span>
             </span>
           </label>

@@ -1942,7 +1942,7 @@ var SB_TINT_PRESETS_KEY = 'sb_camrep_tint_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-var APP_VERSION = 'v4.7';
+var APP_VERSION = 'v4.8';
 var CAM_CONFIG = {
   A: {
     label: 'A',
@@ -2236,7 +2236,8 @@ function NotesPicker(_ref10) {
   var _React$useState11 = React.useState({
       top: 0,
       left: 0,
-      width: 240
+      width: 240,
+      maxHeight: 260
     }),
     _React$useState12 = _slicedToArray(_React$useState11, 2),
     fixPos = _React$useState12[0],
@@ -2278,15 +2279,27 @@ function NotesPicker(_ref10) {
     _onChange2(joinTokens(next));
   }
   var selectedTokens = parseTokens(value);
+
+  // Same fix as LensFocalPicker: window.innerHeight ignores the iOS
+  // keyboard, so measuring against it let a long preset list get rendered
+  // partly hidden underneath it.
+  function visibleViewportHeight() {
+    return window.visualViewport && window.visualViewport.height || window.innerHeight;
+  }
   function openPicker() {
     if (!wrapRef.current || presets.length === 0) return;
     var r = wrapRef.current.getBoundingClientRect();
-    var up = window.innerHeight - r.bottom < 200 && r.top > window.innerHeight - r.bottom;
+    var visibleBottom = visibleViewportHeight();
+    var spaceBelow = visibleBottom - r.bottom,
+      spaceAbove = r.top;
+    var up = spaceBelow < 200 && spaceAbove > spaceBelow;
+    var maxHeight = Math.max(120, Math.min(260, (up ? spaceAbove : spaceBelow) - 10));
     setFixPos({
       top: up ? undefined : r.bottom + 2,
-      bottom: up ? window.innerHeight - r.top + 2 : undefined,
+      bottom: up ? visibleBottom - r.top + 2 : undefined,
       left: r.left,
-      width: Math.max(r.width, 240)
+      width: Math.max(r.width, 240),
+      maxHeight: maxHeight
     });
     setOpen(true);
   }
@@ -2301,6 +2314,17 @@ function NotesPicker(_ref10) {
       document.removeEventListener('mousedown', fn);
       document.removeEventListener('touchstart', fn);
     };
+  }, [open]);
+  React.useEffect(function () {
+    if (!open || !window.visualViewport) return;
+    var onResize = function onResize() {
+      return openPicker();
+    };
+    window.visualViewport.addEventListener('resize', onResize);
+    return function () {
+      return window.visualViewport.removeEventListener('resize', onResize);
+    };
+    // eslint-disable-next-line
   }, [open]);
   return /*#__PURE__*/React.createElement("div", {
     ref: wrapRef,
@@ -2331,7 +2355,7 @@ function NotesPicker(_ref10) {
       left: fixPos.left,
       width: fixPos.width,
       zIndex: 9500,
-      maxHeight: 260,
+      maxHeight: fixPos.maxHeight,
       overflowY: 'auto',
       background: T.panel,
       border: "1px solid ".concat(T.border),
@@ -2759,7 +2783,8 @@ function LensFocalPicker(_ref14) {
       top: 0,
       left: 0,
       width: 150,
-      up: false
+      up: false,
+      maxHeight: 230
     }),
     _React$useState24 = _slicedToArray(_React$useState23, 2),
     fixPos = _React$useState24[0],
@@ -2778,22 +2803,57 @@ function LensFocalPicker(_ref14) {
   var q = '';
   var filteredOptions = options;
 
+  // window.innerHeight does NOT shrink when the iOS on-screen keyboard
+  // appears - it stays the full screen height as if the keyboard weren't
+  // there. visualViewport.height DOES shrink to the actually-visible area,
+  // which is exactly what "is there room below" needs to be measured
+  // against - without this, a long dropdown could report plenty of space
+  // below the field and get rendered partly UNDER the keyboard, unreachable.
+  function visibleViewportHeight() {
+    return window.visualViewport && window.visualViewport.height || window.innerHeight;
+  }
+
   // Use position:fixed + getBoundingClientRect so the dropdown is NEVER
   // clipped by overflow:auto/hidden on any ancestor (e.g. the table wrapper).
   function openPicker() {
     if (!wrapRef.current) return;
     if (!(options && options.length)) return; // nothing to suggest yet
     var r = wrapRef.current.getBoundingClientRect();
-    var spaceBelow = window.innerHeight - r.bottom;
-    var up = spaceBelow < 240 && r.top > spaceBelow;
+    var visibleBottom = visibleViewportHeight();
+    var spaceBelow = visibleBottom - r.bottom;
+    var spaceAbove = r.top;
+    var up = spaceBelow < 240 && spaceAbove > spaceBelow;
+    // Cap the list to whatever room is actually visible on whichever side
+    // it opens - never taller than that, so it can never end up partly
+    // hidden behind the keyboard (or off the top of the screen) regardless
+    // of how long the option list is.
+    var maxHeight = Math.max(120, Math.min(230, (up ? spaceAbove : spaceBelow) - 10));
     setFixPos({
       top: up ? undefined : r.bottom + 2,
-      bottom: up ? window.innerHeight - r.top + 2 : undefined,
+      bottom: up ? visibleBottom - r.top + 2 : undefined,
       left: r.left,
-      width: Math.max(r.width, 150)
+      width: Math.max(r.width, 150),
+      maxHeight: maxHeight
     });
     setOpen(true);
   }
+
+  // The keyboard can still be animating into place right when the field
+  // gains focus, so the geometry read at that instant may be a hair stale.
+  // Re-run the same positioning logic whenever the visible viewport itself
+  // changes size while the dropdown is open (keyboard finishing its slide,
+  // or being dismissed) so the list never gets stranded behind it.
+  React.useEffect(function () {
+    if (!open || !window.visualViewport) return;
+    var onResize = function onResize() {
+      return openPicker();
+    };
+    window.visualViewport.addEventListener('resize', onResize);
+    return function () {
+      return window.visualViewport.removeEventListener('resize', onResize);
+    };
+    // eslint-disable-next-line
+  }, [open]);
   React.useEffect(function () {
     if (!open) return;
     function onDoc(e) {
@@ -2894,7 +2954,7 @@ function LensFocalPicker(_ref14) {
       left: fixPos.left,
       width: fixPos.width,
       zIndex: 9500,
-      maxHeight: 230,
+      maxHeight: fixPos.maxHeight,
       overflowY: 'auto',
       background: T.panel,
       border: "1px solid ".concat(T.border),
@@ -4462,6 +4522,13 @@ function CameraReport() {
   var closeDrawer = function closeDrawer() {
     if (!keepDrawerOpen) setShowActions(false);
   };
+  // When ON, editing SCENE or SHOT auto-renumbers TAKE (via takeNoFor) based
+  // on what looks like a continuation vs a new scene/shot. Off by default -
+  // ACs sometimes write a series-style tag into SCENE that isn't really a
+  // new scene, and the auto-renumber would silently reassign TAKE in a way
+  // nobody asked for. With it off, SCENE/SHOT edits only ever change that
+  // field; TAKE stays exactly as typed until touched directly.
+  var autoTakeOnSceneShot = !!proj.autoTakeOnSceneShot;
   // Format a scene string ("S01, S23") into "S01 EXT, S23 INT" using slugs.
   function sceneWithIE(sceneStr) {
     var ids = String(sceneStr || '').split(',').map(function (x) {
@@ -5809,15 +5876,25 @@ function CameraReport() {
       return t.id === takeId;
     });
     if (!row) return;
-    var newTake = takeNoFor(row.scene, shot, takeId);
-    patchRoll(roll.id, {
-      takes: roll.takes.map(function (t) {
-        return t.id === takeId ? _objectSpread(_objectSpread({}, t), {}, {
-          shot: shot,
-          take: newTake + ''
-        }) : t;
-      })
-    });
+    if (autoTakeOnSceneShot) {
+      var newTake = takeNoFor(row.scene, shot, takeId);
+      patchRoll(roll.id, {
+        takes: roll.takes.map(function (t) {
+          return t.id === takeId ? _objectSpread(_objectSpread({}, t), {}, {
+            shot: shot,
+            take: newTake + ''
+          }) : t;
+        })
+      });
+    } else {
+      patchRoll(roll.id, {
+        takes: roll.takes.map(function (t) {
+          return t.id === takeId ? _objectSpread(_objectSpread({}, t), {}, {
+            shot: shot
+          }) : t;
+        })
+      });
+    }
   }
 
   // Parse a clip name into its numeric parts: "B04" → {pre:'B', num:4, digits:2, suf:''}
@@ -8451,12 +8528,18 @@ function CameraReport() {
       noFilter: true,
       onChange: function onChange(v) {
         setCellDraft(v);
-        var first = v.split(',')[0].trim();
-        var newTake = first ? takeNoFor(first, t.shot || '/', t.id) : t.take;
-        patchTake(t.id, {
-          scene: v,
-          take: String(newTake)
-        });
+        if (autoTakeOnSceneShot) {
+          var first = v.split(',')[0].trim();
+          var newTake = first ? takeNoFor(first, t.shot || '/', t.id) : t.take;
+          patchTake(t.id, {
+            scene: v,
+            take: String(newTake)
+          });
+        } else {
+          patchTake(t.id, {
+            scene: v
+          });
+        }
       }
     }), selectOverlay('scene'), selHandle('scene')), !hiddenCols.has('shot') && /*#__PURE__*/React.createElement("td", _extends({}, selMarker('shot'), {
       style: _objectSpread(_objectSpread(_objectSpread({}, gb), {}, {
@@ -9579,18 +9662,22 @@ function SettingsModal(_ref33) {
     _React$useState130 = _slicedToArray(_React$useState129, 2),
     keepDrawerOpen = _React$useState130[0],
     setKeepDrawerOpen = _React$useState130[1];
-  var _React$useState131 = React.useState(false),
+  var _React$useState131 = React.useState(!!data.autoTakeOnSceneShot),
     _React$useState132 = _slicedToArray(_React$useState131, 2),
-    showScenes = _React$useState132[0],
-    setShowScenes = _React$useState132[1];
+    autoTakeOnSceneShot = _React$useState132[0],
+    setAutoTakeOnSceneShot = _React$useState132[1];
   var _React$useState133 = React.useState(false),
     _React$useState134 = _slicedToArray(_React$useState133, 2),
-    showDays = _React$useState134[0],
-    setShowDays = _React$useState134[1];
+    showScenes = _React$useState134[0],
+    setShowScenes = _React$useState134[1];
   var _React$useState135 = React.useState(false),
     _React$useState136 = _slicedToArray(_React$useState135, 2),
-    showColumns = _React$useState136[0],
-    setShowColumns = _React$useState136[1];
+    showDays = _React$useState136[0],
+    setShowDays = _React$useState136[1];
+  var _React$useState137 = React.useState(false),
+    _React$useState138 = _slicedToArray(_React$useState137, 2),
+    showColumns = _React$useState138[0],
+    setShowColumns = _React$useState138[1];
   var sceneCount = (data.scenes || []).length;
   var dayCount = (data.shootDays || []).length;
   var hiddenColCount = (data.hiddenColumns || []).length;
@@ -9598,7 +9685,8 @@ function SettingsModal(_ref33) {
     updateData({
       projectName: projectName.trim() || 'Untitled Production',
       gsheetsClientId: clientId.trim(),
-      keepDrawerOpen: keepDrawerOpen
+      keepDrawerOpen: keepDrawerOpen,
+      autoTakeOnSceneShot: autoTakeOnSceneShot
     });
     onClose();
   }
@@ -9770,7 +9858,40 @@ function SettingsModal(_ref33) {
       fontWeight: 400,
       marginTop: 2
     }
-  }, "Off (default): tapping Add take, New shot, etc. closes the drawer right after. On: it stays open so you can tap several in a row."))), /*#__PURE__*/React.createElement("div", {
+  }, "Off (default): tapping Add take, New shot, etc. closes the drawer right after. On: it stays open so you can tap several in a row."))), /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 10,
+      padding: '10px 2px',
+      cursor: 'pointer'
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: autoTakeOnSceneShot,
+    onChange: function onChange(e) {
+      return setAutoTakeOnSceneShot(e.target.checked);
+    },
+    style: {
+      cursor: 'pointer',
+      width: 16,
+      height: 16
+    }
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: T.text,
+      fontFamily: "'Geist Mono',monospace"
+    }
+  }, '🔢', " Auto-renumber Take on Scene/Shot edit", /*#__PURE__*/React.createElement("span", {
+    style: {
+      display: 'block',
+      fontSize: 10,
+      color: T.textDim,
+      fontWeight: 400,
+      marginTop: 2
+    }
+  }, "Off (default): editing SCENE or SHOT only changes that field - TAKE stays put until you touch it. On: TAKE recalculates automatically, same as older versions of this app."))), /*#__PURE__*/React.createElement("div", {
     style: {
       borderTop: "1px solid ".concat(T.rule),
       paddingTop: 14
@@ -9847,7 +9968,7 @@ function ScenesEditorModal(_ref34) {
      (and a focused field jumps to another scene mid-edit). A key that sticks
      to the row itself makes deletes and reorders behave. */
   var keySeq = React.useRef(0);
-  var _React$useState137 = React.useState(function () {
+  var _React$useState139 = React.useState(function () {
       return (data.scenes || []).map(function (s) {
         return _objectSpread({
           _k: keySeq.current++,
@@ -9855,9 +9976,9 @@ function ScenesEditorModal(_ref34) {
         }, decomposeSlug(s.slug));
       });
     }),
-    _React$useState138 = _slicedToArray(_React$useState137, 2),
-    rows = _React$useState138[0],
-    setRows = _React$useState138[1];
+    _React$useState140 = _slicedToArray(_React$useState139, 2),
+    rows = _React$useState140[0],
+    setRows = _React$useState140[1];
   function patchRow(i, patch) {
     setRows(function (rs) {
       return rs.map(function (r, idx) {
@@ -10110,7 +10231,7 @@ function ShootDaysEditorModal(_ref35) {
      schedule itself, and a calendar reads forwards. Ascending also makes a
      mis-typed date obvious at a glance, because the dates should march
      downwards in step with the day numbers. */
-  var _React$useState139 = React.useState(function () {
+  var _React$useState141 = React.useState(function () {
       return (data.shootDays || []).slice().sort(function (a, b) {
         return a.day - b.day;
       }).map(function (d) {
@@ -10119,9 +10240,9 @@ function ShootDaysEditorModal(_ref35) {
         });
       });
     }),
-    _React$useState140 = _slicedToArray(_React$useState139, 2),
-    rows = _React$useState140[0],
-    setRows = _React$useState140[1];
+    _React$useState142 = _slicedToArray(_React$useState141, 2),
+    rows = _React$useState142[0],
+    setRows = _React$useState142[1];
   function patchRow(i, patch) {
     setRows(function (rs) {
       return rs.map(function (r, idx) {
@@ -10424,12 +10545,12 @@ function ColumnsEditorModal(_ref36) {
   var _useStandaloneData5 = useStandaloneData(),
     data = _useStandaloneData5.data,
     updateData = _useStandaloneData5.updateData;
-  var _React$useState141 = React.useState(function () {
+  var _React$useState143 = React.useState(function () {
       return new Set(data.hiddenColumns || []);
     }),
-    _React$useState142 = _slicedToArray(_React$useState141, 2),
-    hidden = _React$useState142[0],
-    setHidden = _React$useState142[1];
+    _React$useState144 = _slicedToArray(_React$useState143, 2),
+    hidden = _React$useState144[0],
+    setHidden = _React$useState144[1];
   function toggle(key) {
     setHidden(function (prev) {
       var next = new Set(prev);
@@ -10587,14 +10708,14 @@ function BackupModal(_ref37) {
     findProjectByName = _useStandaloneData6.findProjectByName,
     importProject = _useStandaloneData6.importProject,
     overwriteProject = _useStandaloneData6.overwriteProject;
-  var _React$useState143 = React.useState('idle'),
-    _React$useState144 = _slicedToArray(_React$useState143, 2),
-    status = _React$useState144[0],
-    setStatus = _React$useState144[1]; // idle | working | done | error
-  var _React$useState145 = React.useState(''),
+  var _React$useState145 = React.useState('idle'),
     _React$useState146 = _slicedToArray(_React$useState145, 2),
-    errMsg = _React$useState146[0],
-    setErrMsg = _React$useState146[1];
+    status = _React$useState146[0],
+    setStatus = _React$useState146[1]; // idle | working | done | error
+  var _React$useState147 = React.useState(''),
+    _React$useState148 = _slicedToArray(_React$useState147, 2),
+    errMsg = _React$useState148[0],
+    setErrMsg = _React$useState148[1];
   // A per-device Settings value always overrides the baked-in shared default -
   // that's what lets a fork on a different hosting URL use its own Client ID.
   var effectiveClientId = getEffectiveClientId(data);
@@ -10607,14 +10728,14 @@ function BackupModal(_ref37) {
   }, [data.rolls]);
 
   // Restore state
-  var _React$useState147 = React.useState(null),
-    _React$useState148 = _slicedToArray(_React$useState147, 2),
-    sheets = _React$useState148[0],
-    setSheets = _React$useState148[1]; // null = not looked yet
-  var _React$useState149 = React.useState(false),
+  var _React$useState149 = React.useState(null),
     _React$useState150 = _slicedToArray(_React$useState149, 2),
-    restoring = _React$useState150[0],
-    setRestoring = _React$useState150[1];
+    sheets = _React$useState150[0],
+    setSheets = _React$useState150[1]; // null = not looked yet
+  var _React$useState151 = React.useState(false),
+    _React$useState152 = _slicedToArray(_React$useState151, 2),
+    restoring = _React$useState152[0],
+    setRestoring = _React$useState152[1];
   function runBackup() {
     return _runBackup.apply(this, arguments);
   }
@@ -11050,43 +11171,43 @@ function App() {
   var _useTheme = useTheme(),
     themeName = _useTheme.themeName,
     toggleTheme = _useTheme.toggleTheme;
-  var _React$useState151 = React.useState(ensureProjectsSetup),
-    _React$useState152 = _slicedToArray(_React$useState151, 2),
-    projectIds = _React$useState152[0],
-    setProjectIds = _React$useState152[1];
-  var _React$useState153 = React.useState(function () {
+  var _React$useState153 = React.useState(ensureProjectsSetup),
+    _React$useState154 = _slicedToArray(_React$useState153, 2),
+    projectIds = _React$useState154[0],
+    setProjectIds = _React$useState154[1];
+  var _React$useState155 = React.useState(function () {
       return loadCurrentProjectId(projectIds);
     }),
-    _React$useState154 = _slicedToArray(_React$useState153, 2),
-    projectId = _React$useState154[0],
-    setProjectId = _React$useState154[1];
-  var _React$useState155 = React.useState(function () {
+    _React$useState156 = _slicedToArray(_React$useState155, 2),
+    projectId = _React$useState156[0],
+    setProjectId = _React$useState156[1];
+  var _React$useState157 = React.useState(function () {
       return loadProjectData(projectId);
     }),
-    _React$useState156 = _slicedToArray(_React$useState155, 2),
-    data = _React$useState156[0],
-    setData = _React$useState156[1];
-  var _React$useState157 = React.useState(false),
     _React$useState158 = _slicedToArray(_React$useState157, 2),
-    showSettings = _React$useState158[0],
-    setShowSettings = _React$useState158[1];
+    data = _React$useState158[0],
+    setData = _React$useState158[1];
   var _React$useState159 = React.useState(false),
     _React$useState160 = _slicedToArray(_React$useState159, 2),
-    showBackup = _React$useState160[0],
-    setShowBackup = _React$useState160[1];
+    showSettings = _React$useState160[0],
+    setShowSettings = _React$useState160[1];
   var _React$useState161 = React.useState(false),
     _React$useState162 = _slicedToArray(_React$useState161, 2),
-    showProjects = _React$useState162[0],
-    setShowProjects = _React$useState162[1];
+    showBackup = _React$useState162[0],
+    setShowBackup = _React$useState162[1];
+  var _React$useState163 = React.useState(false),
+    _React$useState164 = _slicedToArray(_React$useState163, 2),
+    showProjects = _React$useState164[0],
+    setShowProjects = _React$useState164[1];
   // True once a localStorage write has actually FAILED (quota full, private
   // browsing, storage blocked). Previously saveProjectData's false return was
   // discarded here, so the status pill kept saying "SAVED LOCALLY" while
   // nothing was being written - the worst possible failure mode for a camera
   // report you're relying on mid-shoot.
-  var _React$useState163 = React.useState(false),
-    _React$useState164 = _slicedToArray(_React$useState163, 2),
-    storageFailed = _React$useState164[0],
-    setStorageFailed = _React$useState164[1];
+  var _React$useState165 = React.useState(false),
+    _React$useState166 = _slicedToArray(_React$useState165, 2),
+    storageFailed = _React$useState166[0],
+    setStorageFailed = _React$useState166[1];
 
   // Pure state update - no side effects. It stays a functional updater because
   // two updateData calls can land in the same tick (e.g. adding a shoot day,
@@ -11406,28 +11527,28 @@ function ProjectSwitcherModal(_ref38) {
     switchProject = _useStandaloneData7.switchProject,
     createProject = _useStandaloneData7.createProject,
     deleteProject = _useStandaloneData7.deleteProject;
-  var _React$useState165 = React.useState(function () {
+  var _React$useState167 = React.useState(function () {
       var m = {};
       projectIds.forEach(function (id) {
         m[id] = id === projectId ? data.projectName : loadProjectData(id).projectName;
       });
       return m;
     }),
-    _React$useState166 = _slicedToArray(_React$useState165, 2),
-    names = _React$useState166[0],
-    setNames = _React$useState166[1];
-  var _React$useState167 = React.useState(null),
     _React$useState168 = _slicedToArray(_React$useState167, 2),
-    editingId = _React$useState168[0],
-    setEditingId = _React$useState168[1];
-  var _React$useState169 = React.useState(''),
+    names = _React$useState168[0],
+    setNames = _React$useState168[1];
+  var _React$useState169 = React.useState(null),
     _React$useState170 = _slicedToArray(_React$useState169, 2),
-    editName = _React$useState170[0],
-    setEditName = _React$useState170[1];
+    editingId = _React$useState170[0],
+    setEditingId = _React$useState170[1];
   var _React$useState171 = React.useState(''),
     _React$useState172 = _slicedToArray(_React$useState171, 2),
-    newName = _React$useState172[0],
-    setNewName = _React$useState172[1];
+    editName = _React$useState172[0],
+    setEditName = _React$useState172[1];
+  var _React$useState173 = React.useState(''),
+    _React$useState174 = _slicedToArray(_React$useState173, 2),
+    newName = _React$useState174[0],
+    setNewName = _React$useState174[1];
   function startEdit(id) {
     setEditingId(id);
     setEditName(names[id] || '');
@@ -11676,24 +11797,24 @@ var TRIAL_LIMITS = {
 };
 function AccessGate(_ref39) {
   var children = _ref39.children;
-  var _React$useState173 = React.useState(function () {
+  var _React$useState175 = React.useState(function () {
       return loadGateAuth() ? 'allowed' : 'trial';
     }),
-    _React$useState174 = _slicedToArray(_React$useState173, 2),
-    state = _React$useState174[0],
-    setState = _React$useState174[1]; // trial | working | denied | allowed | error
-  var _React$useState175 = React.useState(''),
     _React$useState176 = _slicedToArray(_React$useState175, 2),
-    errMsg = _React$useState176[0],
-    setErrMsg = _React$useState176[1];
-  var _React$useState177 = React.useState(false),
+    state = _React$useState176[0],
+    setState = _React$useState176[1]; // trial | working | denied | allowed | error
+  var _React$useState177 = React.useState(''),
     _React$useState178 = _slicedToArray(_React$useState177, 2),
-    showUnlock = _React$useState178[0],
-    setShowUnlock = _React$useState178[1];
-  var _React$useState179 = React.useState(''),
+    errMsg = _React$useState178[0],
+    setErrMsg = _React$useState178[1];
+  var _React$useState179 = React.useState(false),
     _React$useState180 = _slicedToArray(_React$useState179, 2),
-    unlockReason = _React$useState180[0],
-    setUnlockReason = _React$useState180[1];
+    showUnlock = _React$useState180[0],
+    setShowUnlock = _React$useState180[1];
+  var _React$useState181 = React.useState(''),
+    _React$useState182 = _slicedToArray(_React$useState181, 2),
+    unlockReason = _React$useState182[0],
+    setUnlockReason = _React$useState182[1];
   var checkedOnce = React.useRef(false);
   React.useEffect(function () {
     if (checkedOnce.current) return;
@@ -11979,10 +12100,10 @@ var ErrorBoundary = /*#__PURE__*/function (_React$Component) {
   }]);
 }(React.Component);
 function ThemedApp() {
-  var _React$useState181 = React.useState(loadThemeName),
-    _React$useState182 = _slicedToArray(_React$useState181, 2),
-    themeName = _React$useState182[0],
-    setThemeName = _React$useState182[1];
+  var _React$useState183 = React.useState(loadThemeName),
+    _React$useState184 = _slicedToArray(_React$useState183, 2),
+    themeName = _React$useState184[0],
+    setThemeName = _React$useState184[1];
   React.useEffect(function () {
     applyTheme(themeName);
   }, [themeName]);
