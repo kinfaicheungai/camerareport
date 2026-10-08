@@ -769,7 +769,14 @@ function loadProjectData(id){
         rolls: Array.isArray(raw.rolls)?raw.rolls:[],
         gsheetsClientId: typeof raw.gsheetsClientId==='string'?raw.gsheetsClientId:'',
         gsheetsSpreadsheetId: typeof raw.gsheetsSpreadsheetId==='string'?raw.gsheetsSpreadsheetId:'',
-        hiddenColumns: Array.isArray(raw.hiddenColumns)?raw.hiddenColumns:[]
+        hiddenColumns: Array.isArray(raw.hiddenColumns)?raw.hiddenColumns:[],
+        // Project-level settings. These MUST be listed here: this loader only
+        // keeps the keys it names, so anything missing is silently dropped on
+        // the next reload / project switch.
+        keepDrawerOpen: !!raw.keepDrawerOpen,
+        autoTakeOnSceneShot: !!raw.autoTakeOnSceneShot,
+        // undefined (never set) = default hidden set, see INFO_DEFAULT_HIDDEN
+        hiddenInfo: Array.isArray(raw.hiddenInfo)?raw.hiddenInfo:undefined
       };
     }
   }catch(e){ console.warn('camrep: could not read project data',e); }
@@ -909,6 +916,27 @@ const TAKE_COLUMNS=[
   {key:'notes',   label:'Notes'},
   {key:'photo',   label:'Reference photo'},
 ];
+
+/* Roll "Info" fields that can be hidden via Project Settings > Info fields.
+   ROLL #, CAM and DATE are structural and always shown. Hiding is display-only
+   (data stays on the roll, CSV/backups still contain everything). Shutter
+   defaults to HIDDEN so existing projects keep their current screen; unticked
+   fields are also dropped from the printed report. */
+const INFO_FIELDS=[
+  {key:'mag',      label:'Mag #'},
+  {key:'director', label:'Director'},
+  {key:'dop',      label:'DOP'},
+  {key:'ac',       label:'1st AC'},
+  {key:'camera',   label:'Camera'},
+  {key:'codec',    label:'Codec'},
+  {key:'fps',      label:'FPS'},
+  {key:'baseEI',   label:'Base EI'},
+  {key:'lut',      label:'LUT'},
+  {key:'location', label:'Location'},
+  {key:'lens',     label:'Default lens'},
+  {key:'shutter',  label:'Shutter'},
+];
+const INFO_DEFAULT_HIDDEN=['shutter'];
 
 /* ===============================================================
    GOOGLE SHEETS BACKUP (the ONLY feature that ever touches the
@@ -1172,7 +1200,7 @@ const SB_TINT_PRESETS_KEY='sb_camrep_tint_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-const APP_VERSION='v4.8';
+const APP_VERSION='v4.9';
 
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
@@ -2254,6 +2282,10 @@ function CameraReport(){
   // Which take-table columns this production has hidden via Project Settings
   // > Take table columns (default: none hidden, i.e. unchanged behaviour).
   const hiddenCols=React.useMemo(()=>new Set(proj.hiddenColumns||[]),[proj.hiddenColumns]);
+  // Roll Info fields hidden via Project Settings > Info fields. Never set =
+  // INFO_DEFAULT_HIDDEN (Shutter), so projects that never opened the setting
+  // look exactly as before.
+  const hiddenInfo=React.useMemo(()=>new Set(proj.hiddenInfo||INFO_DEFAULT_HIDDEN),[proj.hiddenInfo]);
   // Ordered list of columns the new "Select Cells" bulk-edit feature can
   // span, left-to-right same as the table - filtered by hiddenCols so a
   // drag never silently jumps over a column the user can't even see.
@@ -3413,32 +3445,35 @@ function CameraReport(){
       return `<div class="sheet" style="--cam:${cfg.header}">
       <div class="hdr">
         <div class="crew">
-          <b>DIRECTOR:</b>${esc(rk.director)}<br>
-          <b>DOP:</b>${esc(rk.dop)}<br>
-          <b>1ST AC:</b>${esc(rk.ac)}
+          ${[['director','DIRECTOR:',rk.director],['dop','DOP:',rk.dop],['ac','1ST AC:',rk.ac]].filter(f=>!hiddenInfo.has(f[0])).map(f=>`<b>${f[1]}</b>${esc(f[2])}`).join('<br>')}
         </div>
         <div class="title">
           <span class="plate">${esc(proj.projectName||'Camera Report')}</span>
           <span class="sub">Camera Report</span>
         </div>
         <div class="rollbox">
-          <div class="lbl">ROLL #<br>MAG #</div>
-          <div class="val"><div class="roll" style="background:${tag}">${esc(rk.roll)}</div><div class="mag">${esc(rk.mag)||'&nbsp;'}</div></div>
+          <div class="lbl">ROLL #${hiddenInfo.has('mag')?'':'<br>MAG #'}</div>
+          <div class="val"><div class="roll" style="background:${tag}">${esc(rk.roll)}</div>${hiddenInfo.has('mag')?'':`<div class="mag">${esc(rk.mag)||'&nbsp;'}</div>`}</div>
         </div>
       </div>
       <table class="meta"><tbody>
-        <tr>
-          <td class="k">DATE:</td><td>${esc(dateStr)}</td>
-          <td class="k">SHOOT DAY:</td><td>${esc(rk.shootDay)}</td>
-          <td class="k">CODEC:</td><td>${esc(rk.codec)}</td>
-          <td class="k">CAMERA:</td><td>${esc(rk.camera)}</td>
-          <td class="k">LUT:</td><td>${esc(rk.lut)}</td>
-        </tr>
-        <tr>
-          <td class="k">FPS:</td><td>${esc(rk.fps)}</td>
-          <td class="k">SHUTTER:</td><td>${esc(rk.shutter)}</td>
-          <td class="k">LOCATION:</td><td colspan="5">${esc(rk.location)}</td>
-        </tr>
+        ${(()=>{
+          // Only fields ticked in Project Settings > Info fields are printed.
+          // Pairs fill rows of 5 (same layout as before); the last pair of each
+          // row stretches so a shorter row still spans the full width.
+          const pairs=[['','DATE:',dateStr],['','SHOOT DAY:',rk.shootDay],['codec','CODEC:',rk.codec],['camera','CAMERA:',rk.camera],['lut','LUT:',rk.lut],
+            ['fps','FPS:',rk.fps],['shutter','SHUTTER:',rk.shutter],['location','LOCATION:',rk.location]]
+            .filter(f=>!f[0]||!hiddenInfo.has(f[0]));
+          const rowsOut=[];
+          for(let i=0;i<pairs.length;i+=5){
+            const row=pairs.slice(i,i+5);
+            rowsOut.push('<tr>'+row.map((f,j)=>{
+              const span=(j===row.length-1&&row.length<5)?` colspan="${11-2*row.length}"`:'';
+              return `<td class="k">${f[1]}</td><td${span}>${esc(f[2])}</td>`;
+            }).join('')+'</tr>');
+          }
+          return rowsOut.join('');
+        })()}
       </tbody></table>
       <table class="main">
       <colgroup>
@@ -4099,10 +4134,10 @@ function CameraReport(){
                   style={{...metaInput,width:74,fontSize:13,color:rollDupe?T.danger:CAM.accent,fontWeight:600,padding:'4px 6px',
                     border:`1px solid ${rollDupe?T.danger:T.border}`}}/>
               </div>
-              <div>
+              {!hiddenInfo.has('mag')&&<div>
                 <span style={metaLabel}>MAG #</span>
                 <input value={roll.mag||''} onChange={e=>patchRoll(roll.id,{mag:e.target.value})} style={{...metaInput,width:60}}/>
-              </div>
+              </div>}
               <div>
                 <span style={metaLabel}>CAM</span>
                 <select value={camOf(roll)} onChange={e=>moveRollToCam(roll.id,e.target.value)}
@@ -4147,55 +4182,59 @@ function CameraReport(){
                   = Day {roll.shootDay} &middot; synced with Settings
                 </div>}
               </div>
-              <div>
+              {!hiddenInfo.has('director')&&<div>
                 <span style={metaLabel}>DIRECTOR</span>
                 <LensFocalPicker value={roll.director||''} onChange={v=>patchRoll(roll.id,{director:v})}
                   options={rollFieldOptions.director} inputStyle={metaInput}/>
-              </div>
-              <div>
+              </div>}
+              {!hiddenInfo.has('dop')&&<div>
                 <span style={metaLabel}>DOP</span>
                 <LensFocalPicker value={roll.dop||''} onChange={v=>patchRoll(roll.id,{dop:v})}
                   options={rollFieldOptions.dop} inputStyle={metaInput}/>
-              </div>
-              <div>
+              </div>}
+              {!hiddenInfo.has('ac')&&<div>
                 <span style={metaLabel}>1ST AC</span>
                 <LensFocalPicker value={roll.ac||''} onChange={v=>patchRoll(roll.id,{ac:v})}
                   options={rollFieldOptions.ac} inputStyle={metaInput}/>
-              </div>
-              <div>
+              </div>}
+              {!hiddenInfo.has('camera')&&<div>
                 <span style={metaLabel}>CAMERA</span>
                 <LensFocalPicker value={roll.camera||''} onChange={v=>patchRoll(roll.id,{camera:v})}
                   options={rollFieldOptions.camera} inputStyle={metaInput}/>
-              </div>
-              <div>
+              </div>}
+              {!hiddenInfo.has('codec')&&<div>
                 <span style={metaLabel}>CODEC</span>
                 <LensFocalPicker value={roll.codec||''} onChange={v=>patchRoll(roll.id,{codec:v})}
                   options={rollFieldOptions.codec} inputStyle={metaInput}/>
-              </div>
-              <div>
+              </div>}
+              {!hiddenInfo.has('fps')&&<div>
                 <span style={metaLabel}>FPS</span>
                 <LensFocalPicker value={roll.fps||''} onChange={v=>patchRoll(roll.id,{fps:v})}
                   options={rollFieldOptions.fps} inputStyle={metaInput}/>
-              </div>
-              <div>
+              </div>}
+              {!hiddenInfo.has('baseEI')&&<div>
                 <span style={metaLabel}>BASE EI</span>
                 <LensFocalPicker value={roll.baseEI||''} onChange={v=>patchRoll(roll.id,{baseEI:v})}
                   options={rollFieldOptions.baseEI} inputStyle={metaInput}/>
-              </div>
-              <div>
+              </div>}
+              {!hiddenInfo.has('lut')&&<div>
                 <span style={metaLabel}>LUT</span>
                 <LensFocalPicker value={roll.lut||''} onChange={v=>patchRoll(roll.id,{lut:v})}
                   options={rollFieldOptions.lut} inputStyle={metaInput}/>
-              </div>
-              <div style={{gridColumn:mob?'span 2':'span 2'}}>
+              </div>}
+              {!hiddenInfo.has('location')&&<div style={{gridColumn:mob?'span 2':'span 2'}}>
                 <span style={metaLabel}>LOCATION</span>
                 <LensFocalPicker value={roll.location||''} onChange={v=>patchRoll(roll.id,{location:v})}
                   options={rollFieldOptions.location} inputStyle={metaInput}/>
-              </div>
-              <div style={{gridColumn:'span 2'}}>
+              </div>}
+              {!hiddenInfo.has('lens')&&<div style={{gridColumn:'span 2'}}>
                 <span style={metaLabel}>DEFAULT LENS</span>
                 <LensFocalPicker value={roll.lens||''} onChange={v=>patchRoll(roll.id,{lens:v})} options={LENS_OPTIONS} inputStyle={metaInput} noFilter/>
-              </div>
+              </div>}
+              {!hiddenInfo.has('shutter')&&<div>
+                <span style={metaLabel}>SHUTTER</span>
+                <LensFocalPicker value={roll.shutter||''} onChange={v=>patchRoll(roll.id,{shutter:v})} options={SHUTTER_OPTIONS} inputStyle={metaInput}/>
+              </div>}
             </div>}
           </div>
         </div>
@@ -4825,6 +4864,8 @@ function SettingsModal({onClose}){
   const sceneCount=(data.scenes||[]).length;
   const dayCount=(data.shootDays||[]).length;
   const hiddenColCount=(data.hiddenColumns||[]).length;
+  const [showInfoFields,setShowInfoFields]=React.useState(false);
+  const hiddenInfoCount=(data.hiddenInfo||INFO_DEFAULT_HIDDEN).length;
 
   function save(){
     updateData({
@@ -4877,6 +4918,11 @@ function SettingsModal({onClose}){
             <span style={{color:T.textDim}}>{'›'}</span>
           </button>
 
+          <button onClick={()=>setShowInfoFields(true)} style={navBtn}>
+            <span>{'🗂'} Info fields {hiddenInfoCount>0?`(${hiddenInfoCount} hidden)`:'(all shown)'}</span>
+            <span style={{color:T.textDim}}>{'›'}</span>
+          </button>
+
           <label style={{display:'flex',alignItems:'center',gap:10,padding:'10px 2px',cursor:'pointer'}}>
             <input type="checkbox" checked={keepDrawerOpen} onChange={e=>setKeepDrawerOpen(e.target.checked)}
               style={{cursor:'pointer',width:16,height:16}}/>
@@ -4925,6 +4971,7 @@ function SettingsModal({onClose}){
       {showScenes&&<ScenesEditorModal onClose={()=>setShowScenes(false)} onSaved={onClose}/>}
       {showDays&&<ShootDaysEditorModal onClose={()=>setShowDays(false)} onSaved={onClose}/>}
       {showColumns&&<ColumnsEditorModal onClose={()=>setShowColumns(false)} onSaved={onClose}/>}
+      {showInfoFields&&<InfoFieldsEditorModal onClose={()=>setShowInfoFields(false)} onSaved={onClose}/>}
     </div>
   );
 }
@@ -5197,6 +5244,56 @@ function ColumnsEditorModal({onClose,onSaved}){
   );
 }
 
+function InfoFieldsEditorModal({onClose,onSaved}){
+  const {data,updateData}=useStandaloneData();
+  const [hidden,setHidden]=React.useState(()=>new Set(data.hiddenInfo||INFO_DEFAULT_HIDDEN));
+
+  function toggle(key){
+    setHidden(prev=>{
+      const next=new Set(prev);
+      if(next.has(key))next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+  function save(){
+    updateData({hiddenInfo:Array.from(hidden)});
+    onClose();
+    onSaved&&onSaved();
+  }
+
+  return(
+    <div style={{position:'fixed',inset:0,zIndex:10000,background:'rgba(0,0,0,0.72)',
+      display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+      <div style={{background:T.panel,border:`1px solid ${T.border}`,borderRadius:12,
+        width:'100%',maxWidth:440,maxHeight:'88vh',overflow:'auto',
+        boxShadow:'0 20px 60px rgba(0,0,0,0.7)',display:'flex',flexDirection:'column'}}>
+        <div style={{padding:'14px 18px',borderBottom:`1px solid ${T.rule}`,display:'flex',alignItems:'center',gap:8}}>
+          <span style={{fontSize:16}}>{'🗂'}</span>
+          <span style={{fontSize:14,fontWeight:600,color:T.text,flex:1}}>Info fields</span>
+          <button onClick={onClose} style={{background:'transparent',border:'none',color:T.textDim,fontSize:18,cursor:'pointer',lineHeight:1}}>{'×'}</button>
+        </div>
+        <div style={{padding:'16px 18px',display:'flex',flexDirection:'column',gap:10}}>
+          <div style={{fontSize:10,color:T.textDim,lineHeight:1.5}}>
+            Untick anything your crew doesn't use - it disappears from the Info panel AND from the printed
+            report. Roll #, Cam and Date always stay. Hiding only hides: nothing already entered is deleted,
+            and you can re-tick it any time. (Shutter is off by default.)
+          </div>
+          {INFO_FIELDS.map(c=>(
+            <label key={c.key} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 2px',cursor:'pointer'}}>
+              <input type="checkbox" checked={!hidden.has(c.key)} onChange={()=>toggle(c.key)} style={{cursor:'pointer',width:16,height:16}}/>
+              <span style={{fontSize:12,color:T.text,fontFamily:"'Geist Mono',monospace"}}>{c.label}</span>
+            </label>
+          ))}
+          <div style={{display:'flex',justifyContent:'flex-end',gap:8,borderTop:`1px solid ${T.rule}`,paddingTop:14,marginTop:6}}>
+            <button onClick={onClose} style={{padding:'8px 16px',borderRadius:6,border:`1px solid ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,cursor:'pointer'}}>Cancel</button>
+            <button onClick={save} style={{padding:'8px 20px',borderRadius:6,background:T.accent,border:'none',color:'#0e0d0b',fontWeight:600,fontSize:12,cursor:'pointer'}}>Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 /* ===============================================================
    GOOGLE SHEETS BACKUP MODAL - manual, on-click only. This is the
@@ -5234,7 +5331,8 @@ function BackupModal({onClose}){
           scenes:data.scenes||[],
           shootDays:data.shootDays||[],
           rolls:data.rolls||[],
-          hiddenColumns:data.hiddenColumns||[]
+          hiddenColumns:data.hiddenColumns||[],
+          hiddenInfo:Array.isArray(data.hiddenInfo)?data.hiddenInfo:undefined
         }
       });
       updateData({gsheetsSpreadsheetId:sid});
@@ -5273,6 +5371,7 @@ function BackupModal({onClose}){
         shootDays:incoming.shootDays||[],
         rolls:incoming.rolls||[],
         hiddenColumns:incoming.hiddenColumns||[],
+        hiddenInfo:Array.isArray(incoming.hiddenInfo)?incoming.hiddenInfo:undefined,
         gsheetsClientId:data.gsheetsClientId||'',
         gsheetsSpreadsheetId:file.id
       };
