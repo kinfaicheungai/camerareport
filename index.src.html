@@ -1200,7 +1200,7 @@ const SB_TINT_PRESETS_KEY='sb_camrep_tint_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-const APP_VERSION='v4.9';
+const APP_VERSION='v4.10';
 
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
@@ -1208,8 +1208,14 @@ const CAM_CONFIG={
   C:{label:'C', header:'#6b5a1a', accent:'#e5c04d', tint:'rgba(229,192,77,0.14)'},  // yellow
   D:{label:'D', header:'#1f5f3a', accent:'#3ec17a', tint:'rgba(62,193,122,0.14)'},  // green
   E:{label:'E', header:'#4a1f6b', accent:'#a866e5', tint:'rgba(168,102,229,0.14)'}, // purple
+  F:{label:'F', header:'#7a3f10', accent:'#f08a3c', tint:'rgba(240,138,60,0.14)'},  // orange
+  G:{label:'G', header:'#14606b', accent:'#3cc4d9', tint:'rgba(60,196,217,0.14)'},  // cyan
+  H:{label:'H', header:'#7a1f55', accent:'#e55dae', tint:'rgba(229,93,174,0.14)'},  // pink
+  // No I: it reads as 1 / l on a slate. J and K follow H.
+  J:{label:'J', header:'#4a5a14', accent:'#a8cf3a', tint:'rgba(168,207,58,0.14)'},  // lime
+  K:{label:'K', header:'#3a4350', accent:'#94a3b8', tint:'rgba(148,163,184,0.14)'}, // slate
 };
-const CAM_ORDER=['A','B','C','D','E'];
+const CAM_ORDER=['A','B','C','D','E','F','G','H','J','K'];
 function camOf(roll){ return (roll&&roll.cam)||'A'; }
 
 
