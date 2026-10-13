@@ -1192,6 +1192,7 @@ const SB_FILTER2_PRESETS_KEY='sb_camrep_filter2_presets';
 const SB_FILTER3_PRESETS_KEY='sb_camrep_filter3_presets';
 const SB_LENS_PRESETS_KEY='sb_camrep_lens_presets';
 const SB_TINT_PRESETS_KEY='sb_camrep_tint_presets';
+const SB_WB_PRESETS_KEY='sb_camrep_wb_presets';
 
 /* Multi-camera config: each camera letter has a distinct header colour so
    the user can tell at a glance which camera's report they're editing. */
@@ -1200,7 +1201,7 @@ const SB_TINT_PRESETS_KEY='sb_camrep_tint_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-const APP_VERSION='v4.11';
+const APP_VERSION='v4.12';
 
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
@@ -1430,7 +1431,7 @@ function NotesPicker({value,onChange}){
   );
 }
 function PresetsModal({config,onClose,onSaved}){
-  const {title,storageKey,defaults,placeholder,normalize}=config;
+  const {title,storageKey,defaults,placeholder,normalize,sortNumeric}=config;
   const hasDefaults=Array.isArray(defaults)&&defaults.length>0;
   const [items,setItems]=React.useState(()=>{
     try{const v=JSON.parse(localStorage.getItem(storageKey)||'null');
@@ -1440,7 +1441,11 @@ function PresetsModal({config,onClose,onSaved}){
   });
   const [draft,setDraft]=React.useState('');
   function save(next){setItems(next);localStorage.setItem(storageKey,JSON.stringify(next));onSaved&&onSaved(next);}
-  function add(){let v=draft.trim();if(!v)return;if(normalize)v=normalize(v);if(items.includes(v))return;save([...items,v]);setDraft('');}
+  function add(){let v=draft.trim();if(!v)return;if(normalize)v=normalize(v);if(items.includes(v))return;
+    // WB: a new value like 5575K slots into numeric order instead of landing at the bottom of a 77-item list.
+    const next=[...items,v];
+    if(sortNumeric)next.sort((a,b)=>{const x=parseFloat(a),y=parseFloat(b);return (isNaN(x)||isNaN(y))?0:x-y;});
+    save(next);setDraft('');}
   function remove(i){save(items.filter((_,idx)=>idx!==i));}
   function moveUp(i){if(i===0)return;const n=[...items];[n[i-1],n[i]]=[n[i],n[i-1]];save(n);}
   function resetDefaults(){if(confirm('Reset '+title+' to defaults?'))save(defaults||[]);}
@@ -2054,7 +2059,7 @@ function CameraReport(){
   // Generic starting defaults (all fields editable inline per roll)
   const SHUTTER_OPTIONS=['180','172.8'];
   // WB 3200K..7000K in 50K steps
-  const WB_OPTIONS=(()=>{const a=[];for(let k=3200;k<=7000;k+=50)a.push(k+'K');return a;})();
+  const DEFAULT_WB=(()=>{const a=[];for(let k=3200;k<=7000;k+=50)a.push(k+'K');return a;})();
   /* Colour temperature is always written with a trailing K on a camera report,
      so add it for the user instead of making them type it every row. Applied
      on COMMIT (dropdown pick / leaving the field), never on every keystroke -
@@ -2085,6 +2090,7 @@ function CameraReport(){
   const [filter2Options,setFilter2Options]=React.useState(()=>loadOpts(SB_FILTER2_PRESETS_KEY,DEFAULT_FILTER2));
   const [filter3Options,setFilter3Options]=React.useState(()=>loadOpts(SB_FILTER3_PRESETS_KEY,DEFAULT_FILTER3));
   const [tintOptions,setTintOptions]=React.useState(()=>loadOpts(SB_TINT_PRESETS_KEY,DEFAULT_TINT));
+  const [wbOptions,setWbOptions]=React.useState(()=>loadOpts(SB_WB_PRESETS_KEY,DEFAULT_WB));
   const LENS_OPTIONS=lensOptions;
   const FOCAL_OPTIONS=focalOptions;
   const STOP_OPTIONS=stopOptions;
@@ -2092,6 +2098,7 @@ function CameraReport(){
   const FILTER2_OPTIONS=filter2Options;
   const FILTER3_OPTIONS=filter3Options;
   const TINT_OPTIONS=tintOptions;
+  const WB_OPTIONS=wbOptions;
   // Single active-preset editor (null = closed). Value is a config key.
   const [activePreset,setActivePreset]=React.useState(null);
   // Registry of all editable dropdown-option lists  -  add future fields here.
@@ -2103,10 +2110,11 @@ function CameraReport(){
     filter1:{title:'Filter 1 (internal) Presets', storageKey:SB_FILTER1_PRESETS_KEY, defaults:DEFAULT_FILTER1, placeholder:'e.g. IRND 0.9', onSaved:setFilter1Options},
     filter2:{title:'Filter 2 (ND) Presets', storageKey:SB_FILTER2_PRESETS_KEY, defaults:DEFAULT_FILTER2, placeholder:'e.g. ND1.2', normalize:v=>/^\d+(\.\d+)?$/.test(v)?'ND'+v:v, onSaved:setFilter2Options},
     filter3:{title:'Filter 3 (diffusion/effects) Presets', storageKey:SB_FILTER3_PRESETS_KEY, defaults:DEFAULT_FILTER3, placeholder:'e.g. Black Pro-Mist 1/4', onSaved:setFilter3Options},
+    wb:     {title:'White Balance Presets', storageKey:SB_WB_PRESETS_KEY, defaults:DEFAULT_WB, placeholder:'e.g. 5600 or 5600K', normalize:withK, sortNumeric:true, onSaved:setWbOptions},
     tint:   {title:'Tint Presets',    storageKey:SB_TINT_PRESETS_KEY,    defaults:DEFAULT_TINT,    placeholder:'e.g. +5 or -5', normalize:v=>/^\d+(\.\d+)?$/.test(v)?'+'+v:v, onSaved:setTintOptions},
   };
   const PRESET_MENU=[{k:'notes',l:'Notes'},{k:'lens',l:'Lens'},{k:'focal',l:'Focal'},{k:'stop',l:'Stop'},
-    {k:'filter1',l:'Filter 1'},{k:'filter2',l:'Filter 2'},{k:'filter3',l:'Filter 3'},{k:'tint',l:'Tint'}];
+    {k:'filter1',l:'Filter 1'},{k:'filter2',l:'Filter 2'},{k:'filter3',l:'Filter 3'},{k:'wb',l:'WB'},{k:'tint',l:'Tint'}];
   const [showPresetMenu,setShowPresetMenu]=React.useState(false);
 
   const [rolls,setRolls]=React.useState([]);     // [{id, roll, cam, mag, date, shootDay, ...takes}]
