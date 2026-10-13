@@ -1200,7 +1200,7 @@ const SB_TINT_PRESETS_KEY='sb_camrep_tint_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-const APP_VERSION='v4.10';
+const APP_VERSION='v4.11';
 
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
@@ -5713,6 +5713,203 @@ function App(){
    (its own data.projectName - the same field Project Settings edits)
    and nothing can drift out of sync with it.
 ================================================================ */
+/* ===============================================================
+   PROJECT HANDOVER - move a whole project to someone else's device by a
+   short code, no files and no shared Google account needed.
+   Sender: "Create code" uploads the project to a small relay (a Google
+   Apps Script that stores it in a Sheet owned by the app owner) and gets a
+   code back. Receiver: types the code, the project is pulled down, and the
+   relay is told to burn the code. Codes last 7 days and work once.
+   Reference photos live in IndexedDB on the sender's device and are NOT
+   carried across (the receiver's copy has the clips, without the images).
+================================================================ */
+// Apps Script "Web app" URL of the handover relay (handover/Code.gs).
+// If this is ever emptied the Handover screen says it is not set up yet.
+const HANDOVER_URL='https://script.google.com/macros/s/AKfycbyOTg_xpMicPjpMryW-U9-CbtMH-tVkWZYjDF9jm9AkEQC16ci-Mz6InvtbgW0GHXY1sA/exec';
+const HANDOVER_KEY='ZzJhklrQkbFCRMrQeYWkzdLim8JF';
+
+async function handoverCall(method,params,body){
+  let res;
+  try{
+    if(method==='POST'){
+      // A plain string body goes out as text/plain, which is a "simple" request
+      // (no CORS preflight) - Apps Script web apps cannot answer preflights.
+      res=await fetch(HANDOVER_URL,{method:'POST',body:JSON.stringify({...body,key:HANDOVER_KEY})});
+    }else{
+      res=await fetch(HANDOVER_URL+'?'+new URLSearchParams({...params,key:HANDOVER_KEY}).toString());
+    }
+  }catch(e){ throw new Error('No connection. Handover needs internet on both devices.'); }
+  if(!res.ok) throw new Error('Handover service error (HTTP '+res.status+'). Try again.');
+  let d=null;
+  try{ d=await res.json(); }catch(e){ throw new Error('Handover service gave an unexpected reply. Try again.'); }
+  if(!d||!d.ok){
+    const m={
+      not_found:'Code not found. It may have been typed wrong, already used, or expired (codes last 7 days).',
+      too_large:'This project is too big to hand over this way.',
+      busy:'The handover service is full right now. Try again later.',
+      forbidden:'The handover service rejected this app (setup problem). Tell the person who runs the app.'
+    };
+    throw new Error((d&&m[d.error])||'Handover failed. Try again.');
+  }
+  return d;
+}
+function handoverNormCode(c){ return String(c||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
+function handoverShowCode(c){ c=handoverNormCode(c); return c.length===8?c.slice(0,4)+'-'+c.slice(4):c; }
+
+function HandoverModal({onClose}){
+  const {data,findProjectByName,importProject,overwriteProject}=useStandaloneData();
+  const {requireUnlock}=useAuth();
+  const [busy,setBusy]=React.useState(false);
+  const [err,setErr]=React.useState('');
+  const [sentCode,setSentCode]=React.useState('');
+  const [sentExpires,setSentExpires]=React.useState(0);
+  const [codeIn,setCodeIn]=React.useState('');
+  const [pending,setPending]=React.useState(null);
+  const [copied,setCopied]=React.useState(false);
+  const configured=!!(HANDOVER_URL&&HANDOVER_URL.trim());
+  const myName=data.projectName||'Untitled Production';
+  const myTakes=(data.rolls||[]).reduce((n,r)=>n+((r.takes||[]).length),0);
+
+  async function send(){
+    if(!requireUnlock('Project handover needs the full version. Sign in to unlock.'))return;
+    setBusy(true); setErr(''); setSentCode('');
+    try{
+      const project={
+        projectName:myName,
+        scenes:data.scenes||[], shootDays:data.shootDays||[], rolls:data.rolls||[],
+        hiddenColumns:data.hiddenColumns||[],
+        hiddenInfo:Array.isArray(data.hiddenInfo)?data.hiddenInfo:undefined,
+        keepDrawerOpen:!!data.keepDrawerOpen, autoTakeOnSceneShot:!!data.autoTakeOnSceneShot
+      };
+      const d=await handoverCall('POST',null,{action:'put',project:JSON.stringify(project)});
+      setSentCode(d.code); setSentExpires(d.expires_ms||0);
+    }catch(e){ setErr((e&&e.message)||'Handover failed.'); }
+    finally{ setBusy(false); }
+  }
+  function copyCode(){
+    const t=handoverShowCode(sentCode);
+    try{ navigator.clipboard.writeText(t).then(()=>setCopied(true),()=>{}); }catch(e){}
+    setTimeout(()=>setCopied(false),1800);
+  }
+
+  async function receive(){
+    if(!requireUnlock('Project handover needs the full version. Sign in to unlock.'))return;
+    const c=handoverNormCode(codeIn);
+    if(c.length!==8){ setErr('Enter the 8-character code (letters and numbers).'); return; }
+    setBusy(true); setErr(''); setPending(null);
+    try{
+      const d=await handoverCall('GET',{action:'get',code:c});
+      let proj=null;
+      try{ proj=JSON.parse(d.project); }catch(e){}
+      if(!proj||typeof proj!=='object'||!Array.isArray(proj.rolls)) throw new Error('That handover is damaged or is not a Camera Report project.');
+      const name=(proj.projectName||'').trim()||'Untitled Production';
+      // Reference photos are not carried across, so drop the dangling ids -
+      // otherwise the table and print would show a photo column with nothing in it.
+      const rolls=proj.rolls.map(r=>({...r,takes:(r.takes||[]).map(t=>(t&&t.photoIds&&t.photoIds.length)?{...t,photoIds:[]}:t)}));
+      const payload={
+        projectName:name,
+        scenes:Array.isArray(proj.scenes)?proj.scenes:[],
+        shootDays:Array.isArray(proj.shootDays)?proj.shootDays:[],
+        rolls:rolls,
+        hiddenColumns:Array.isArray(proj.hiddenColumns)?proj.hiddenColumns:[],
+        hiddenInfo:Array.isArray(proj.hiddenInfo)?proj.hiddenInfo:undefined,
+        keepDrawerOpen:!!proj.keepDrawerOpen, autoTakeOnSceneShot:!!proj.autoTakeOnSceneShot,
+        gsheetsClientId:data.gsheetsClientId||'', gsheetsSpreadsheetId:''
+      };
+      const info={code:c,payload,nRolls:rolls.length,nTakes:rolls.reduce((n,r)=>n+((r.takes||[]).length),0),existing:findProjectByName(name)};
+      if(info.existing){ setPending(info); setBusy(false); return; }
+      await finish(info,'new');
+    }catch(e){ setErr((e&&e.message)||'Handover failed.'); setBusy(false); }
+  }
+
+  function uniqueName(name){
+    for(let i=2;i<100;i++){ const n=name+' ('+i+')'; if(!findProjectByName(n)) return n; }
+    return name+' ('+Date.now()+')';
+  }
+  async function finish(info,mode){
+    setBusy(true); setErr('');
+    try{
+      let p=info.payload, shown=p.projectName;
+      if(mode==='replace'){ overwriteProject(info.existing.id,p); }
+      else{
+        if(mode==='copy'){ shown=uniqueName(p.projectName); p={...p,projectName:shown}; }
+        importProject(p);
+      }
+      // Burn the code only now that the import has really happened. If this
+      // call fails the code just stays valid until it expires - harmless.
+      try{ await handoverCall('GET',{action:'done',code:info.code}); }catch(e){}
+      alert('Received "'+shown+'" ('+info.nRolls+' roll(s), '+info.nTakes+' take(s)).'+(mode==='replace'?' Reloading.':''));
+      if(mode==='replace'){ window.location.reload(); } else { onClose(); }
+    }catch(e){ setErr((e&&e.message)||'Import failed.'); setBusy(false); }
+  }
+
+  const inp={background:T.surface2,border:'1px solid '+T.border,borderRadius:6,padding:'10px 12px',fontSize:16,color:T.text,
+    fontFamily:"'Geist Mono',monospace",letterSpacing:'0.12em',textTransform:'uppercase',width:'100%',boxSizing:'border-box'};
+  const bigBtn={padding:'10px 16px',borderRadius:6,background:T.accent,border:'none',color:'#0e0d0b',fontWeight:600,fontSize:12,cursor:busy?'default':'pointer',opacity:busy?0.6:1};
+  const ghostBtn={padding:'10px 16px',borderRadius:6,background:'transparent',border:`1px solid ${T.border}`,color:T.textMute,fontSize:12,cursor:'pointer'};
+  const note={fontSize:11,color:T.textDim,lineHeight:1.55};
+
+  return(
+    <div style={{position:'fixed',inset:0,zIndex:10000,background:'rgba(0,0,0,0.72)',
+      display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+      <div style={{background:T.panel,border:`1px solid ${T.border}`,borderRadius:12,
+        width:'100%',maxWidth:440,maxHeight:'88vh',overflow:'auto',
+        boxShadow:'0 20px 60px rgba(0,0,0,0.7)',display:'flex',flexDirection:'column'}}>
+        <div style={{padding:'14px 18px',borderBottom:`1px solid ${T.rule}`,display:'flex',alignItems:'center',gap:8}}>
+          <span style={{fontSize:16}}>{'🤝'}</span>
+          <span style={{fontSize:14,fontWeight:600,color:T.text,flex:1}}>Project handover</span>
+          <button onClick={onClose} style={{background:'transparent',border:'none',color:T.textDim,fontSize:18,cursor:'pointer',lineHeight:1}}>{'×'}</button>
+        </div>
+        <div style={{padding:'16px 18px',display:'flex',flexDirection:'column',gap:14}}>
+          {!configured&&(
+            <div style={{...note,color:T.danger}}>Handover is not set up in this build yet. Tell the person who runs the app.</div>
+          )}
+
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            <div style={{fontSize:12,fontWeight:600,color:T.text}}>{'📤'} Send this project</div>
+            <div style={note}>
+              <b>{myName}</b> - {(data.rolls||[]).length} roll(s), {myTakes} take(s). Creates a code the other person types into
+              their own copy of this app. The code works once and lasts 7 days.
+              Reference photos are not included.
+            </div>
+            {!sentCode&&<button onClick={send} disabled={busy||!configured} style={{...bigBtn,opacity:(busy||!configured)?0.5:1}}>{busy&&!pending?'Working...':'Create handover code'}</button>}
+            {sentCode&&(
+              <div style={{border:`1px solid ${T.accent}66`,background:T.accent+'12',borderRadius:8,padding:'14px',textAlign:'center'}}>
+                <div style={{fontSize:26,fontWeight:700,letterSpacing:'0.18em',color:T.accent,fontFamily:"'Geist Mono',monospace"}}>{handoverShowCode(sentCode)}</div>
+                <div style={{...note,marginTop:6}}>
+                  Valid until {sentExpires?new Date(sentExpires).toLocaleDateString():'7 days from now'} - works once.
+                </div>
+                <button onClick={copyCode} style={{...ghostBtn,marginTop:10,padding:'7px 14px'}}>{copied?'Copied':'Copy code'}</button>
+              </div>
+            )}
+          </div>
+
+          <div style={{borderTop:`1px solid ${T.rule}`,paddingTop:14,display:'flex',flexDirection:'column',gap:8}}>
+            <div style={{fontSize:12,fontWeight:600,color:T.text}}>{'📥'} Receive a project</div>
+            <input value={codeIn} onChange={e=>setCodeIn(e.target.value)} placeholder="XXXX-XXXX" maxLength={12}
+              onKeyDown={e=>e.key==='Enter'&&!busy&&receive()} autoCapitalize="characters" autoCorrect="off" spellCheck={false} style={inp}/>
+            {!pending&&<button onClick={receive} disabled={busy||!configured} style={{...bigBtn,opacity:(busy||!configured)?0.5:1}}>{busy&&!sentCode?'Working...':'Receive project'}</button>}
+            {pending&&(
+              <div style={{border:`1px solid ${T.border}`,borderRadius:8,padding:'12px',display:'flex',flexDirection:'column',gap:8}}>
+                <div style={{fontSize:12,color:T.text,lineHeight:1.5}}>
+                  A project named <b>{pending.payload.projectName}</b> is already on this device.
+                  Incoming: {pending.nRolls} roll(s), {pending.nTakes} take(s).
+                </div>
+                <button onClick={()=>finish(pending,'copy')} disabled={busy} style={bigBtn}>Keep both (save as a new copy)</button>
+                <button onClick={()=>{ if(confirm('Replace the project on this device with the incoming one? This cannot be undone.')) finish(pending,'replace'); }} disabled={busy}
+                  style={{...ghostBtn,color:T.danger,borderColor:T.danger+'66'}}>Replace the one on this device</button>
+                <button onClick={()=>setPending(null)} disabled={busy} style={ghostBtn}>Cancel</button>
+              </div>
+            )}
+          </div>
+
+          {err&&<div style={{fontSize:11,color:T.danger,lineHeight:1.5}}>{err}</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ProjectSwitcherModal({onClose}){
   const {data,updateData,projectId,projectIds,switchProject,createProject,deleteProject}=useStandaloneData();
   const [names,setNames]=React.useState(()=>{
@@ -5723,6 +5920,7 @@ function ProjectSwitcherModal({onClose}){
   const [editingId,setEditingId]=React.useState(null);
   const [editName,setEditName]=React.useState('');
   const [newName,setNewName]=React.useState('');
+  const [showHandover,setShowHandover]=React.useState(false);
 
   function startEdit(id){ setEditingId(id); setEditName(names[id]||''); }
   function saveEdit(){
@@ -5794,6 +5992,12 @@ function ProjectSwitcherModal({onClose}){
               placeholder="New project name" style={{...inp,flex:1}}/>
             <button onClick={addProject} style={{padding:'8px 16px',borderRadius:6,background:T.accent,border:'none',color:'#0e0d0b',fontWeight:600,fontSize:12,cursor:'pointer'}}>+ Add</button>
           </div>
+          <button onClick={()=>setShowHandover(true)}
+            style={{marginTop:6,padding:'10px 12px',borderRadius:8,border:`1px solid ${T.border}`,background:'transparent',color:T.text,
+              fontSize:12,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',fontFamily:"'Geist Mono',monospace"}}>
+            <span>{'🤝'} Hand over / receive a project</span><span style={{color:T.textDim}}>{'›'}</span>
+          </button>
+          {showHandover&&<HandoverModal onClose={()=>{ setShowHandover(false); onClose(); }}/>}
         </div>
       </div>
     </div>

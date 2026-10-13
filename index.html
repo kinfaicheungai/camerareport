@@ -758,18 +758,18 @@ function camRepPutPhoto(_x, _x2) {
   return _camRepPutPhoto.apply(this, arguments);
 }
 function _camRepPutPhoto() {
-  _camRepPutPhoto = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee15(projId, item) {
+  _camRepPutPhoto = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee18(projId, item) {
     var db, key, projTake;
-    return _regeneratorRuntime().wrap(function _callee15$(_context15) {
-      while (1) switch (_context15.prev = _context15.next) {
+    return _regeneratorRuntime().wrap(function _callee18$(_context18) {
+      while (1) switch (_context18.prev = _context18.next) {
         case 0:
-          _context15.next = 2;
+          _context18.next = 2;
           return openCamRepDB();
         case 2:
-          db = _context15.sent;
+          db = _context18.sent;
           key = projId + '::' + item.imgId;
           projTake = projId + '::' + item.takeId;
-          return _context15.abrupt("return", new Promise(function (resolve, reject) {
+          return _context18.abrupt("return", new Promise(function (resolve, reject) {
             var tx = db.transaction(CAMREP_STORE, 'readwrite');
             tx.objectStore(CAMREP_STORE).put(_objectSpread({
               key: key,
@@ -785,9 +785,9 @@ function _camRepPutPhoto() {
           }));
         case 6:
         case "end":
-          return _context15.stop();
+          return _context18.stop();
       }
-    }, _callee15);
+    }, _callee18);
   }));
   return _camRepPutPhoto.apply(this, arguments);
 }
@@ -795,17 +795,17 @@ function camRepGetForTake(_x3, _x4) {
   return _camRepGetForTake.apply(this, arguments);
 }
 function _camRepGetForTake() {
-  _camRepGetForTake = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee16(projId, takeId) {
+  _camRepGetForTake = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee19(projId, takeId) {
     var db, projTake;
-    return _regeneratorRuntime().wrap(function _callee16$(_context16) {
-      while (1) switch (_context16.prev = _context16.next) {
+    return _regeneratorRuntime().wrap(function _callee19$(_context19) {
+      while (1) switch (_context19.prev = _context19.next) {
         case 0:
-          _context16.next = 2;
+          _context19.next = 2;
           return openCamRepDB();
         case 2:
-          db = _context16.sent;
+          db = _context19.sent;
           projTake = projId + '::' + takeId;
-          return _context16.abrupt("return", new Promise(function (resolve, reject) {
+          return _context19.abrupt("return", new Promise(function (resolve, reject) {
             var tx = db.transaction(CAMREP_STORE, 'readonly');
             var req = tx.objectStore(CAMREP_STORE).index('projTake').getAll(projTake);
             req.onsuccess = function () {
@@ -817,9 +817,9 @@ function _camRepGetForTake() {
           }));
         case 5:
         case "end":
-          return _context16.stop();
+          return _context19.stop();
       }
-    }, _callee16);
+    }, _callee19);
   }));
   return _camRepGetForTake.apply(this, arguments);
 }
@@ -834,17 +834,17 @@ function camRepDeletePhoto(_x5, _x6) {
    eventually fill a phone. Walks the store once and drops every record whose
    projId matches (optionally narrowed to a set of take ids). */
 function _camRepDeletePhoto() {
-  _camRepDeletePhoto = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee17(projId, imgId) {
+  _camRepDeletePhoto = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee20(projId, imgId) {
     var db, key;
-    return _regeneratorRuntime().wrap(function _callee17$(_context17) {
-      while (1) switch (_context17.prev = _context17.next) {
+    return _regeneratorRuntime().wrap(function _callee20$(_context20) {
+      while (1) switch (_context20.prev = _context20.next) {
         case 0:
-          _context17.next = 2;
+          _context20.next = 2;
           return openCamRepDB();
         case 2:
-          db = _context17.sent;
+          db = _context20.sent;
           key = projId + '::' + imgId;
-          return _context17.abrupt("return", new Promise(function (resolve, reject) {
+          return _context20.abrupt("return", new Promise(function (resolve, reject) {
             var tx = db.transaction(CAMREP_STORE, 'readwrite');
             tx.objectStore(CAMREP_STORE)["delete"](key);
             tx.oncomplete = function () {
@@ -856,9 +856,9 @@ function _camRepDeletePhoto() {
           }));
         case 5:
         case "end":
-          return _context17.stop();
+          return _context20.stop();
       }
-    }, _callee17);
+    }, _callee20);
   }));
   return _camRepDeletePhoto.apply(this, arguments);
 }
@@ -866,19 +866,19 @@ function camRepDeleteMany(_x7, _x8) {
   return _camRepDeleteMany.apply(this, arguments);
 }
 function _camRepDeleteMany() {
-  _camRepDeleteMany = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee18(projId, takeIds) {
+  _camRepDeleteMany = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee21(projId, takeIds) {
     var db, wanted;
-    return _regeneratorRuntime().wrap(function _callee18$(_context18) {
-      while (1) switch (_context18.prev = _context18.next) {
+    return _regeneratorRuntime().wrap(function _callee21$(_context21) {
+      while (1) switch (_context21.prev = _context21.next) {
         case 0:
-          _context18.next = 2;
+          _context21.next = 2;
           return openCamRepDB();
         case 2:
-          db = _context18.sent;
+          db = _context21.sent;
           wanted = takeIds ? new Set(takeIds.map(function (id) {
             return projId + '::' + id;
           })) : null;
-          return _context18.abrupt("return", new Promise(function (resolve, reject) {
+          return _context21.abrupt("return", new Promise(function (resolve, reject) {
             var tx = db.transaction(CAMREP_STORE, 'readwrite');
             var req = tx.objectStore(CAMREP_STORE).openCursor();
             req.onsuccess = function () {
@@ -899,9 +899,9 @@ function _camRepDeleteMany() {
           }));
         case 5:
         case "end":
-          return _context18.stop();
+          return _context21.stop();
       }
-    }, _callee18);
+    }, _callee21);
   }));
   return _camRepDeleteMany.apply(this, arguments);
 }
@@ -948,11 +948,11 @@ function analyseCameraSlate(_x9, _x10) {
    correctly with no separate photo migration needed.
 ================================================================ */
 function _analyseCameraSlate() {
-  _analyseCameraSlate = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee19(dataUrlOrArray, existingRoll) {
+  _analyseCameraSlate = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee22(dataUrlOrArray, existingRoll) {
     var _data$content;
     var key, dataUrls, imageBlocks, rollCtx, multi, prompt, resp, _e$error, _e, data, raw, clean, parsed;
-    return _regeneratorRuntime().wrap(function _callee19$(_context19) {
-      while (1) switch (_context19.prev = _context19.next) {
+    return _regeneratorRuntime().wrap(function _callee22$(_context22) {
+      while (1) switch (_context22.prev = _context22.next) {
         case 0:
           key = getAnthropicKey(); // Accept single dataUrl or array of up to 2
           dataUrls = Array.isArray(dataUrlOrArray) ? dataUrlOrArray : [dataUrlOrArray];
@@ -971,7 +971,7 @@ function _analyseCameraSlate() {
           rollCtx = existingRoll ? ["Current roll: ".concat(existingRoll.roll || '', ", Camera: ").concat(existingRoll.camera || '', ", Codec: ").concat(existingRoll.codec || '', ", LUT: ").concat(existingRoll.lut || '', "."), "Default lens: ".concat(existingRoll.lens || '', ". Base EI: ").concat(existingRoll.baseEI || '', ".")].join(' ') : '';
           multi = dataUrls.length > 1;
           prompt = [multi ? 'You are given TWO production photos. Extract information from BOTH and combine into one JSON  -  e.g. one photo may be a camera monitor overlay (EI, WB, FPS, clip number etc.) and the other a slate/clapperboard (scene, shot, take). Merge all readable fields.' : 'You are analysing a film production photo. It may be any of these sources:', multi ? '' : '  • A camera slate / clapperboard (scene, shot, take numbers)', multi ? '' : '  • A camera monitor / EVF overlay screenshot (e.g. SmallHD, Teradek, ARRI, RED) showing live camera metadata: FPS, shutter, EI/ISO, WB, roll name, clip number, ND filter, codec, timecode etc.', multi ? '' : '  • A handwritten take sheet or label', multi ? '' : '  • Any other on-set reference material with camera/take information', 'Extract ONLY what is clearly visible. Never invent values. For monitor screenshots, read the HUD/overlay text carefully (usually displayed as white or coloured text around the image frame).', rollCtx, 'Return a single JSON object (no markdown, no explanation) with these keys (all strings, all optional  -  omit any key you cannot read clearly):', '  scene    -  scene number/ID (from slate, e.g. "S05", "05", "12A")', '  shot     -  shot letter (from slate, e.g. "A", "B"); "/" means no shot letter', '  take     -  take number as string (e.g. "1", "3")', '  tail     -  "true" if TAIL or TAIL SLATE is visible', '  clip     -  clip/card name visible on monitor (e.g. "C026", "A026") or slate', '  roll     -  roll/magazine name if visible on monitor (e.g. "A001")', '  lens     -  lens brand/series if visible (e.g. "Cooke Panchro i")', '  focal    -  focal length if visible (e.g. "32mm")', '  stop     -  aperture/T-stop if visible (e.g. "T2.8", "f4")', '  ei       -  ISO/EI value from monitor or slate (e.g. "1600")', '  fps      -  frame rate from monitor (e.g. "24.000", "25")', '  shutter  -  shutter angle/speed from monitor (e.g. "180.0", "1/50")', '  nd       -  ND filter value from monitor if visible (e.g. "0.6", "ND6")', '  intFilters  -  internal/in-camera filter if visible', '  filters  -  external filter(s) if visible (e.g. "ND1.2", "Polariser")', '  wb       -  white balance from monitor or slate (e.g. "4000K", "5600K")', '  focus    -  focus distance if visible; use cm (e.g. "180")', '  codec    -  codec/recording format from monitor (e.g. "RAW", "ProRes 4444")', '  notes    -  any other relevant text (timecode, battery, remarks etc.)', multi ? 'Example: {"scene":"S05","shot":"A","take":"2","ei":"1600","wb":"4000K","fps":"24.000","clip":"C026"}' : 'Example for monitor: {"ei":"1600","wb":"4000K","fps":"24.000","shutter":"180.0","clip":"C026","codec":"RAW"}', 'Return ONLY the JSON object.'].filter(Boolean).join('\n');
-          _context19.next = 8;
+          _context22.next = 8;
           return fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
             headers: {
@@ -993,45 +993,45 @@ function _analyseCameraSlate() {
             })
           });
         case 8:
-          resp = _context19.sent;
+          resp = _context22.sent;
           if (resp.ok) {
-            _context19.next = 14;
+            _context22.next = 14;
             break;
           }
-          _context19.next = 12;
+          _context22.next = 12;
           return resp.json()["catch"](function () {
             return {};
           });
         case 12:
-          _e = _context19.sent;
+          _e = _context22.sent;
           throw new Error((_e === null || _e === void 0 || (_e$error = _e.error) === null || _e$error === void 0 ? void 0 : _e$error.message) || 'Anthropic API error ' + resp.status);
         case 14:
-          _context19.next = 16;
+          _context22.next = 16;
           return resp.json();
         case 16:
-          data = _context19.sent;
+          data = _context22.sent;
           raw = (((_data$content = data.content) === null || _data$content === void 0 || (_data$content = _data$content.find(function (b) {
             return b.type === 'text';
           })) === null || _data$content === void 0 ? void 0 : _data$content.text) || '').trim();
           clean = raw.replace(/^```json?/, '').replace(/```$/, '').trim();
-          _context19.prev = 19;
+          _context22.prev = 19;
           parsed = JSON.parse(clean);
           if (!(_typeof(parsed) === 'object' && parsed !== null)) {
-            _context19.next = 23;
+            _context22.next = 23;
             break;
           }
-          return _context19.abrupt("return", parsed);
+          return _context22.abrupt("return", parsed);
         case 23:
           throw new Error('Unexpected response shape.');
         case 26:
-          _context19.prev = 26;
-          _context19.t0 = _context19["catch"](19);
+          _context22.prev = 26;
+          _context22.t0 = _context22["catch"](19);
           throw new Error('Could not parse AI response. Raw: ' + raw.slice(0, 200));
         case 29:
         case "end":
-          return _context19.stop();
+          return _context22.stop();
       }
-    }, _callee19, null, [[19, 26]]);
+    }, _callee22, null, [[19, 26]]);
   }));
   return _analyseCameraSlate.apply(this, arguments);
 }
@@ -1432,22 +1432,22 @@ function ensureSheetsToken(_x11) {
   return _ensureSheetsToken.apply(this, arguments);
 }
 function _ensureSheetsToken() {
-  _ensureSheetsToken = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee20(clientId) {
-    return _regeneratorRuntime().wrap(function _callee20$(_context20) {
-      while (1) switch (_context20.prev = _context20.next) {
+  _ensureSheetsToken = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee23(clientId) {
+    return _regeneratorRuntime().wrap(function _callee23$(_context23) {
+      while (1) switch (_context23.prev = _context23.next) {
         case 0:
           if (!_sheetsToken) {
-            _context20.next = 2;
+            _context23.next = 2;
             break;
           }
-          return _context20.abrupt("return", _sheetsToken);
+          return _context23.abrupt("return", _sheetsToken);
         case 2:
-          return _context20.abrupt("return", sheetsSignIn(clientId));
+          return _context23.abrupt("return", sheetsSignIn(clientId));
         case 3:
         case "end":
-          return _context20.stop();
+          return _context23.stop();
       }
-    }, _callee20);
+    }, _callee23);
   }));
   return _ensureSheetsToken.apply(this, arguments);
 }
@@ -1471,42 +1471,42 @@ function fetchGoogleEmail(_x12) {
    to defend against a motivated attacker.
 ================================================================ */
 function _fetchGoogleEmail() {
-  _fetchGoogleEmail = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee21(token) {
+  _fetchGoogleEmail = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee24(token) {
     var r, d, email;
-    return _regeneratorRuntime().wrap(function _callee21$(_context21) {
-      while (1) switch (_context21.prev = _context21.next) {
+    return _regeneratorRuntime().wrap(function _callee24$(_context24) {
+      while (1) switch (_context24.prev = _context24.next) {
         case 0:
-          _context21.next = 2;
+          _context24.next = 2;
           return fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
             headers: {
               Authorization: 'Bearer ' + token
             }
           });
         case 2:
-          r = _context21.sent;
+          r = _context24.sent;
           if (r.ok) {
-            _context21.next = 5;
+            _context24.next = 5;
             break;
           }
           throw new Error('Could not read your Google account email (HTTP ' + r.status + ').');
         case 5:
-          _context21.next = 7;
+          _context24.next = 7;
           return r.json();
         case 7:
-          d = _context21.sent;
+          d = _context24.sent;
           email = (d.email || '').trim().toLowerCase();
           if (email) {
-            _context21.next = 11;
+            _context24.next = 11;
             break;
           }
           throw new Error('Your Google account did not return an email address.');
         case 11:
-          return _context21.abrupt("return", email);
+          return _context24.abrupt("return", email);
         case 12:
         case "end":
-          return _context21.stop();
+          return _context24.stop();
       }
-    }, _callee21);
+    }, _callee24);
   }));
   return _fetchGoogleEmail.apply(this, arguments);
 }
@@ -1516,28 +1516,28 @@ function fetchAllowlist() {
   return _fetchAllowlist.apply(this, arguments);
 }
 function _fetchAllowlist() {
-  _fetchAllowlist = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee22() {
+  _fetchAllowlist = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee25() {
     var res, text;
-    return _regeneratorRuntime().wrap(function _callee22$(_context22) {
-      while (1) switch (_context22.prev = _context22.next) {
+    return _regeneratorRuntime().wrap(function _callee25$(_context25) {
+      while (1) switch (_context25.prev = _context25.next) {
         case 0:
-          _context22.next = 2;
+          _context25.next = 2;
           return fetch(ALLOWLIST_CSV_URL, {
             cache: 'no-store'
           });
         case 2:
-          res = _context22.sent;
+          res = _context25.sent;
           if (res.ok) {
-            _context22.next = 5;
+            _context25.next = 5;
             break;
           }
           throw new Error('Could not load the access list (HTTP ' + res.status + ').');
         case 5:
-          _context22.next = 7;
+          _context25.next = 7;
           return res.text();
         case 7:
-          text = _context22.sent;
-          return _context22.abrupt("return", text.split(/\r?\n/).slice(1) // drop the "Email" header row
+          text = _context25.sent;
+          return _context25.abrupt("return", text.split(/\r?\n/).slice(1) // drop the "Email" header row
           .map(function (line) {
             return line.split(',')[0];
           }).map(function (e) {
@@ -1545,9 +1545,9 @@ function _fetchAllowlist() {
           }).filter(Boolean));
         case 9:
         case "end":
-          return _context22.stop();
+          return _context25.stop();
       }
-    }, _callee22);
+    }, _callee25);
   }));
   return _fetchAllowlist.apply(this, arguments);
 }
@@ -1631,39 +1631,39 @@ function ensureTab(_x13, _x14, _x15) {
   return _ensureTab.apply(this, arguments);
 }
 function _ensureTab() {
-  _ensureTab = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee23(token, sid, title) {
+  _ensureTab = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee26(token, sid, title) {
     var meta, d, exists, r;
-    return _regeneratorRuntime().wrap(function _callee23$(_context23) {
-      while (1) switch (_context23.prev = _context23.next) {
+    return _regeneratorRuntime().wrap(function _callee26$(_context26) {
+      while (1) switch (_context26.prev = _context26.next) {
         case 0:
-          _context23.next = 2;
+          _context26.next = 2;
           return fetch('https://sheets.googleapis.com/v4/spreadsheets/' + sid + '?fields=sheets.properties.title', {
             headers: {
               Authorization: 'Bearer ' + token
             }
           });
         case 2:
-          meta = _context23.sent;
+          meta = _context26.sent;
           if (meta.ok) {
-            _context23.next = 5;
+            _context26.next = 5;
             break;
           }
-          return _context23.abrupt("return", false);
+          return _context26.abrupt("return", false);
         case 5:
-          _context23.next = 7;
+          _context26.next = 7;
           return meta.json();
         case 7:
-          d = _context23.sent;
+          d = _context26.sent;
           exists = (d.sheets || []).some(function (s) {
             return s.properties && s.properties.title === title;
           });
           if (!exists) {
-            _context23.next = 11;
+            _context26.next = 11;
             break;
           }
-          return _context23.abrupt("return", true);
+          return _context26.abrupt("return", true);
         case 11:
-          _context23.next = 13;
+          _context26.next = 13;
           return fetch('https://sheets.googleapis.com/v4/spreadsheets/' + sid + ':batchUpdate', {
             method: 'POST',
             headers: {
@@ -1681,13 +1681,13 @@ function _ensureTab() {
             })
           });
         case 13:
-          r = _context23.sent;
-          return _context23.abrupt("return", r.ok);
+          r = _context26.sent;
+          return _context26.abrupt("return", r.ok);
         case 15:
         case "end":
-          return _context23.stop();
+          return _context26.stop();
       }
-    }, _callee23);
+    }, _callee26);
   }));
   return _ensureTab.apply(this, arguments);
 }
@@ -1699,23 +1699,23 @@ function backupToSheets(_x16) {
    files this OAuth client created, so this listing is naturally limited to
    the user's own Camera Report backups - it cannot see the rest of Drive. */
 function _backupToSheets() {
-  _backupToSheets = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee24(_ref8) {
+  _backupToSheets = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee27(_ref8) {
     var rolls, projectName, clientId, spreadsheetId, rawProject, token, sid, title, resp, _e2, d, rows, lastCol, range, putResp, _e3, ok, payload, chunks, rr;
-    return _regeneratorRuntime().wrap(function _callee24$(_context24) {
-      while (1) switch (_context24.prev = _context24.next) {
+    return _regeneratorRuntime().wrap(function _callee27$(_context27) {
+      while (1) switch (_context27.prev = _context27.next) {
         case 0:
           rolls = _ref8.rolls, projectName = _ref8.projectName, clientId = _ref8.clientId, spreadsheetId = _ref8.spreadsheetId, rawProject = _ref8.rawProject;
-          _context24.next = 3;
+          _context27.next = 3;
           return ensureSheetsToken(clientId);
         case 3:
-          token = _context24.sent;
+          token = _context27.sent;
           sid = spreadsheetId;
           if (sid) {
-            _context24.next = 19;
+            _context27.next = 19;
             break;
           }
           title = (projectName || 'Untitled Production') + ' - Camera Report Backup';
-          _context24.next = 9;
+          _context27.next = 9;
           return fetch('https://sheets.googleapis.com/v4/spreadsheets', {
             method: 'POST',
             headers: {
@@ -1734,29 +1734,29 @@ function _backupToSheets() {
             })
           });
         case 9:
-          resp = _context24.sent;
+          resp = _context27.sent;
           if (resp.ok) {
-            _context24.next = 15;
+            _context27.next = 15;
             break;
           }
-          _context24.next = 13;
+          _context27.next = 13;
           return resp.json()["catch"](function () {
             return {};
           });
         case 13:
-          _e2 = _context24.sent;
+          _e2 = _context27.sent;
           throw new Error(_e2 && _e2.error && _e2.error.message || 'Could not create the spreadsheet (HTTP ' + resp.status + ')');
         case 15:
-          _context24.next = 17;
+          _context27.next = 17;
           return resp.json();
         case 17:
-          d = _context24.sent;
+          d = _context27.sent;
           sid = d.spreadsheetId;
         case 19:
           rows = flattenRollsForSheet(rolls);
           lastCol = colLetter(rows[0].length);
-          _context24.prev = 21;
-          _context24.next = 24;
+          _context27.prev = 21;
+          _context27.next = 24;
           return fetch('https://sheets.googleapis.com/v4/spreadsheets/' + sid + '/values/' + encodeURIComponent(GSHEETS_TAB_NAME) + ':clear', {
             method: 'POST',
             headers: {
@@ -1765,14 +1765,14 @@ function _backupToSheets() {
             }
           });
         case 24:
-          _context24.next = 28;
+          _context27.next = 28;
           break;
         case 26:
-          _context24.prev = 26;
-          _context24.t0 = _context24["catch"](21);
+          _context27.prev = 26;
+          _context27.t0 = _context27["catch"](21);
         case 28:
           range = GSHEETS_TAB_NAME + '!A1:' + lastCol + rows.length;
-          _context24.next = 31;
+          _context27.next = 31;
           return fetch('https://sheets.googleapis.com/v4/spreadsheets/' + sid + '/values/' + encodeURIComponent(range) + '?valueInputOption=RAW', {
             method: 'PUT',
             headers: {
@@ -1786,30 +1786,30 @@ function _backupToSheets() {
             })
           });
         case 31:
-          putResp = _context24.sent;
+          putResp = _context27.sent;
           if (putResp.ok) {
-            _context24.next = 37;
+            _context27.next = 37;
             break;
           }
-          _context24.next = 35;
+          _context27.next = 35;
           return putResp.json()["catch"](function () {
             return {};
           });
         case 35:
-          _e3 = _context24.sent;
+          _e3 = _context27.sent;
           throw new Error(_e3 && _e3.error && _e3.error.message || 'Could not write to the spreadsheet (HTTP ' + putResp.status + ')');
         case 37:
           if (!rawProject) {
-            _context24.next = 55;
+            _context27.next = 55;
             break;
           }
-          _context24.prev = 38;
-          _context24.next = 41;
+          _context27.prev = 38;
+          _context27.next = 41;
           return ensureTab(token, sid, GSHEETS_RAW_TAB);
         case 41:
-          ok = _context24.sent;
+          ok = _context27.sent;
           if (!ok) {
-            _context24.next = 50;
+            _context27.next = 50;
             break;
           }
           payload = JSON.stringify({
@@ -1818,7 +1818,7 @@ function _backupToSheets() {
             project: rawProject
           });
           chunks = chunkRaw(payload);
-          _context24.next = 47;
+          _context27.next = 47;
           return fetch('https://sheets.googleapis.com/v4/spreadsheets/' + sid + '/values/' + encodeURIComponent(GSHEETS_RAW_TAB) + ':clear', {
             method: 'POST',
             headers: {
@@ -1828,7 +1828,7 @@ function _backupToSheets() {
           });
         case 47:
           rr = GSHEETS_RAW_TAB + '!A1:A' + chunks.length;
-          _context24.next = 50;
+          _context27.next = 50;
           return fetch('https://sheets.googleapis.com/v4/spreadsheets/' + sid + '/values/' + encodeURIComponent(rr) + '?valueInputOption=RAW', {
             method: 'PUT',
             headers: {
@@ -1842,19 +1842,19 @@ function _backupToSheets() {
             })
           });
         case 50:
-          _context24.next = 55;
+          _context27.next = 55;
           break;
         case 52:
-          _context24.prev = 52;
-          _context24.t1 = _context24["catch"](38);
-          console.warn('camrep: raw restore tab could not be written', _context24.t1);
+          _context27.prev = 52;
+          _context27.t1 = _context27["catch"](38);
+          console.warn('camrep: raw restore tab could not be written', _context27.t1);
         case 55:
-          return _context24.abrupt("return", sid);
+          return _context27.abrupt("return", sid);
         case 56:
         case "end":
-          return _context24.stop();
+          return _context27.stop();
       }
-    }, _callee24, null, [[21, 26], [38, 52]]);
+    }, _callee27, null, [[21, 26], [38, 52]]);
   }));
   return _backupToSheets.apply(this, arguments);
 }
@@ -1865,46 +1865,46 @@ function listBackupSheets(_x17) {
    this feature (backed up by an older build), which the caller reports as
    "this backup is too old to restore from" rather than a hard error. */
 function _listBackupSheets() {
-  _listBackupSheets = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee25(clientId) {
+  _listBackupSheets = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee28(clientId) {
     var token, q, r, _e4, d;
-    return _regeneratorRuntime().wrap(function _callee25$(_context25) {
-      while (1) switch (_context25.prev = _context25.next) {
+    return _regeneratorRuntime().wrap(function _callee28$(_context28) {
+      while (1) switch (_context28.prev = _context28.next) {
         case 0:
-          _context25.next = 2;
+          _context28.next = 2;
           return ensureSheetsToken(clientId);
         case 2:
-          token = _context25.sent;
+          token = _context28.sent;
           q = encodeURIComponent("mimeType='application/vnd.google-apps.spreadsheet' and trashed=false");
-          _context25.next = 6;
+          _context28.next = 6;
           return fetch('https://www.googleapis.com/drive/v3/files?q=' + q + '&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc&pageSize=50', {
             headers: {
               Authorization: 'Bearer ' + token
             }
           });
         case 6:
-          r = _context25.sent;
+          r = _context28.sent;
           if (r.ok) {
-            _context25.next = 12;
+            _context28.next = 12;
             break;
           }
-          _context25.next = 10;
+          _context28.next = 10;
           return r.json()["catch"](function () {
             return {};
           });
         case 10:
-          _e4 = _context25.sent;
+          _e4 = _context28.sent;
           throw new Error(_e4 && _e4.error && _e4.error.message || 'Could not list your backups (HTTP ' + r.status + ')');
         case 12:
-          _context25.next = 14;
+          _context28.next = 14;
           return r.json();
         case 14:
-          d = _context25.sent;
-          return _context25.abrupt("return", d.files || []);
+          d = _context28.sent;
+          return _context28.abrupt("return", d.files || []);
         case 16:
         case "end":
-          return _context25.stop();
+          return _context28.stop();
       }
-    }, _callee25);
+    }, _callee28);
   }));
   return _listBackupSheets.apply(this, arguments);
 }
@@ -1912,68 +1912,68 @@ function loadProjectFromSheet(_x18, _x19) {
   return _loadProjectFromSheet.apply(this, arguments);
 }
 function _loadProjectFromSheet() {
-  _loadProjectFromSheet = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee26(clientId, sid) {
+  _loadProjectFromSheet = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee29(clientId, sid) {
     var token, r, d, joined, parsed, p;
-    return _regeneratorRuntime().wrap(function _callee26$(_context26) {
-      while (1) switch (_context26.prev = _context26.next) {
+    return _regeneratorRuntime().wrap(function _callee29$(_context29) {
+      while (1) switch (_context29.prev = _context29.next) {
         case 0:
-          _context26.next = 2;
+          _context29.next = 2;
           return ensureSheetsToken(clientId);
         case 2:
-          token = _context26.sent;
-          _context26.next = 5;
+          token = _context29.sent;
+          _context29.next = 5;
           return fetch('https://sheets.googleapis.com/v4/spreadsheets/' + sid + '/values/' + encodeURIComponent(GSHEETS_RAW_TAB) + '!A1:A1000', {
             headers: {
               Authorization: 'Bearer ' + token
             }
           });
         case 5:
-          r = _context26.sent;
+          r = _context29.sent;
           if (r.ok) {
-            _context26.next = 8;
+            _context29.next = 8;
             break;
           }
-          return _context26.abrupt("return", null);
+          return _context29.abrupt("return", null);
         case 8:
-          _context26.next = 10;
+          _context29.next = 10;
           return r.json();
         case 10:
-          d = _context26.sent;
+          d = _context29.sent;
           joined = (d.values || []).map(function (row) {
             return row && row[0] || '';
           }).join('');
           if (joined.trim()) {
-            _context26.next = 14;
+            _context29.next = 14;
             break;
           }
-          return _context26.abrupt("return", null);
+          return _context29.abrupt("return", null);
         case 14:
           parsed = null;
-          _context26.prev = 15;
+          _context29.prev = 15;
           parsed = JSON.parse(joined);
-          _context26.next = 22;
+          _context29.next = 22;
           break;
         case 19:
-          _context26.prev = 19;
-          _context26.t0 = _context26["catch"](15);
-          return _context26.abrupt("return", null);
+          _context29.prev = 19;
+          _context29.t0 = _context29["catch"](15);
+          return _context29.abrupt("return", null);
         case 22:
           p = parsed && parsed.project;
           if (!(!p || _typeof(p) !== 'object')) {
-            _context26.next = 25;
+            _context29.next = 25;
             break;
           }
-          return _context26.abrupt("return", null);
+          return _context29.abrupt("return", null);
         case 25:
-          return _context26.abrupt("return", {
+          return _context29.abrupt("return", {
             savedAt: parsed.savedAt || '',
             project: p
           });
         case 26:
         case "end":
-          return _context26.stop();
+          return _context29.stop();
       }
-    }, _callee26, null, [[15, 19]]);
+    }, _callee29, null, [[15, 19]]);
   }));
   return _loadProjectFromSheet.apply(this, arguments);
 }
@@ -1993,7 +1993,7 @@ var SB_TINT_PRESETS_KEY = 'sb_camrep_tint_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-var APP_VERSION = 'v4.10';
+var APP_VERSION = 'v4.11';
 var CAM_CONFIG = {
   A: {
     label: 'A',
@@ -11819,38 +11819,647 @@ function App() {
    (its own data.projectName - the same field Project Settings edits)
    and nothing can drift out of sync with it.
 ================================================================ */
-function ProjectSwitcherModal(_ref39) {
+/* ===============================================================
+   PROJECT HANDOVER - move a whole project to someone else's device by a
+   short code, no files and no shared Google account needed.
+   Sender: "Create code" uploads the project to a small relay (a Google
+   Apps Script that stores it in a Sheet owned by the app owner) and gets a
+   code back. Receiver: types the code, the project is pulled down, and the
+   relay is told to burn the code. Codes last 7 days and work once.
+   Reference photos live in IndexedDB on the sender's device and are NOT
+   carried across (the receiver's copy has the clips, without the images).
+================================================================ */
+// Apps Script "Web app" URL of the handover relay (handover/Code.gs).
+// If this is ever emptied the Handover screen says it is not set up yet.
+var HANDOVER_URL = 'https://script.google.com/macros/s/AKfycbyOTg_xpMicPjpMryW-U9-CbtMH-tVkWZYjDF9jm9AkEQC16ci-Mz6InvtbgW0GHXY1sA/exec';
+var HANDOVER_KEY = 'ZzJhklrQkbFCRMrQeYWkzdLim8JF';
+function handoverCall(_x30, _x31, _x32) {
+  return _handoverCall.apply(this, arguments);
+}
+function _handoverCall() {
+  _handoverCall = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee30(method, params, body) {
+    var res, d, m;
+    return _regeneratorRuntime().wrap(function _callee30$(_context30) {
+      while (1) switch (_context30.prev = _context30.next) {
+        case 0:
+          _context30.prev = 0;
+          if (!(method === 'POST')) {
+            _context30.next = 7;
+            break;
+          }
+          _context30.next = 4;
+          return fetch(HANDOVER_URL, {
+            method: 'POST',
+            body: JSON.stringify(_objectSpread(_objectSpread({}, body), {}, {
+              key: HANDOVER_KEY
+            }))
+          });
+        case 4:
+          res = _context30.sent;
+          _context30.next = 10;
+          break;
+        case 7:
+          _context30.next = 9;
+          return fetch(HANDOVER_URL + '?' + new URLSearchParams(_objectSpread(_objectSpread({}, params), {}, {
+            key: HANDOVER_KEY
+          })).toString());
+        case 9:
+          res = _context30.sent;
+        case 10:
+          _context30.next = 15;
+          break;
+        case 12:
+          _context30.prev = 12;
+          _context30.t0 = _context30["catch"](0);
+          throw new Error('No connection. Handover needs internet on both devices.');
+        case 15:
+          if (res.ok) {
+            _context30.next = 17;
+            break;
+          }
+          throw new Error('Handover service error (HTTP ' + res.status + '). Try again.');
+        case 17:
+          d = null;
+          _context30.prev = 18;
+          _context30.next = 21;
+          return res.json();
+        case 21:
+          d = _context30.sent;
+          _context30.next = 27;
+          break;
+        case 24:
+          _context30.prev = 24;
+          _context30.t1 = _context30["catch"](18);
+          throw new Error('Handover service gave an unexpected reply. Try again.');
+        case 27:
+          if (!(!d || !d.ok)) {
+            _context30.next = 30;
+            break;
+          }
+          m = {
+            not_found: 'Code not found. It may have been typed wrong, already used, or expired (codes last 7 days).',
+            too_large: 'This project is too big to hand over this way.',
+            busy: 'The handover service is full right now. Try again later.',
+            forbidden: 'The handover service rejected this app (setup problem). Tell the person who runs the app.'
+          };
+          throw new Error(d && m[d.error] || 'Handover failed. Try again.');
+        case 30:
+          return _context30.abrupt("return", d);
+        case 31:
+        case "end":
+          return _context30.stop();
+      }
+    }, _callee30, null, [[0, 12], [18, 24]]);
+  }));
+  return _handoverCall.apply(this, arguments);
+}
+function handoverNormCode(c) {
+  return String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+function handoverShowCode(c) {
+  c = handoverNormCode(c);
+  return c.length === 8 ? c.slice(0, 4) + '-' + c.slice(4) : c;
+}
+function HandoverModal(_ref39) {
   var onClose = _ref39.onClose;
   var _useStandaloneData8 = useStandaloneData(),
     data = _useStandaloneData8.data,
-    updateData = _useStandaloneData8.updateData,
-    projectId = _useStandaloneData8.projectId,
-    projectIds = _useStandaloneData8.projectIds,
-    switchProject = _useStandaloneData8.switchProject,
-    createProject = _useStandaloneData8.createProject,
-    deleteProject = _useStandaloneData8.deleteProject;
-  var _React$useState171 = React.useState(function () {
+    findProjectByName = _useStandaloneData8.findProjectByName,
+    importProject = _useStandaloneData8.importProject,
+    overwriteProject = _useStandaloneData8.overwriteProject;
+  var _useAuth3 = useAuth(),
+    requireUnlock = _useAuth3.requireUnlock;
+  var _React$useState171 = React.useState(false),
+    _React$useState172 = _slicedToArray(_React$useState171, 2),
+    busy = _React$useState172[0],
+    setBusy = _React$useState172[1];
+  var _React$useState173 = React.useState(''),
+    _React$useState174 = _slicedToArray(_React$useState173, 2),
+    err = _React$useState174[0],
+    setErr = _React$useState174[1];
+  var _React$useState175 = React.useState(''),
+    _React$useState176 = _slicedToArray(_React$useState175, 2),
+    sentCode = _React$useState176[0],
+    setSentCode = _React$useState176[1];
+  var _React$useState177 = React.useState(0),
+    _React$useState178 = _slicedToArray(_React$useState177, 2),
+    sentExpires = _React$useState178[0],
+    setSentExpires = _React$useState178[1];
+  var _React$useState179 = React.useState(''),
+    _React$useState180 = _slicedToArray(_React$useState179, 2),
+    codeIn = _React$useState180[0],
+    setCodeIn = _React$useState180[1];
+  var _React$useState181 = React.useState(null),
+    _React$useState182 = _slicedToArray(_React$useState181, 2),
+    pending = _React$useState182[0],
+    setPending = _React$useState182[1];
+  var _React$useState183 = React.useState(false),
+    _React$useState184 = _slicedToArray(_React$useState183, 2),
+    copied = _React$useState184[0],
+    setCopied = _React$useState184[1];
+  var configured = !!(HANDOVER_URL && HANDOVER_URL.trim());
+  var myName = data.projectName || 'Untitled Production';
+  var myTakes = (data.rolls || []).reduce(function (n, r) {
+    return n + (r.takes || []).length;
+  }, 0);
+  function send() {
+    return _send.apply(this, arguments);
+  }
+  function _send() {
+    _send = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee14() {
+      var project, d;
+      return _regeneratorRuntime().wrap(function _callee14$(_context14) {
+        while (1) switch (_context14.prev = _context14.next) {
+          case 0:
+            if (requireUnlock('Project handover needs the full version. Sign in to unlock.')) {
+              _context14.next = 2;
+              break;
+            }
+            return _context14.abrupt("return");
+          case 2:
+            setBusy(true);
+            setErr('');
+            setSentCode('');
+            _context14.prev = 5;
+            project = {
+              projectName: myName,
+              scenes: data.scenes || [],
+              shootDays: data.shootDays || [],
+              rolls: data.rolls || [],
+              hiddenColumns: data.hiddenColumns || [],
+              hiddenInfo: Array.isArray(data.hiddenInfo) ? data.hiddenInfo : undefined,
+              keepDrawerOpen: !!data.keepDrawerOpen,
+              autoTakeOnSceneShot: !!data.autoTakeOnSceneShot
+            };
+            _context14.next = 9;
+            return handoverCall('POST', null, {
+              action: 'put',
+              project: JSON.stringify(project)
+            });
+          case 9:
+            d = _context14.sent;
+            setSentCode(d.code);
+            setSentExpires(d.expires_ms || 0);
+            _context14.next = 17;
+            break;
+          case 14:
+            _context14.prev = 14;
+            _context14.t0 = _context14["catch"](5);
+            setErr(_context14.t0 && _context14.t0.message || 'Handover failed.');
+          case 17:
+            _context14.prev = 17;
+            setBusy(false);
+            return _context14.finish(17);
+          case 20:
+          case "end":
+            return _context14.stop();
+        }
+      }, _callee14, null, [[5, 14, 17, 20]]);
+    }));
+    return _send.apply(this, arguments);
+  }
+  function copyCode() {
+    var t = handoverShowCode(sentCode);
+    try {
+      navigator.clipboard.writeText(t).then(function () {
+        return setCopied(true);
+      }, function () {});
+    } catch (e) {}
+    setTimeout(function () {
+      return setCopied(false);
+    }, 1800);
+  }
+  function receive() {
+    return _receive.apply(this, arguments);
+  }
+  function _receive() {
+    _receive = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee15() {
+      var c, d, proj, name, rolls, payload, info;
+      return _regeneratorRuntime().wrap(function _callee15$(_context15) {
+        while (1) switch (_context15.prev = _context15.next) {
+          case 0:
+            if (requireUnlock('Project handover needs the full version. Sign in to unlock.')) {
+              _context15.next = 2;
+              break;
+            }
+            return _context15.abrupt("return");
+          case 2:
+            c = handoverNormCode(codeIn);
+            if (!(c.length !== 8)) {
+              _context15.next = 6;
+              break;
+            }
+            setErr('Enter the 8-character code (letters and numbers).');
+            return _context15.abrupt("return");
+          case 6:
+            setBusy(true);
+            setErr('');
+            setPending(null);
+            _context15.prev = 9;
+            _context15.next = 12;
+            return handoverCall('GET', {
+              action: 'get',
+              code: c
+            });
+          case 12:
+            d = _context15.sent;
+            proj = null;
+            try {
+              proj = JSON.parse(d.project);
+            } catch (e) {}
+            if (!(!proj || _typeof(proj) !== 'object' || !Array.isArray(proj.rolls))) {
+              _context15.next = 17;
+              break;
+            }
+            throw new Error('That handover is damaged or is not a Camera Report project.');
+          case 17:
+            name = (proj.projectName || '').trim() || 'Untitled Production'; // Reference photos are not carried across, so drop the dangling ids -
+            // otherwise the table and print would show a photo column with nothing in it.
+            rolls = proj.rolls.map(function (r) {
+              return _objectSpread(_objectSpread({}, r), {}, {
+                takes: (r.takes || []).map(function (t) {
+                  return t && t.photoIds && t.photoIds.length ? _objectSpread(_objectSpread({}, t), {}, {
+                    photoIds: []
+                  }) : t;
+                })
+              });
+            });
+            payload = {
+              projectName: name,
+              scenes: Array.isArray(proj.scenes) ? proj.scenes : [],
+              shootDays: Array.isArray(proj.shootDays) ? proj.shootDays : [],
+              rolls: rolls,
+              hiddenColumns: Array.isArray(proj.hiddenColumns) ? proj.hiddenColumns : [],
+              hiddenInfo: Array.isArray(proj.hiddenInfo) ? proj.hiddenInfo : undefined,
+              keepDrawerOpen: !!proj.keepDrawerOpen,
+              autoTakeOnSceneShot: !!proj.autoTakeOnSceneShot,
+              gsheetsClientId: data.gsheetsClientId || '',
+              gsheetsSpreadsheetId: ''
+            };
+            info = {
+              code: c,
+              payload: payload,
+              nRolls: rolls.length,
+              nTakes: rolls.reduce(function (n, r) {
+                return n + (r.takes || []).length;
+              }, 0),
+              existing: findProjectByName(name)
+            };
+            if (!info.existing) {
+              _context15.next = 25;
+              break;
+            }
+            setPending(info);
+            setBusy(false);
+            return _context15.abrupt("return");
+          case 25:
+            _context15.next = 27;
+            return finish(info, 'new');
+          case 27:
+            _context15.next = 33;
+            break;
+          case 29:
+            _context15.prev = 29;
+            _context15.t0 = _context15["catch"](9);
+            setErr(_context15.t0 && _context15.t0.message || 'Handover failed.');
+            setBusy(false);
+          case 33:
+          case "end":
+            return _context15.stop();
+        }
+      }, _callee15, null, [[9, 29]]);
+    }));
+    return _receive.apply(this, arguments);
+  }
+  function uniqueName(name) {
+    for (var i = 2; i < 100; i++) {
+      var n = name + ' (' + i + ')';
+      if (!findProjectByName(n)) return n;
+    }
+    return name + ' (' + Date.now() + ')';
+  }
+  function finish(_x33, _x34) {
+    return _finish.apply(this, arguments);
+  }
+  function _finish() {
+    _finish = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee16(info, mode) {
+      var p, shown;
+      return _regeneratorRuntime().wrap(function _callee16$(_context16) {
+        while (1) switch (_context16.prev = _context16.next) {
+          case 0:
+            setBusy(true);
+            setErr('');
+            _context16.prev = 2;
+            p = info.payload, shown = p.projectName;
+            if (mode === 'replace') {
+              overwriteProject(info.existing.id, p);
+            } else {
+              if (mode === 'copy') {
+                shown = uniqueName(p.projectName);
+                p = _objectSpread(_objectSpread({}, p), {}, {
+                  projectName: shown
+                });
+              }
+              importProject(p);
+            }
+            // Burn the code only now that the import has really happened. If this
+            // call fails the code just stays valid until it expires - harmless.
+            _context16.prev = 5;
+            _context16.next = 8;
+            return handoverCall('GET', {
+              action: 'done',
+              code: info.code
+            });
+          case 8:
+            _context16.next = 12;
+            break;
+          case 10:
+            _context16.prev = 10;
+            _context16.t0 = _context16["catch"](5);
+          case 12:
+            alert('Received "' + shown + '" (' + info.nRolls + ' roll(s), ' + info.nTakes + ' take(s)).' + (mode === 'replace' ? ' Reloading.' : ''));
+            if (mode === 'replace') {
+              window.location.reload();
+            } else {
+              onClose();
+            }
+            _context16.next = 20;
+            break;
+          case 16:
+            _context16.prev = 16;
+            _context16.t1 = _context16["catch"](2);
+            setErr(_context16.t1 && _context16.t1.message || 'Import failed.');
+            setBusy(false);
+          case 20:
+          case "end":
+            return _context16.stop();
+        }
+      }, _callee16, null, [[2, 16], [5, 10]]);
+    }));
+    return _finish.apply(this, arguments);
+  }
+  var inp = {
+    background: T.surface2,
+    border: '1px solid ' + T.border,
+    borderRadius: 6,
+    padding: '10px 12px',
+    fontSize: 16,
+    color: T.text,
+    fontFamily: "'Geist Mono',monospace",
+    letterSpacing: '0.12em',
+    textTransform: 'uppercase',
+    width: '100%',
+    boxSizing: 'border-box'
+  };
+  var bigBtn = {
+    padding: '10px 16px',
+    borderRadius: 6,
+    background: T.accent,
+    border: 'none',
+    color: '#0e0d0b',
+    fontWeight: 600,
+    fontSize: 12,
+    cursor: busy ? 'default' : 'pointer',
+    opacity: busy ? 0.6 : 1
+  };
+  var ghostBtn = {
+    padding: '10px 16px',
+    borderRadius: 6,
+    background: 'transparent',
+    border: "1px solid ".concat(T.border),
+    color: T.textMute,
+    fontSize: 12,
+    cursor: 'pointer'
+  };
+  var note = {
+    fontSize: 11,
+    color: T.textDim,
+    lineHeight: 1.55
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'fixed',
+      inset: 0,
+      zIndex: 10000,
+      background: 'rgba(0,0,0,0.72)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: T.panel,
+      border: "1px solid ".concat(T.border),
+      borderRadius: 12,
+      width: '100%',
+      maxWidth: 440,
+      maxHeight: '88vh',
+      overflow: 'auto',
+      boxShadow: '0 20px 60px rgba(0,0,0,0.7)',
+      display: 'flex',
+      flexDirection: 'column'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '14px 18px',
+      borderBottom: "1px solid ".concat(T.rule),
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 16
+    }
+  }, '🤝'), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 14,
+      fontWeight: 600,
+      color: T.text,
+      flex: 1
+    }
+  }, "Project handover"), /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    style: {
+      background: 'transparent',
+      border: 'none',
+      color: T.textDim,
+      fontSize: 18,
+      cursor: 'pointer',
+      lineHeight: 1
+    }
+  }, '×')), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '16px 18px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 14
+    }
+  }, !configured && /*#__PURE__*/React.createElement("div", {
+    style: _objectSpread(_objectSpread({}, note), {}, {
+      color: T.danger
+    })
+  }, "Handover is not set up in this build yet. Tell the person who runs the app."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 600,
+      color: T.text
+    }
+  }, '📤', " Send this project"), /*#__PURE__*/React.createElement("div", {
+    style: note
+  }, /*#__PURE__*/React.createElement("b", null, myName), " - ", (data.rolls || []).length, " roll(s), ", myTakes, " take(s). Creates a code the other person types into their own copy of this app. The code works once and lasts 7 days. Reference photos are not included."), !sentCode && /*#__PURE__*/React.createElement("button", {
+    onClick: send,
+    disabled: busy || !configured,
+    style: _objectSpread(_objectSpread({}, bigBtn), {}, {
+      opacity: busy || !configured ? 0.5 : 1
+    })
+  }, busy && !pending ? 'Working...' : 'Create handover code'), sentCode && /*#__PURE__*/React.createElement("div", {
+    style: {
+      border: "1px solid ".concat(T.accent, "66"),
+      background: T.accent + '12',
+      borderRadius: 8,
+      padding: '14px',
+      textAlign: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 26,
+      fontWeight: 700,
+      letterSpacing: '0.18em',
+      color: T.accent,
+      fontFamily: "'Geist Mono',monospace"
+    }
+  }, handoverShowCode(sentCode)), /*#__PURE__*/React.createElement("div", {
+    style: _objectSpread(_objectSpread({}, note), {}, {
+      marginTop: 6
+    })
+  }, "Valid until ", sentExpires ? new Date(sentExpires).toLocaleDateString() : '7 days from now', " - works once."), /*#__PURE__*/React.createElement("button", {
+    onClick: copyCode,
+    style: _objectSpread(_objectSpread({}, ghostBtn), {}, {
+      marginTop: 10,
+      padding: '7px 14px'
+    })
+  }, copied ? 'Copied' : 'Copy code'))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      borderTop: "1px solid ".concat(T.rule),
+      paddingTop: 14,
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 600,
+      color: T.text
+    }
+  }, '📥', " Receive a project"), /*#__PURE__*/React.createElement("input", {
+    value: codeIn,
+    onChange: function onChange(e) {
+      return setCodeIn(e.target.value);
+    },
+    placeholder: "XXXX-XXXX",
+    maxLength: 12,
+    onKeyDown: function onKeyDown(e) {
+      return e.key === 'Enter' && !busy && receive();
+    },
+    autoCapitalize: "characters",
+    autoCorrect: "off",
+    spellCheck: false,
+    style: inp
+  }), !pending && /*#__PURE__*/React.createElement("button", {
+    onClick: receive,
+    disabled: busy || !configured,
+    style: _objectSpread(_objectSpread({}, bigBtn), {}, {
+      opacity: busy || !configured ? 0.5 : 1
+    })
+  }, busy && !sentCode ? 'Working...' : 'Receive project'), pending && /*#__PURE__*/React.createElement("div", {
+    style: {
+      border: "1px solid ".concat(T.border),
+      borderRadius: 8,
+      padding: '12px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: T.text,
+      lineHeight: 1.5
+    }
+  }, "A project named ", /*#__PURE__*/React.createElement("b", null, pending.payload.projectName), " is already on this device. Incoming: ", pending.nRolls, " roll(s), ", pending.nTakes, " take(s)."), /*#__PURE__*/React.createElement("button", {
+    onClick: function onClick() {
+      return finish(pending, 'copy');
+    },
+    disabled: busy,
+    style: bigBtn
+  }, "Keep both (save as a new copy)"), /*#__PURE__*/React.createElement("button", {
+    onClick: function onClick() {
+      if (confirm('Replace the project on this device with the incoming one? This cannot be undone.')) finish(pending, 'replace');
+    },
+    disabled: busy,
+    style: _objectSpread(_objectSpread({}, ghostBtn), {}, {
+      color: T.danger,
+      borderColor: T.danger + '66'
+    })
+  }, "Replace the one on this device"), /*#__PURE__*/React.createElement("button", {
+    onClick: function onClick() {
+      return setPending(null);
+    },
+    disabled: busy,
+    style: ghostBtn
+  }, "Cancel"))), err && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: T.danger,
+      lineHeight: 1.5
+    }
+  }, err))));
+}
+function ProjectSwitcherModal(_ref40) {
+  var _onClose = _ref40.onClose;
+  var _useStandaloneData9 = useStandaloneData(),
+    data = _useStandaloneData9.data,
+    updateData = _useStandaloneData9.updateData,
+    projectId = _useStandaloneData9.projectId,
+    projectIds = _useStandaloneData9.projectIds,
+    switchProject = _useStandaloneData9.switchProject,
+    createProject = _useStandaloneData9.createProject,
+    deleteProject = _useStandaloneData9.deleteProject;
+  var _React$useState185 = React.useState(function () {
       var m = {};
       projectIds.forEach(function (id) {
         m[id] = id === projectId ? data.projectName : loadProjectData(id).projectName;
       });
       return m;
     }),
-    _React$useState172 = _slicedToArray(_React$useState171, 2),
-    names = _React$useState172[0],
-    setNames = _React$useState172[1];
-  var _React$useState173 = React.useState(null),
-    _React$useState174 = _slicedToArray(_React$useState173, 2),
-    editingId = _React$useState174[0],
-    setEditingId = _React$useState174[1];
-  var _React$useState175 = React.useState(''),
-    _React$useState176 = _slicedToArray(_React$useState175, 2),
-    editName = _React$useState176[0],
-    setEditName = _React$useState176[1];
-  var _React$useState177 = React.useState(''),
-    _React$useState178 = _slicedToArray(_React$useState177, 2),
-    newName = _React$useState178[0],
-    setNewName = _React$useState178[1];
+    _React$useState186 = _slicedToArray(_React$useState185, 2),
+    names = _React$useState186[0],
+    setNames = _React$useState186[1];
+  var _React$useState187 = React.useState(null),
+    _React$useState188 = _slicedToArray(_React$useState187, 2),
+    editingId = _React$useState188[0],
+    setEditingId = _React$useState188[1];
+  var _React$useState189 = React.useState(''),
+    _React$useState190 = _slicedToArray(_React$useState189, 2),
+    editName = _React$useState190[0],
+    setEditName = _React$useState190[1];
+  var _React$useState191 = React.useState(''),
+    _React$useState192 = _slicedToArray(_React$useState191, 2),
+    newName = _React$useState192[0],
+    setNewName = _React$useState192[1];
+  var _React$useState193 = React.useState(false),
+    _React$useState194 = _slicedToArray(_React$useState193, 2),
+    showHandover = _React$useState194[0],
+    setShowHandover = _React$useState194[1];
   function startEdit(id) {
     setEditingId(id);
     setEditName(names[id] || '');
@@ -11873,7 +12482,7 @@ function ProjectSwitcherModal(_ref39) {
     var name = newName.trim();
     if (!name) return;
     createProject(name);
-    onClose();
+    _onClose();
   }
   function removeProject(id) {
     if (projectIds.length <= 1) return;
@@ -11944,7 +12553,7 @@ function ProjectSwitcherModal(_ref39) {
       flex: 1
     }
   }, "Projects"), /*#__PURE__*/React.createElement("button", {
-    onClick: onClose,
+    onClick: _onClose,
     style: {
       background: 'transparent',
       border: 'none',
@@ -12067,7 +12676,34 @@ function ProjectSwitcherModal(_ref39) {
       fontSize: 12,
       cursor: 'pointer'
     }
-  }, "+ Add")))));
+  }, "+ Add")), /*#__PURE__*/React.createElement("button", {
+    onClick: function onClick() {
+      return setShowHandover(true);
+    },
+    style: {
+      marginTop: 6,
+      padding: '10px 12px',
+      borderRadius: 8,
+      border: "1px solid ".concat(T.border),
+      background: 'transparent',
+      color: T.text,
+      fontSize: 12,
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      fontFamily: "'Geist Mono',monospace"
+    }
+  }, /*#__PURE__*/React.createElement("span", null, '🤝', " Hand over / receive a project"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: T.textDim
+    }
+  }, '›')), showHandover && /*#__PURE__*/React.createElement(HandoverModal, {
+    onClose: function onClose() {
+      setShowHandover(false);
+      _onClose();
+    }
+  }))));
 }
 
 /* ===============================================================
@@ -12097,26 +12733,26 @@ var TRIAL_LIMITS = {
   rolls: 2,
   takesPerRoll: 6
 };
-function AccessGate(_ref40) {
-  var children = _ref40.children;
-  var _React$useState179 = React.useState(function () {
+function AccessGate(_ref41) {
+  var children = _ref41.children;
+  var _React$useState195 = React.useState(function () {
       return loadGateAuth() ? 'allowed' : 'trial';
     }),
-    _React$useState180 = _slicedToArray(_React$useState179, 2),
-    state = _React$useState180[0],
-    setState = _React$useState180[1]; // trial | working | denied | allowed | error
-  var _React$useState181 = React.useState(''),
-    _React$useState182 = _slicedToArray(_React$useState181, 2),
-    errMsg = _React$useState182[0],
-    setErrMsg = _React$useState182[1];
-  var _React$useState183 = React.useState(false),
-    _React$useState184 = _slicedToArray(_React$useState183, 2),
-    showUnlock = _React$useState184[0],
-    setShowUnlock = _React$useState184[1];
-  var _React$useState185 = React.useState(''),
-    _React$useState186 = _slicedToArray(_React$useState185, 2),
-    unlockReason = _React$useState186[0],
-    setUnlockReason = _React$useState186[1];
+    _React$useState196 = _slicedToArray(_React$useState195, 2),
+    state = _React$useState196[0],
+    setState = _React$useState196[1]; // trial | working | denied | allowed | error
+  var _React$useState197 = React.useState(''),
+    _React$useState198 = _slicedToArray(_React$useState197, 2),
+    errMsg = _React$useState198[0],
+    setErrMsg = _React$useState198[1];
+  var _React$useState199 = React.useState(false),
+    _React$useState200 = _slicedToArray(_React$useState199, 2),
+    showUnlock = _React$useState200[0],
+    setShowUnlock = _React$useState200[1];
+  var _React$useState201 = React.useState(''),
+    _React$useState202 = _slicedToArray(_React$useState201, 2),
+    unlockReason = _React$useState202[0],
+    setUnlockReason = _React$useState202[1];
   var checkedOnce = React.useRef(false);
   React.useEffect(function () {
     if (checkedOnce.current) return;
@@ -12134,14 +12770,14 @@ function AccessGate(_ref40) {
     return _signIn.apply(this, arguments);
   }
   function _signIn() {
-    _signIn = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee14() {
+    _signIn = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee17() {
       var data, clientId, token, email, list;
-      return _regeneratorRuntime().wrap(function _callee14$(_context14) {
-        while (1) switch (_context14.prev = _context14.next) {
+      return _regeneratorRuntime().wrap(function _callee17$(_context17) {
+        while (1) switch (_context17.prev = _context17.next) {
           case 0:
             setState('working');
             setErrMsg('');
-            _context14.prev = 2;
+            _context17.prev = 2;
             // The Client ID override (Settings) is per-project, but the gate runs
             // before any project is even selected - 'default' is the one project
             // every device has always had (see the multi-project storage
@@ -12149,18 +12785,18 @@ function AccessGate(_ref40) {
             // override if this deployment was forked to a different hosting URL.
             data = loadProjectData('default');
             clientId = getEffectiveClientId(data);
-            _context14.next = 7;
+            _context17.next = 7;
             return ensureSheetsToken(clientId);
           case 7:
-            token = _context14.sent;
-            _context14.next = 10;
+            token = _context17.sent;
+            _context17.next = 10;
             return fetchGoogleEmail(token);
           case 10:
-            email = _context14.sent;
-            _context14.next = 13;
+            email = _context17.sent;
+            _context17.next = 13;
             return fetchAllowlist();
           case 13:
-            list = _context14.sent;
+            list = _context17.sent;
             if (list.includes(email)) {
               saveGateAuth(email);
               setState('allowed');
@@ -12169,18 +12805,18 @@ function AccessGate(_ref40) {
               sheetsSignOut();
               setState('denied');
             }
-            _context14.next = 21;
+            _context17.next = 21;
             break;
           case 17:
-            _context14.prev = 17;
-            _context14.t0 = _context14["catch"](2);
-            setErrMsg(_context14.t0 && _context14.t0.message || 'Sign-in failed.');
+            _context17.prev = 17;
+            _context17.t0 = _context17["catch"](2);
+            setErrMsg(_context17.t0 && _context17.t0.message || 'Sign-in failed.');
             setState('error');
           case 21:
           case "end":
-            return _context14.stop();
+            return _context17.stop();
         }
-      }, _callee14, null, [[2, 17]]);
+      }, _callee17, null, [[2, 17]]);
     }));
     return _signIn.apply(this, arguments);
   }
@@ -12402,10 +13038,10 @@ var ErrorBoundary = /*#__PURE__*/function (_React$Component) {
   }]);
 }(React.Component);
 function ThemedApp() {
-  var _React$useState187 = React.useState(loadThemeName),
-    _React$useState188 = _slicedToArray(_React$useState187, 2),
-    themeName = _React$useState188[0],
-    setThemeName = _React$useState188[1];
+  var _React$useState203 = React.useState(loadThemeName),
+    _React$useState204 = _slicedToArray(_React$useState203, 2),
+    themeName = _React$useState204[0],
+    setThemeName = _React$useState204[1];
   React.useEffect(function () {
     applyTheme(themeName);
   }, [themeName]);
