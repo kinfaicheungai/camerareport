@@ -1105,7 +1105,9 @@ function loadProjectData(id) {
         keepDrawerOpen: !!raw.keepDrawerOpen,
         autoTakeOnSceneShot: !!raw.autoTakeOnSceneShot,
         // undefined (never set) = default hidden set, see INFO_DEFAULT_HIDDEN
-        hiddenInfo: Array.isArray(raw.hiddenInfo) ? raw.hiddenInfo : undefined
+        hiddenInfo: Array.isArray(raw.hiddenInfo) ? raw.hiddenInfo : undefined,
+        // First shoot day number for a project that starts mid-schedule (e.g. Day 33). Only used until the first day exists.
+        startDay: Number.isInteger(raw.startDay) && raw.startDay > 1 ? raw.startDay : undefined
       };
     }
   } catch (e) {
@@ -1269,15 +1271,18 @@ function composeSlug(intExt, desc) {
 }
 // Shoot-day date arithmetic for the "+ Add day" smart default: given the
 // previous day's date string, suggest the next calendar day.
-function addOneDay(dateStr) {
+function addDays(dateStr, n) {
   var m = String(dateStr || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!m) return '';
   var d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  d.setDate(d.getDate() + 1);
-  var pad = function pad(n) {
-    return String(n).padStart(2, '0');
+  d.setDate(d.getDate() + n);
+  var pad = function pad(x) {
+    return String(x).padStart(2, '0');
   };
   return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+}
+function addOneDay(dateStr) {
+  return addDays(dateStr, 1);
 }
 
 // Take-table columns a crew can individually show/hide from Project Settings
@@ -1994,7 +1999,7 @@ var SB_WB_PRESETS_KEY = 'sb_camrep_wb_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-var APP_VERSION = 'v4.12';
+var APP_VERSION = 'v4.13';
 var CAM_CONFIG = {
   A: {
     label: 'A',
@@ -4977,9 +4982,9 @@ function CameraReport() {
       return d.day === day;
     });
     if (day === '' || day === undefined || day === null) {
-      day = 1;
+      day = proj.startDay || 1;
       dayRec = {
-        day: 1,
+        day: day,
         date: today
       };
       updateData({
@@ -5308,7 +5313,8 @@ function CameraReport() {
        data whose day records were never written), silently merging two days
        into one. */
     var maxDay = allDayNums.length ? Math.max.apply(Math, _toConsumableArray(allDayNums)) : 0;
-    var nextDay = maxDay + 1;
+    // A brand-new project may be set to start at e.g. Day 33; after that it simply counts on from the highest day.
+    var nextDay = allDayNums.length ? maxDay + 1 : proj.startDay || 1;
     var prevRec = shootDays.find(function (d) {
       return d.day === maxDay;
     });
@@ -10395,7 +10401,8 @@ function ShootDaysEditorModal(_ref35) {
     onSaved = _ref35.onSaved;
   var _useStandaloneData4 = useStandaloneData(),
     data = _useStandaloneData4.data,
-    updateData = _useStandaloneData4.updateData;
+    updateData = _useStandaloneData4.updateData,
+    remountReport = _useStandaloneData4.remountReport;
   // _k: stable per-row render key, never persisted - see the ScenesEditorModal
   // note above for why array indices are the wrong key for an editable list.
   var keySeq = React.useRef(0);
@@ -10410,17 +10417,48 @@ function ShootDaysEditorModal(_ref35) {
         return a.day - b.day;
       }).map(function (d) {
         return _objectSpread(_objectSpread({}, d), {}, {
-          _k: keySeq.current++
+          _k: keySeq.current++,
+          _orig: d.day
         });
       });
     }),
     _React$useState146 = _slicedToArray(_React$useState145, 2),
     rows = _React$useState146[0],
     setRows = _React$useState146[1];
+  /* Shift tool. Rolls are tagged by day NUMBER, so moving a day's number has to re-tag its rolls too.
+     _orig = the row's number when the editor opened (= the number its rolls carry now).
+     _to   = the number a Shift gave it. On Save, rolls of _orig move to _to - ONLY for shifted rows.
+     Typing a number into a row by hand behaves exactly as before (rolls stay put) and clears _to. */
+  var _React$useState147 = React.useState({}),
+    _React$useState148 = _slicedToArray(_React$useState147, 2),
+    orphanPos = _React$useState148[0],
+    setOrphanPos = _React$useState148[1]; // roll-only days (no date record): original number -> shifted number
+  var _React$useState149 = React.useState(''),
+    _React$useState150 = _slicedToArray(_React$useState149, 2),
+    sFrom = _React$useState150[0],
+    setSFrom = _React$useState150[1];
+  var _React$useState151 = React.useState(''),
+    _React$useState152 = _slicedToArray(_React$useState151, 2),
+    sTo = _React$useState152[0],
+    setSTo = _React$useState152[1];
+  var _React$useState153 = React.useState(''),
+    _React$useState154 = _slicedToArray(_React$useState153, 2),
+    sBy = _React$useState154[0],
+    setSBy = _React$useState154[1];
+  var _React$useState155 = React.useState(false),
+    _React$useState156 = _slicedToArray(_React$useState155, 2),
+    sDates = _React$useState156[0],
+    setSDates = _React$useState156[1];
+  var _React$useState157 = React.useState(''),
+    _React$useState158 = _slicedToArray(_React$useState157, 2),
+    shiftMsg = _React$useState158[0],
+    setShiftMsg = _React$useState158[1];
   function patchRow(i, patch) {
     setRows(function (rs) {
       return rs.map(function (r, idx) {
-        return idx === i ? _objectSpread(_objectSpread({}, r), patch) : r;
+        return idx === i ? _objectSpread(_objectSpread(_objectSpread({}, r), patch), 'day' in patch ? {
+          _to: undefined
+        } : {}) : r;
       });
     });
   }
@@ -10461,7 +10499,7 @@ function ShootDaysEditorModal(_ref35) {
         return (parseInt(r.day, 10) || 0) === maxDay;
       });
       return [].concat(_toConsumableArray(rs), [{
-        day: maxDay + 1,
+        day: rs.length ? maxDay + 1 : data.startDay || 1,
         date: from ? addOneDay(from.date) : '',
         _k: keySeq.current++
       }]);
@@ -10475,8 +10513,122 @@ function ShootDaysEditorModal(_ref35) {
     return shootDayProblems(rows);
   }, [rows]);
   var problemCount = Object.keys(problems).length;
+
+  /* "Entities" = the groups of rolls that carry one day number: one per original row, plus one per day that
+     rolls use but has no date row (an orphan). Each says where its rolls are now (from) and where they go (to). */
+  var keptOrigs = new Set(rows.filter(function (r) {
+    return r._orig != null;
+  }).map(function (r) {
+    return r._orig;
+  }));
+  var orphanDays = _toConsumableArray(new Set((data.rolls || []).map(function (r) {
+    return r.shootDay;
+  }).filter(Boolean))).filter(function (d) {
+    return !keptOrigs.has(d);
+  }).sort(function (a, b) {
+    return a - b;
+  });
+  var entities = [].concat(_toConsumableArray(rows.filter(function (r) {
+    return r._orig != null;
+  }).map(function (r) {
+    return {
+      from: r._orig,
+      to: r._to != null ? r._to : r._orig
+    };
+  })), _toConsumableArray(orphanDays.map(function (d) {
+    return {
+      from: d,
+      to: orphanPos[d] != null ? orphanPos[d] : d
+    };
+  })));
+  // Two groups of rolls ending on the same number would silently merge into one day - never allow that.
+  var clashes = function () {
+    var by = {};
+    entities.forEach(function (e) {
+      (by[e.to] = by[e.to] || []).push(e.from);
+    });
+    return Object.keys(by).filter(function (k) {
+      return by[k].length > 1;
+    }).map(function (k) {
+      return {
+        to: +k,
+        froms: by[k]
+      };
+    });
+  }();
+  var lowDay = rows.some(function (r) {
+    var v = parseInt(r.day, 10);
+    return String(r.day) !== '' && !isNaN(v) && v < 1;
+  });
+  var blocked = problemCount > 0 || lowDay || clashes.length > 0;
+  function applyShift() {
+    var n = parseInt(sBy, 10);
+    var lo = sFrom === '' ? null : parseInt(sFrom, 10);
+    var hi = sTo === '' ? null : parseInt(sTo, 10);
+    if (!n) {
+      setShiftMsg('Enter how many days to shift by, e.g. 32 (or -5 to go back).');
+      return;
+    }
+    if (sFrom !== '' && isNaN(lo) || sTo !== '' && isNaN(hi)) {
+      setShiftMsg('From / To must be day numbers.');
+      return;
+    }
+    if (lo != null && hi != null && lo > hi) {
+      setShiftMsg('"From" is after "To".');
+      return;
+    }
+    var inR = function inR(d) {
+      return d > 0 && (lo == null || d >= lo) && (hi == null || d <= hi);
+    };
+    var hitRows = rows.filter(function (r) {
+      return inR(parseInt(r.day, 10) || 0);
+    });
+    var hitOrph = orphanDays.filter(function (d) {
+      return inR(orphanPos[d] != null ? orphanPos[d] : d);
+    });
+    if (!hitRows.length && !hitOrph.length) {
+      setShiftMsg('No days in that range.');
+      return;
+    }
+    var lows = [].concat(_toConsumableArray(hitRows.map(function (r) {
+      return parseInt(r.day, 10);
+    })), _toConsumableArray(hitOrph.map(function (d) {
+      return orphanPos[d] != null ? orphanPos[d] : d;
+    })));
+    if (Math.min.apply(Math, _toConsumableArray(lows)) + n < 1) {
+      setShiftMsg('That would push a day below Day 1.');
+      return;
+    }
+    var nDays = hitRows.length + hitOrph.length;
+    setRows(function (rs) {
+      return rs.map(function (r) {
+        var d = parseInt(r.day, 10) || 0;
+        if (!inR(d)) return r;
+        // Rolls follow the row only while the row is still "in step" with them (a hand-edited number broke that link).
+        var inStep = r._orig != null && (r._to != null ? r._to : r._orig) === d;
+        var nr = _objectSpread(_objectSpread({}, r), {}, {
+          day: d + n
+        });
+        if (inStep) nr._to = d + n;
+        if (sDates && r.date) nr.date = addDays(r.date, n);
+        return nr;
+      }).sort(function (a, b) {
+        var x = parseInt(a.day, 10),
+          y = parseInt(b.day, 10);
+        return (isNaN(x) ? 1e9 : x) - (isNaN(y) ? 1e9 : y);
+      });
+    });
+    setOrphanPos(function (o) {
+      var nx = _objectSpread({}, o);
+      hitOrph.forEach(function (d) {
+        nx[d] = (o[d] != null ? o[d] : d) + n;
+      });
+      return nx;
+    });
+    setShiftMsg('Shifted ' + nDays + ' day' + (nDays !== 1 ? 's' : '') + ' by ' + (n > 0 ? '+' : '') + n + (sDates ? ' (dates moved too)' : ' (dates unchanged)') + '. Press Save to apply.');
+  }
   function save() {
-    if (problemCount) return;
+    if (blocked) return;
     var shootDays = rows.map(function (r) {
       return {
         day: parseInt(r.day, 10) || 0,
@@ -10487,11 +10639,38 @@ function ShootDaysEditorModal(_ref35) {
     }).sort(function (a, b) {
       return a.day - b.day;
     });
-    updateData({
+    var map = {};
+    entities.forEach(function (e) {
+      if (e.to !== e.from) map[e.from] = e.to;
+    });
+    var moved = 0;
+    var pairs = {};
+    var rolls = (data.rolls || []).map(function (r) {
+      if (!r.shootDay || !Object.prototype.hasOwnProperty.call(map, r.shootDay)) return r;
+      moved++;
+      pairs[r.shootDay] = map[r.shootDay];
+      return _objectSpread(_objectSpread({}, r), {}, {
+        shootDay: map[r.shootDay]
+      });
+    });
+    if (moved) {
+      var keys = Object.keys(pairs).sort(function (a, b) {
+        return a - b;
+      });
+      var list = keys.slice(0, 12).map(function (k) {
+        return 'Day ' + k + ' → Day ' + pairs[k];
+      }).join('\n') + (keys.length > 12 ? '\n...and ' + (keys.length - 12) + ' more' : '');
+      if (!confirm('Shifting moves ' + moved + ' roll' + (moved !== 1 ? 's' : '') + ' with their day:\n\n' + list + '\n\nThe screen reloads afterwards and Undo history is cleared. Continue?')) return;
+    }
+    updateData(moved ? {
+      shootDays: shootDays,
+      rolls: rolls
+    } : {
       shootDays: shootDays
     });
     onClose();
     onSaved && onSaved();
+    if (moved && remountReport) remountReport();
   }
   var inp = {
     background: T.surface2,
@@ -10502,6 +10681,11 @@ function ShootDaysEditorModal(_ref35) {
     color: T.text,
     fontFamily: "'Geist Mono',monospace"
   };
+  var small = _objectSpread(_objectSpread({}, inp), {}, {
+    width: 58,
+    textAlign: 'center',
+    padding: '7px 4px'
+  });
   return /*#__PURE__*/React.createElement("div", {
     style: {
       position: 'fixed',
@@ -10575,7 +10759,108 @@ function ShootDaysEditorModal(_ref35) {
       fontStyle: 'italic',
       padding: '8px 0'
     }
-  }, "No shoot days yet."), /*#__PURE__*/React.createElement("div", {
+  }, "No shoot days yet.", data.startDay > 1 ? " The first one you add will be Day ".concat(data.startDay, ".") : ''), (rows.length > 0 || orphanDays.length > 0) && /*#__PURE__*/React.createElement("div", {
+    style: {
+      border: "1px solid ".concat(T.border),
+      borderRadius: 8,
+      padding: '9px 10px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 7
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: T.textDim,
+      lineHeight: 1.5
+    }
+  }, /*#__PURE__*/React.createElement("b", null, "Shift days"), " - renumber a block of days at once; their rolls move with them. Leave From / To empty for all days. E.g. From 5, By +3 turns Day 5, 6, 7... into 8, 9, 10..."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 6,
+      alignItems: 'center',
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: T.textMute
+    }
+  }, "From"), /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    value: sFrom,
+    onChange: function onChange(e) {
+      setSFrom(e.target.value);
+      setShiftMsg('');
+    },
+    placeholder: "all",
+    "aria-label": "Shift from day",
+    style: small
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: T.textMute
+    }
+  }, "To"), /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    value: sTo,
+    onChange: function onChange(e) {
+      setSTo(e.target.value);
+      setShiftMsg('');
+    },
+    placeholder: "all",
+    "aria-label": "Shift to day",
+    style: small
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: T.textMute
+    }
+  }, "By"), /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    value: sBy,
+    onChange: function onChange(e) {
+      setSBy(e.target.value);
+      setShiftMsg('');
+    },
+    placeholder: "+3",
+    "aria-label": "Shift by",
+    style: small
+  })), /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: 'flex',
+      gap: 6,
+      alignItems: 'center',
+      fontSize: 10,
+      color: T.textMute,
+      cursor: 'pointer'
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: sDates,
+    onChange: function onChange(e) {
+      return setSDates(e.target.checked);
+    },
+    "aria-label": "Dates move too"
+  }), "Dates move too (same number of calendar days). Unticked = dates stay as they are."), /*#__PURE__*/React.createElement("button", {
+    onClick: applyShift,
+    style: {
+      alignSelf: 'flex-start',
+      padding: '7px 14px',
+      borderRadius: 6,
+      border: "1px solid ".concat(T.border),
+      background: 'transparent',
+      color: T.text,
+      fontSize: 12,
+      cursor: 'pointer'
+    }
+  }, "Shift"), shiftMsg && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: T.accent,
+      lineHeight: 1.4
+    }
+  }, shiftMsg)), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       flexDirection: 'column',
@@ -10586,6 +10871,10 @@ function ShootDaysEditorModal(_ref35) {
     }
   }, rows.map(function (r, i) {
     var bad = problems[parseInt(r.day, 10) || 0];
+    var moves = r._to != null && r._to !== r._orig;
+    var nRolls = moves ? (data.rolls || []).filter(function (x) {
+      return x.shootDay === r._orig;
+    }).length : 0;
     return /*#__PURE__*/React.createElement("div", {
       key: r._k
     }, /*#__PURE__*/React.createElement("div", {
@@ -10642,7 +10931,15 @@ function ShootDaysEditorModal(_ref35) {
         marginTop: 3,
         paddingLeft: 2
       }
-    }, "\u26A0", " ", bad));
+    }, '⚠', " ", bad), moves && /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 9,
+        color: T.accent,
+        fontFamily: "'Geist Mono',monospace",
+        marginTop: 3,
+        paddingLeft: 2
+      }
+    }, "was Day ", r._orig, nRolls ? " - ".concat(nRolls, " roll").concat(nRolls !== 1 ? 's' : '', " move with it") : ''));
   })), /*#__PURE__*/React.createElement("button", {
     onClick: addRow,
     style: {
@@ -10656,7 +10953,13 @@ function ShootDaysEditorModal(_ref35) {
       fontFamily: "'Geist Mono',monospace",
       cursor: 'pointer'
     }
-  }, "+ Add day"), problemCount > 0 && /*#__PURE__*/React.createElement("div", {
+  }, "+ Add day"), lowDay && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      lineHeight: 1.5,
+      color: T.danger
+    }
+  }, '⚠', " Day numbers must be 1 or more."), clashes.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 10,
       lineHeight: 1.5,
@@ -10666,7 +10969,19 @@ function ShootDaysEditorModal(_ref35) {
       borderRadius: 6,
       padding: '9px 11px'
     }
-  }, "\u26A0", " The schedule runs backwards in ", problemCount, " place", problemCount !== 1 ? 's' : '', ". Every shoot day needs a date later than the day before it, and no two days can share a date."), /*#__PURE__*/React.createElement("div", {
+  }, '⚠', " Rolls from different days would land on the same day number:", ' ', clashes.map(function (c) {
+    return 'Day ' + c.froms.join(' and Day ') + ' → Day ' + c.to;
+  }).join('; '), ". Shift the days after them as well, or choose another amount."), problemCount > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      lineHeight: 1.5,
+      color: T.danger,
+      background: T.danger + '18',
+      border: "1px solid ".concat(T.danger, "55"),
+      borderRadius: 6,
+      padding: '9px 11px'
+    }
+  }, '⚠', " The schedule runs backwards in ", problemCount, " place", problemCount !== 1 ? 's' : '', " (flagged above). Every shoot day needs a date later than the day before it, no two days can share a date, and each day number can be used once."), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       justifyContent: 'flex-end',
@@ -10688,8 +11003,8 @@ function ShootDaysEditorModal(_ref35) {
     }
   }, "Cancel"), /*#__PURE__*/React.createElement("button", {
     onClick: save,
-    disabled: problemCount > 0,
-    title: problemCount ? 'Fix the dates flagged above first' : 'Save shoot days',
+    disabled: blocked,
+    title: blocked ? 'Fix the problems flagged above first' : 'Save shoot days',
     style: {
       padding: '8px 20px',
       borderRadius: 6,
@@ -10698,8 +11013,8 @@ function ShootDaysEditorModal(_ref35) {
       color: '#0e0d0b',
       fontWeight: 600,
       fontSize: 12,
-      cursor: problemCount ? 'not-allowed' : 'pointer',
-      opacity: problemCount ? 0.45 : 1
+      cursor: blocked ? 'not-allowed' : 'pointer',
+      opacity: blocked ? 0.45 : 1
     }
   }, "Save")))));
 }
@@ -10719,12 +11034,12 @@ function ColumnsEditorModal(_ref36) {
   var _useStandaloneData5 = useStandaloneData(),
     data = _useStandaloneData5.data,
     updateData = _useStandaloneData5.updateData;
-  var _React$useState147 = React.useState(function () {
+  var _React$useState159 = React.useState(function () {
       return new Set(data.hiddenColumns || []);
     }),
-    _React$useState148 = _slicedToArray(_React$useState147, 2),
-    hidden = _React$useState148[0],
-    setHidden = _React$useState148[1];
+    _React$useState160 = _slicedToArray(_React$useState159, 2),
+    hidden = _React$useState160[0],
+    setHidden = _React$useState160[1];
   function toggle(key) {
     setHidden(function (prev) {
       var next = new Set(prev);
@@ -10873,12 +11188,12 @@ function InfoFieldsEditorModal(_ref37) {
   var _useStandaloneData6 = useStandaloneData(),
     data = _useStandaloneData6.data,
     updateData = _useStandaloneData6.updateData;
-  var _React$useState149 = React.useState(function () {
+  var _React$useState161 = React.useState(function () {
       return new Set(data.hiddenInfo || INFO_DEFAULT_HIDDEN);
     }),
-    _React$useState150 = _slicedToArray(_React$useState149, 2),
-    hidden = _React$useState150[0],
-    setHidden = _React$useState150[1];
+    _React$useState162 = _slicedToArray(_React$useState161, 2),
+    hidden = _React$useState162[0],
+    setHidden = _React$useState162[1];
   function toggle(key) {
     setHidden(function (prev) {
       var next = new Set(prev);
@@ -11036,14 +11351,14 @@ function BackupModal(_ref38) {
     findProjectByName = _useStandaloneData7.findProjectByName,
     importProject = _useStandaloneData7.importProject,
     overwriteProject = _useStandaloneData7.overwriteProject;
-  var _React$useState151 = React.useState('idle'),
-    _React$useState152 = _slicedToArray(_React$useState151, 2),
-    status = _React$useState152[0],
-    setStatus = _React$useState152[1]; // idle | working | done | error
-  var _React$useState153 = React.useState(''),
-    _React$useState154 = _slicedToArray(_React$useState153, 2),
-    errMsg = _React$useState154[0],
-    setErrMsg = _React$useState154[1];
+  var _React$useState163 = React.useState('idle'),
+    _React$useState164 = _slicedToArray(_React$useState163, 2),
+    status = _React$useState164[0],
+    setStatus = _React$useState164[1]; // idle | working | done | error
+  var _React$useState165 = React.useState(''),
+    _React$useState166 = _slicedToArray(_React$useState165, 2),
+    errMsg = _React$useState166[0],
+    setErrMsg = _React$useState166[1];
   // A per-device Settings value always overrides the baked-in shared default -
   // that's what lets a fork on a different hosting URL use its own Client ID.
   var effectiveClientId = getEffectiveClientId(data);
@@ -11056,14 +11371,14 @@ function BackupModal(_ref38) {
   }, [data.rolls]);
 
   // Restore state
-  var _React$useState155 = React.useState(null),
-    _React$useState156 = _slicedToArray(_React$useState155, 2),
-    sheets = _React$useState156[0],
-    setSheets = _React$useState156[1]; // null = not looked yet
-  var _React$useState157 = React.useState(false),
-    _React$useState158 = _slicedToArray(_React$useState157, 2),
-    restoring = _React$useState158[0],
-    setRestoring = _React$useState158[1];
+  var _React$useState167 = React.useState(null),
+    _React$useState168 = _slicedToArray(_React$useState167, 2),
+    sheets = _React$useState168[0],
+    setSheets = _React$useState168[1]; // null = not looked yet
+  var _React$useState169 = React.useState(false),
+    _React$useState170 = _slicedToArray(_React$useState169, 2),
+    restoring = _React$useState170[0],
+    setRestoring = _React$useState170[1];
   function runBackup() {
     return _runBackup.apply(this, arguments);
   }
@@ -11090,7 +11405,8 @@ function BackupModal(_ref38) {
                 shootDays: data.shootDays || [],
                 rolls: data.rolls || [],
                 hiddenColumns: data.hiddenColumns || [],
-                hiddenInfo: Array.isArray(data.hiddenInfo) ? data.hiddenInfo : undefined
+                hiddenInfo: Array.isArray(data.hiddenInfo) ? data.hiddenInfo : undefined,
+                startDay: data.startDay
               }
             });
           case 5:
@@ -11188,6 +11504,7 @@ function BackupModal(_ref38) {
               rolls: incoming.rolls || [],
               hiddenColumns: incoming.hiddenColumns || [],
               hiddenInfo: Array.isArray(incoming.hiddenInfo) ? incoming.hiddenInfo : undefined,
+              startDay: Number.isInteger(incoming.startDay) && incoming.startDay > 1 ? incoming.startDay : undefined,
               gsheetsClientId: data.gsheetsClientId || '',
               gsheetsSpreadsheetId: file.id
             };
@@ -11501,43 +11818,53 @@ function App() {
   var _useTheme = useTheme(),
     themeName = _useTheme.themeName,
     toggleTheme = _useTheme.toggleTheme;
-  var _React$useState159 = React.useState(ensureProjectsSetup),
-    _React$useState160 = _slicedToArray(_React$useState159, 2),
-    projectIds = _React$useState160[0],
-    setProjectIds = _React$useState160[1];
-  var _React$useState161 = React.useState(function () {
+  var _React$useState171 = React.useState(ensureProjectsSetup),
+    _React$useState172 = _slicedToArray(_React$useState171, 2),
+    projectIds = _React$useState172[0],
+    setProjectIds = _React$useState172[1];
+  var _React$useState173 = React.useState(function () {
       return loadCurrentProjectId(projectIds);
     }),
-    _React$useState162 = _slicedToArray(_React$useState161, 2),
-    projectId = _React$useState162[0],
-    setProjectId = _React$useState162[1];
-  var _React$useState163 = React.useState(function () {
+    _React$useState174 = _slicedToArray(_React$useState173, 2),
+    projectId = _React$useState174[0],
+    setProjectId = _React$useState174[1];
+  var _React$useState175 = React.useState(function () {
       return loadProjectData(projectId);
     }),
-    _React$useState164 = _slicedToArray(_React$useState163, 2),
-    data = _React$useState164[0],
-    setData = _React$useState164[1];
-  var _React$useState165 = React.useState(false),
-    _React$useState166 = _slicedToArray(_React$useState165, 2),
-    showSettings = _React$useState166[0],
-    setShowSettings = _React$useState166[1];
-  var _React$useState167 = React.useState(false),
-    _React$useState168 = _slicedToArray(_React$useState167, 2),
-    showBackup = _React$useState168[0],
-    setShowBackup = _React$useState168[1];
-  var _React$useState169 = React.useState(false),
-    _React$useState170 = _slicedToArray(_React$useState169, 2),
-    showProjects = _React$useState170[0],
-    setShowProjects = _React$useState170[1];
+    _React$useState176 = _slicedToArray(_React$useState175, 2),
+    data = _React$useState176[0],
+    setData = _React$useState176[1];
+  var _React$useState177 = React.useState(false),
+    _React$useState178 = _slicedToArray(_React$useState177, 2),
+    showSettings = _React$useState178[0],
+    setShowSettings = _React$useState178[1];
+  var _React$useState179 = React.useState(false),
+    _React$useState180 = _slicedToArray(_React$useState179, 2),
+    showBackup = _React$useState180[0],
+    setShowBackup = _React$useState180[1];
+  var _React$useState181 = React.useState(false),
+    _React$useState182 = _slicedToArray(_React$useState181, 2),
+    showProjects = _React$useState182[0],
+    setShowProjects = _React$useState182[1];
+  // Bumped when something outside CameraReport rewrites rolls (e.g. renumbering shoot days), so it reloads them.
+  var _React$useState183 = React.useState(0),
+    _React$useState184 = _slicedToArray(_React$useState183, 2),
+    remountNonce = _React$useState184[0],
+    setRemountNonce = _React$useState184[1];
+  var remountReport = function remountReport() {
+    return setRemountNonce(function (n) {
+      return n + 1;
+    });
+  };
   // True once a localStorage write has actually FAILED (quota full, private
   // browsing, storage blocked). Previously saveProjectData's false return was
   // discarded here, so the status pill kept saying "SAVED LOCALLY" while
   // nothing was being written - the worst possible failure mode for a camera
   // report you're relying on mid-shoot.
-  var _React$useState171 = React.useState(false),
-    _React$useState172 = _slicedToArray(_React$useState171, 2),
-    storageFailed = _React$useState172[0],
-    setStorageFailed = _React$useState172[1];
+  var _React$useState185 = React.useState(false),
+    _React$useState186 = _slicedToArray(_React$useState185, 2),
+    storageFailed = _React$useState186[0],
+    setStorageFailed = _React$useState186[1];
 
   // Pure state update - no side effects. It stays a functional updater because
   // two updateData calls can land in the same tick (e.g. adding a shoot day,
@@ -11572,9 +11899,9 @@ function App() {
     setData(loadProjectData(id));
     saveCurrentProjectId(id);
   }
-  function createProject(name) {
+  function createProject(name, startDay) {
     var id = newProjectId();
-    saveProjectData(id, {
+    saveProjectData(id, _objectSpread({
       projectName: (name || '').trim() || 'Untitled Production',
       scenes: [],
       shootDays: [],
@@ -11582,7 +11909,9 @@ function App() {
       gsheetsClientId: '',
       gsheetsSpreadsheetId: '',
       hiddenColumns: []
-    });
+    }, Number.isInteger(startDay) && startDay > 1 ? {
+      startDay: startDay
+    } : {}));
     setProjectIds(function (prev) {
       var next = [].concat(_toConsumableArray(prev), [id]);
       saveProjectsList(next);
@@ -11662,7 +11991,8 @@ function App() {
       storageFailed: storageFailed,
       findProjectByName: findProjectByName,
       importProject: importProject,
-      overwriteProject: overwriteProject
+      overwriteProject: overwriteProject,
+      remountReport: remountReport
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -11821,7 +12151,7 @@ function App() {
       padding: 12
     }
   }, /*#__PURE__*/React.createElement(CameraReport, {
-    key: projectId
+    key: projectId + '#' + remountNonce
   })), showSettings && /*#__PURE__*/React.createElement(SettingsModal, {
     onClose: function onClose() {
       return setShowSettings(false);
@@ -11957,34 +12287,34 @@ function HandoverModal(_ref39) {
     overwriteProject = _useStandaloneData8.overwriteProject;
   var _useAuth3 = useAuth(),
     requireUnlock = _useAuth3.requireUnlock;
-  var _React$useState173 = React.useState(false),
-    _React$useState174 = _slicedToArray(_React$useState173, 2),
-    busy = _React$useState174[0],
-    setBusy = _React$useState174[1];
-  var _React$useState175 = React.useState(''),
-    _React$useState176 = _slicedToArray(_React$useState175, 2),
-    err = _React$useState176[0],
-    setErr = _React$useState176[1];
-  var _React$useState177 = React.useState(''),
-    _React$useState178 = _slicedToArray(_React$useState177, 2),
-    sentCode = _React$useState178[0],
-    setSentCode = _React$useState178[1];
-  var _React$useState179 = React.useState(0),
-    _React$useState180 = _slicedToArray(_React$useState179, 2),
-    sentExpires = _React$useState180[0],
-    setSentExpires = _React$useState180[1];
-  var _React$useState181 = React.useState(''),
-    _React$useState182 = _slicedToArray(_React$useState181, 2),
-    codeIn = _React$useState182[0],
-    setCodeIn = _React$useState182[1];
-  var _React$useState183 = React.useState(null),
-    _React$useState184 = _slicedToArray(_React$useState183, 2),
-    pending = _React$useState184[0],
-    setPending = _React$useState184[1];
-  var _React$useState185 = React.useState(false),
-    _React$useState186 = _slicedToArray(_React$useState185, 2),
-    copied = _React$useState186[0],
-    setCopied = _React$useState186[1];
+  var _React$useState187 = React.useState(false),
+    _React$useState188 = _slicedToArray(_React$useState187, 2),
+    busy = _React$useState188[0],
+    setBusy = _React$useState188[1];
+  var _React$useState189 = React.useState(''),
+    _React$useState190 = _slicedToArray(_React$useState189, 2),
+    err = _React$useState190[0],
+    setErr = _React$useState190[1];
+  var _React$useState191 = React.useState(''),
+    _React$useState192 = _slicedToArray(_React$useState191, 2),
+    sentCode = _React$useState192[0],
+    setSentCode = _React$useState192[1];
+  var _React$useState193 = React.useState(0),
+    _React$useState194 = _slicedToArray(_React$useState193, 2),
+    sentExpires = _React$useState194[0],
+    setSentExpires = _React$useState194[1];
+  var _React$useState195 = React.useState(''),
+    _React$useState196 = _slicedToArray(_React$useState195, 2),
+    codeIn = _React$useState196[0],
+    setCodeIn = _React$useState196[1];
+  var _React$useState197 = React.useState(null),
+    _React$useState198 = _slicedToArray(_React$useState197, 2),
+    pending = _React$useState198[0],
+    setPending = _React$useState198[1];
+  var _React$useState199 = React.useState(false),
+    _React$useState200 = _slicedToArray(_React$useState199, 2),
+    copied = _React$useState200[0],
+    setCopied = _React$useState200[1];
   var configured = !!(HANDOVER_URL && HANDOVER_URL.trim());
   var myName = data.projectName || 'Untitled Production';
   var myTakes = (data.rolls || []).reduce(function (n, r) {
@@ -12016,6 +12346,7 @@ function HandoverModal(_ref39) {
               rolls: data.rolls || [],
               hiddenColumns: data.hiddenColumns || [],
               hiddenInfo: Array.isArray(data.hiddenInfo) ? data.hiddenInfo : undefined,
+              startDay: data.startDay,
               keepDrawerOpen: !!data.keepDrawerOpen,
               autoTakeOnSceneShot: !!data.autoTakeOnSceneShot
             };
@@ -12119,6 +12450,7 @@ function HandoverModal(_ref39) {
               rolls: rolls,
               hiddenColumns: Array.isArray(proj.hiddenColumns) ? proj.hiddenColumns : [],
               hiddenInfo: Array.isArray(proj.hiddenInfo) ? proj.hiddenInfo : undefined,
+              startDay: Number.isInteger(proj.startDay) && proj.startDay > 1 ? proj.startDay : undefined,
               keepDrawerOpen: !!proj.keepDrawerOpen,
               autoTakeOnSceneShot: !!proj.autoTakeOnSceneShot,
               gsheetsClientId: data.gsheetsClientId || '',
@@ -12462,32 +12794,36 @@ function ProjectSwitcherModal(_ref40) {
     switchProject = _useStandaloneData9.switchProject,
     createProject = _useStandaloneData9.createProject,
     deleteProject = _useStandaloneData9.deleteProject;
-  var _React$useState187 = React.useState(function () {
+  var _React$useState201 = React.useState(function () {
       var m = {};
       projectIds.forEach(function (id) {
         m[id] = id === projectId ? data.projectName : loadProjectData(id).projectName;
       });
       return m;
     }),
-    _React$useState188 = _slicedToArray(_React$useState187, 2),
-    names = _React$useState188[0],
-    setNames = _React$useState188[1];
-  var _React$useState189 = React.useState(null),
-    _React$useState190 = _slicedToArray(_React$useState189, 2),
-    editingId = _React$useState190[0],
-    setEditingId = _React$useState190[1];
-  var _React$useState191 = React.useState(''),
-    _React$useState192 = _slicedToArray(_React$useState191, 2),
-    editName = _React$useState192[0],
-    setEditName = _React$useState192[1];
-  var _React$useState193 = React.useState(''),
-    _React$useState194 = _slicedToArray(_React$useState193, 2),
-    newName = _React$useState194[0],
-    setNewName = _React$useState194[1];
-  var _React$useState195 = React.useState(false),
-    _React$useState196 = _slicedToArray(_React$useState195, 2),
-    showHandover = _React$useState196[0],
-    setShowHandover = _React$useState196[1];
+    _React$useState202 = _slicedToArray(_React$useState201, 2),
+    names = _React$useState202[0],
+    setNames = _React$useState202[1];
+  var _React$useState203 = React.useState(null),
+    _React$useState204 = _slicedToArray(_React$useState203, 2),
+    editingId = _React$useState204[0],
+    setEditingId = _React$useState204[1];
+  var _React$useState205 = React.useState(''),
+    _React$useState206 = _slicedToArray(_React$useState205, 2),
+    editName = _React$useState206[0],
+    setEditName = _React$useState206[1];
+  var _React$useState207 = React.useState(''),
+    _React$useState208 = _slicedToArray(_React$useState207, 2),
+    newName = _React$useState208[0],
+    setNewName = _React$useState208[1];
+  var _React$useState209 = React.useState(''),
+    _React$useState210 = _slicedToArray(_React$useState209, 2),
+    newStart = _React$useState210[0],
+    setNewStart = _React$useState210[1];
+  var _React$useState211 = React.useState(false),
+    _React$useState212 = _slicedToArray(_React$useState211, 2),
+    showHandover = _React$useState212[0],
+    setShowHandover = _React$useState212[1];
   function startEdit(id) {
     setEditingId(id);
     setEditName(names[id] || '');
@@ -12509,7 +12845,8 @@ function ProjectSwitcherModal(_ref40) {
   function addProject() {
     var name = newName.trim();
     if (!name) return;
-    createProject(name);
+    var sd = parseInt(newStart, 10);
+    createProject(name, Number.isInteger(sd) && sd > 1 ? sd : undefined);
     _onClose();
   }
   function removeProject(id) {
@@ -12690,7 +13027,25 @@ function ProjectSwitcherModal(_ref40) {
     },
     placeholder: "New project name",
     style: _objectSpread(_objectSpread({}, inp), {}, {
-      flex: 1
+      flex: 1,
+      minWidth: 0
+    })
+  }), /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    min: "1",
+    value: newStart,
+    onChange: function onChange(e) {
+      return setNewStart(e.target.value);
+    },
+    onKeyDown: function onKeyDown(e) {
+      return e.key === 'Enter' && addProject();
+    },
+    placeholder: "Day 1",
+    title: "First shoot day number (leave empty to start at Day 1)",
+    "aria-label": "Start at day",
+    style: _objectSpread(_objectSpread({}, inp), {}, {
+      width: 68,
+      textAlign: 'center'
     })
   }), /*#__PURE__*/React.createElement("button", {
     onClick: addProject,
@@ -12763,24 +13118,24 @@ var TRIAL_LIMITS = {
 };
 function AccessGate(_ref41) {
   var children = _ref41.children;
-  var _React$useState197 = React.useState(function () {
+  var _React$useState213 = React.useState(function () {
       return loadGateAuth() ? 'allowed' : 'trial';
     }),
-    _React$useState198 = _slicedToArray(_React$useState197, 2),
-    state = _React$useState198[0],
-    setState = _React$useState198[1]; // trial | working | denied | allowed | error
-  var _React$useState199 = React.useState(''),
-    _React$useState200 = _slicedToArray(_React$useState199, 2),
-    errMsg = _React$useState200[0],
-    setErrMsg = _React$useState200[1];
-  var _React$useState201 = React.useState(false),
-    _React$useState202 = _slicedToArray(_React$useState201, 2),
-    showUnlock = _React$useState202[0],
-    setShowUnlock = _React$useState202[1];
-  var _React$useState203 = React.useState(''),
-    _React$useState204 = _slicedToArray(_React$useState203, 2),
-    unlockReason = _React$useState204[0],
-    setUnlockReason = _React$useState204[1];
+    _React$useState214 = _slicedToArray(_React$useState213, 2),
+    state = _React$useState214[0],
+    setState = _React$useState214[1]; // trial | working | denied | allowed | error
+  var _React$useState215 = React.useState(''),
+    _React$useState216 = _slicedToArray(_React$useState215, 2),
+    errMsg = _React$useState216[0],
+    setErrMsg = _React$useState216[1];
+  var _React$useState217 = React.useState(false),
+    _React$useState218 = _slicedToArray(_React$useState217, 2),
+    showUnlock = _React$useState218[0],
+    setShowUnlock = _React$useState218[1];
+  var _React$useState219 = React.useState(''),
+    _React$useState220 = _slicedToArray(_React$useState219, 2),
+    unlockReason = _React$useState220[0],
+    setUnlockReason = _React$useState220[1];
   var checkedOnce = React.useRef(false);
   React.useEffect(function () {
     if (checkedOnce.current) return;
@@ -13066,10 +13421,10 @@ var ErrorBoundary = /*#__PURE__*/function (_React$Component) {
   }]);
 }(React.Component);
 function ThemedApp() {
-  var _React$useState205 = React.useState(loadThemeName),
-    _React$useState206 = _slicedToArray(_React$useState205, 2),
-    themeName = _React$useState206[0],
-    setThemeName = _React$useState206[1];
+  var _React$useState221 = React.useState(loadThemeName),
+    _React$useState222 = _slicedToArray(_React$useState221, 2),
+    themeName = _React$useState222[0],
+    setThemeName = _React$useState222[1];
   React.useEffect(function () {
     applyTheme(themeName);
   }, [themeName]);

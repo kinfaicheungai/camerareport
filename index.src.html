@@ -776,7 +776,9 @@ function loadProjectData(id){
         keepDrawerOpen: !!raw.keepDrawerOpen,
         autoTakeOnSceneShot: !!raw.autoTakeOnSceneShot,
         // undefined (never set) = default hidden set, see INFO_DEFAULT_HIDDEN
-        hiddenInfo: Array.isArray(raw.hiddenInfo)?raw.hiddenInfo:undefined
+        hiddenInfo: Array.isArray(raw.hiddenInfo)?raw.hiddenInfo:undefined,
+        // First shoot day number for a project that starts mid-schedule (e.g. Day 33). Only used until the first day exists.
+        startDay: (Number.isInteger(raw.startDay)&&raw.startDay>1)?raw.startDay:undefined
       };
     }
   }catch(e){ console.warn('camrep: could not read project data',e); }
@@ -881,14 +883,15 @@ function composeSlug(intExt,desc){
 }
 // Shoot-day date arithmetic for the "+ Add day" smart default: given the
 // previous day's date string, suggest the next calendar day.
-function addOneDay(dateStr){
+function addDays(dateStr,n){
   const m=String(dateStr||'').match(/^(\d{4})-(\d{2})-(\d{2})/);
   if(!m) return '';
   const d=new Date(Number(m[1]),Number(m[2])-1,Number(m[3]));
-  d.setDate(d.getDate()+1);
-  const pad=n=>String(n).padStart(2,'0');
+  d.setDate(d.getDate()+n);
+  const pad=x=>String(x).padStart(2,'0');
   return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
 }
+function addOneDay(dateStr){ return addDays(dateStr,1); }
 
 // Take-table columns a crew can individually show/hide from Project Settings
 // (different productions slate differently - e.g. some US-style crews fold
@@ -1201,7 +1204,7 @@ const SB_WB_PRESETS_KEY='sb_camrep_wb_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-const APP_VERSION='v4.12';
+const APP_VERSION='v4.13';
 
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
@@ -2562,8 +2565,8 @@ function CameraReport(){
        first roll is created before any day exists - so open Day 1 for it. */
     let dayRec=shootDays.find(d=>d.day===day);
     if(day===''||day===undefined||day===null){
-      day=1;
-      dayRec={day:1,date:today};
+      day=proj.startDay||1;
+      dayRec={day:day,date:today};
       updateData({shootDays:[...shootDays,dayRec]});
     }
     const newRoll={id, roll:nextRollNo(c), cam:c, mag:'',
@@ -2778,7 +2781,8 @@ function CameraReport(){
        data whose day records were never written), silently merging two days
        into one. */
     const maxDay=allDayNums.length?Math.max(...allDayNums):0;
-    const nextDay=maxDay+1;
+    // A brand-new project may be set to start at e.g. Day 33; after that it simply counts on from the highest day.
+    const nextDay=allDayNums.length?maxDay+1:(proj.startDay||1);
     const prevRec=shootDays.find(d=>d.day===maxDay);
     let nextDate=prevRec&&prevRec.date
       ? addOneDay(prevRec.date)
@@ -5072,7 +5076,7 @@ function ScenesEditorModal({onClose,onSaved}){
    previous row's date, instead of starting blank every time.
 ================================================================ */
 function ShootDaysEditorModal({onClose,onSaved}){
-  const {data,updateData}=useStandaloneData();
+  const {data,updateData,remountReport}=useStandaloneData();
   // _k: stable per-row render key, never persisted - see the ScenesEditorModal
   // note above for why array indices are the wrong key for an editable list.
   const keySeq=React.useRef(0);
@@ -5082,9 +5086,19 @@ function ShootDaysEditorModal({onClose,onSaved}){
      schedule itself, and a calendar reads forwards. Ascending also makes a
      mis-typed date obvious at a glance, because the dates should march
      downwards in step with the day numbers. */
-  const [rows,setRows]=React.useState(()=>(data.shootDays||[]).slice().sort((a,b)=>a.day-b.day).map(d=>({...d,_k:keySeq.current++})));
+  const [rows,setRows]=React.useState(()=>(data.shootDays||[]).slice().sort((a,b)=>a.day-b.day).map(d=>({...d,_k:keySeq.current++,_orig:d.day})));
+  /* Shift tool. Rolls are tagged by day NUMBER, so moving a day's number has to re-tag its rolls too.
+     _orig = the row's number when the editor opened (= the number its rolls carry now).
+     _to   = the number a Shift gave it. On Save, rolls of _orig move to _to - ONLY for shifted rows.
+     Typing a number into a row by hand behaves exactly as before (rolls stay put) and clears _to. */
+  const [orphanPos,setOrphanPos]=React.useState({}); // roll-only days (no date record): original number -> shifted number
+  const [sFrom,setSFrom]=React.useState('');
+  const [sTo,setSTo]=React.useState('');
+  const [sBy,setSBy]=React.useState('');
+  const [sDates,setSDates]=React.useState(false);
+  const [shiftMsg,setShiftMsg]=React.useState('');
 
-  function patchRow(i,patch){ setRows(rs=>rs.map((r,idx)=>idx===i?{...r,...patch}:r)); }
+  function patchRow(i,patch){ setRows(rs=>rs.map((r,idx)=>idx===i?{...r,...patch,...(('day' in patch)?{_to:undefined}:{})}:r)); }
 
   /* This editor owns the DATE of a shoot day, not the footage shot on it -
      removing a row here deletes the date record and nothing else. The rolls
@@ -5116,7 +5130,7 @@ function ShootDaysEditorModal({onClose,onSaved}){
       // which is where the newest day belongs in an ascending list.
       const maxDay=rs.reduce((m,r)=>Math.max(m,parseInt(r.day,10)||0),0);
       const from=rs.find(r=>(parseInt(r.day,10)||0)===maxDay);
-      return [...rs,{day:maxDay+1,date:from?addOneDay(from.date):'',_k:keySeq.current++}];
+      return [...rs,{day:rs.length?maxDay+1:(data.startDay||1),date:from?addOneDay(from.date):'',_k:keySeq.current++}];
     });
   }
   /* Validated live rather than only on save, so a bad date is flagged on the
@@ -5126,16 +5140,77 @@ function ShootDaysEditorModal({onClose,onSaved}){
   const problems=React.useMemo(()=>shootDayProblems(rows),[rows]);
   const problemCount=Object.keys(problems).length;
 
+  /* "Entities" = the groups of rolls that carry one day number: one per original row, plus one per day that
+     rolls use but has no date row (an orphan). Each says where its rolls are now (from) and where they go (to). */
+  const keptOrigs=new Set(rows.filter(r=>r._orig!=null).map(r=>r._orig));
+  const orphanDays=[...new Set((data.rolls||[]).map(r=>r.shootDay).filter(Boolean))].filter(d=>!keptOrigs.has(d)).sort((a,b)=>a-b);
+  const entities=[
+    ...rows.filter(r=>r._orig!=null).map(r=>({from:r._orig,to:r._to!=null?r._to:r._orig})),
+    ...orphanDays.map(d=>({from:d,to:orphanPos[d]!=null?orphanPos[d]:d}))
+  ];
+  // Two groups of rolls ending on the same number would silently merge into one day - never allow that.
+  const clashes=(()=>{
+    const by={}; entities.forEach(e=>{ (by[e.to]=by[e.to]||[]).push(e.from); });
+    return Object.keys(by).filter(k=>by[k].length>1).map(k=>({to:+k,froms:by[k]}));
+  })();
+  const lowDay=rows.some(r=>{ const v=parseInt(r.day,10); return String(r.day)!==''&&!isNaN(v)&&v<1; });
+  const blocked=problemCount>0||lowDay||clashes.length>0;
+
+  function applyShift(){
+    const n=parseInt(sBy,10);
+    const lo=sFrom===''?null:parseInt(sFrom,10);
+    const hi=sTo===''?null:parseInt(sTo,10);
+    if(!n){ setShiftMsg('Enter how many days to shift by, e.g. 32 (or -5 to go back).'); return; }
+    if((sFrom!==''&&isNaN(lo))||(sTo!==''&&isNaN(hi))){ setShiftMsg('From / To must be day numbers.'); return; }
+    if(lo!=null&&hi!=null&&lo>hi){ setShiftMsg('"From" is after "To".'); return; }
+    const inR=d=>d>0&&(lo==null||d>=lo)&&(hi==null||d<=hi);
+    const hitRows=rows.filter(r=>inR(parseInt(r.day,10)||0));
+    const hitOrph=orphanDays.filter(d=>inR(orphanPos[d]!=null?orphanPos[d]:d));
+    if(!hitRows.length&&!hitOrph.length){ setShiftMsg('No days in that range.'); return; }
+    const lows=[...hitRows.map(r=>parseInt(r.day,10)),...hitOrph.map(d=>orphanPos[d]!=null?orphanPos[d]:d)];
+    if(Math.min(...lows)+n<1){ setShiftMsg('That would push a day below Day 1.'); return; }
+    const nDays=hitRows.length+hitOrph.length;
+    setRows(rs=>rs.map(r=>{
+      const d=parseInt(r.day,10)||0;
+      if(!inR(d))return r;
+      // Rolls follow the row only while the row is still "in step" with them (a hand-edited number broke that link).
+      const inStep=r._orig!=null&&(r._to!=null?r._to:r._orig)===d;
+      const nr={...r,day:d+n};
+      if(inStep)nr._to=d+n;
+      if(sDates&&r.date)nr.date=addDays(r.date,n);
+      return nr;
+    }).sort((a,b)=>{ const x=parseInt(a.day,10), y=parseInt(b.day,10); return (isNaN(x)?1e9:x)-(isNaN(y)?1e9:y); }));
+    setOrphanPos(o=>{ const nx={...o}; hitOrph.forEach(d=>{ nx[d]=(o[d]!=null?o[d]:d)+n; }); return nx; });
+    setShiftMsg('Shifted '+nDays+' day'+(nDays!==1?'s':'')+' by '+(n>0?'+':'')+n+(sDates?' (dates moved too)':' (dates unchanged)')+'. Press Save to apply.');
+  }
+
   function save(){
-    if(problemCount)return;
+    if(blocked)return;
     const shootDays=rows.map(r=>({day:parseInt(r.day,10)||0,date:r.date||''})).filter(d=>d.day).sort((a,b)=>a.day-b.day);
-    updateData({shootDays});
+    const map={}; entities.forEach(e=>{ if(e.to!==e.from)map[e.from]=e.to; });
+    let moved=0; const pairs={};
+    const rolls=(data.rolls||[]).map(r=>{
+      if(!r.shootDay||!Object.prototype.hasOwnProperty.call(map,r.shootDay))return r;
+      moved++; pairs[r.shootDay]=map[r.shootDay];
+      return {...r,shootDay:map[r.shootDay]};
+    });
+    if(moved){
+      const keys=Object.keys(pairs).sort((a,b)=>a-b);
+      const list=keys.slice(0,12).map(k=>'Day '+k+' → Day '+pairs[k]).join('\n')+(keys.length>12?'\n...and '+(keys.length-12)+' more':'');
+      if(!confirm(
+        'Shifting moves '+moved+' roll'+(moved!==1?'s':'')+' with their day:\n\n'+list+
+        '\n\nThe screen reloads afterwards and Undo history is cleared. Continue?'
+      ))return;
+    }
+    updateData(moved?{shootDays,rolls}:{shootDays});
     onClose();
     onSaved&&onSaved();
+    if(moved&&remountReport)remountReport();
   }
 
   const inp={background:T.surface2,border:'1px solid '+T.border,borderRadius:6,
     padding:'7px 9px',fontSize:12,color:T.text,fontFamily:"'Geist Mono',monospace"};
+  const small={...inp,width:58,textAlign:'center',padding:'7px 4px'};
 
   return(
     <div style={{position:'fixed',inset:0,zIndex:10000,background:'rgba(0,0,0,0.72)',
@@ -5154,13 +5229,37 @@ function ShootDaysEditorModal({onClose,onSaved}){
             number and the next calendar date for you; both are still editable.
             Each day must fall on a later date than the one before it.
           </div>
-          {rows.length===0&&<div style={{fontSize:11,color:T.textDim,fontStyle:'italic',padding:'8px 0'}}>No shoot days yet.</div>}
+          {rows.length===0&&<div style={{fontSize:11,color:T.textDim,fontStyle:'italic',padding:'8px 0'}}>No shoot days yet.{data.startDay>1?` The first one you add will be Day ${data.startDay}.`:''}</div>}
+          {(rows.length>0||orphanDays.length>0)&&(
+            <div style={{border:`1px solid ${T.border}`,borderRadius:8,padding:'9px 10px',display:'flex',flexDirection:'column',gap:7}}>
+              <div style={{fontSize:10,color:T.textDim,lineHeight:1.5}}>
+                <b>Shift days</b> - renumber a block of days at once; their rolls move with them. Leave From / To empty for all days.
+                E.g. From 5, By +3 turns Day 5, 6, 7... into 8, 9, 10...
+              </div>
+              <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
+                <span style={{fontSize:10,color:T.textMute}}>From</span>
+                <input type="number" value={sFrom} onChange={e=>{setSFrom(e.target.value);setShiftMsg('');}} placeholder="all" aria-label="Shift from day" style={small}/>
+                <span style={{fontSize:10,color:T.textMute}}>To</span>
+                <input type="number" value={sTo} onChange={e=>{setSTo(e.target.value);setShiftMsg('');}} placeholder="all" aria-label="Shift to day" style={small}/>
+                <span style={{fontSize:10,color:T.textMute}}>By</span>
+                <input type="number" value={sBy} onChange={e=>{setSBy(e.target.value);setShiftMsg('');}} placeholder="+3" aria-label="Shift by" style={small}/>
+              </div>
+              <label style={{display:'flex',gap:6,alignItems:'center',fontSize:10,color:T.textMute,cursor:'pointer'}}>
+                <input type="checkbox" checked={sDates} onChange={e=>setSDates(e.target.checked)} aria-label="Dates move too"/>
+                Dates move too (same number of calendar days). Unticked = dates stay as they are.
+              </label>
+              <button onClick={applyShift} style={{alignSelf:'flex-start',padding:'7px 14px',borderRadius:6,border:`1px solid ${T.border}`,background:'transparent',color:T.text,fontSize:12,cursor:'pointer'}}>Shift</button>
+              {shiftMsg&&<div style={{fontSize:10,color:T.accent,lineHeight:1.4}}>{shiftMsg}</div>}
+            </div>
+          )}
           {/* Fixed-height scroll region so a long list of days doesn't push
               the Add/Save/Cancel controls off-screen - only this middle
               section scrolls, everything around it stays reachable. */}
           <div style={{display:'flex',flexDirection:'column',gap:10,maxHeight:'38vh',overflow:'auto',paddingRight:2}}>
             {rows.map((r,i)=>{
               const bad=problems[parseInt(r.day,10)||0];
+              const moves=r._to!=null&&r._to!==r._orig;
+              const nRolls=moves?(data.rolls||[]).filter(x=>x.shootDay===r._orig).length:0;
               return(
                 <div key={r._k}>
                   <div style={{display:'grid',gridTemplateColumns:'60px 1fr auto',gap:6,alignItems:'center'}}>
@@ -5172,26 +5271,38 @@ function ShootDaysEditorModal({onClose,onSaved}){
                       style={{background:'transparent',border:`1px solid ${T.danger}44`,borderRadius:5,color:T.danger,fontSize:12,padding:'6px 9px',cursor:'pointer'}}>{'×'}</button>
                   </div>
                   {bad&&<div style={{fontSize:9,color:T.danger,fontFamily:"'Geist Mono',monospace",marginTop:3,paddingLeft:2}}>
-                    {'\u26A0'} {bad}
+                    {'⚠'} {bad}
+                  </div>}
+                  {moves&&<div style={{fontSize:9,color:T.accent,fontFamily:"'Geist Mono',monospace",marginTop:3,paddingLeft:2}}>
+                    was Day {r._orig}{nRolls?` - ${nRolls} roll${nRolls!==1?'s':''} move with it`:''}
                   </div>}
                 </div>
               );
             })}
           </div>
           <button onClick={addRow} style={{alignSelf:'flex-start',padding:'7px 14px',borderRadius:6,border:`1px dashed ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,fontFamily:"'Geist Mono',monospace",cursor:'pointer'}}>+ Add day</button>
+          {lowDay&&<div style={{fontSize:10,lineHeight:1.5,color:T.danger}}>{'⚠'} Day numbers must be 1 or more.</div>}
+          {clashes.length>0&&(
+            <div style={{fontSize:10,lineHeight:1.5,color:T.danger,background:T.danger+'18',
+              border:`1px solid ${T.danger}55`,borderRadius:6,padding:'9px 11px'}}>
+              {'⚠'} Rolls from different days would land on the same day number:{' '}
+              {clashes.map(c=>'Day '+c.froms.join(' and Day ')+' → Day '+c.to).join('; ')}.
+              Shift the days after them as well, or choose another amount.
+            </div>
+          )}
           {problemCount>0&&(
             <div style={{fontSize:10,lineHeight:1.5,color:T.danger,background:T.danger+'18',
               border:`1px solid ${T.danger}55`,borderRadius:6,padding:'9px 11px'}}>
-              {'\u26A0'} The schedule runs backwards in {problemCount} place{problemCount!==1?'s':''}.
-              Every shoot day needs a date later than the day before it, and no two days can share a date.
+              {'⚠'} The schedule runs backwards in {problemCount} place{problemCount!==1?'s':''} (flagged above).
+              Every shoot day needs a date later than the day before it, no two days can share a date, and each day number can be used once.
             </div>
           )}
           <div style={{display:'flex',justifyContent:'flex-end',gap:8,borderTop:`1px solid ${T.rule}`,paddingTop:14,marginTop:6}}>
             <button onClick={onClose} style={{padding:'8px 16px',borderRadius:6,border:`1px solid ${T.border}`,background:'transparent',color:T.textMute,fontSize:12,cursor:'pointer'}}>Cancel</button>
-            <button onClick={save} disabled={problemCount>0}
-              title={problemCount?'Fix the dates flagged above first':'Save shoot days'}
+            <button onClick={save} disabled={blocked}
+              title={blocked?'Fix the problems flagged above first':'Save shoot days'}
               style={{padding:'8px 20px',borderRadius:6,background:T.accent,border:'none',color:'#0e0d0b',
-                fontWeight:600,fontSize:12,cursor:problemCount?'not-allowed':'pointer',opacity:problemCount?0.45:1}}>Save</button>
+                fontWeight:600,fontSize:12,cursor:blocked?'not-allowed':'pointer',opacity:blocked?0.45:1}}>Save</button>
           </div>
         </div>
       </div>
@@ -5346,7 +5457,8 @@ function BackupModal({onClose}){
           shootDays:data.shootDays||[],
           rolls:data.rolls||[],
           hiddenColumns:data.hiddenColumns||[],
-          hiddenInfo:Array.isArray(data.hiddenInfo)?data.hiddenInfo:undefined
+          hiddenInfo:Array.isArray(data.hiddenInfo)?data.hiddenInfo:undefined,
+          startDay:data.startDay
         }
       });
       updateData({gsheetsSpreadsheetId:sid});
@@ -5386,6 +5498,7 @@ function BackupModal({onClose}){
         rolls:incoming.rolls||[],
         hiddenColumns:incoming.hiddenColumns||[],
         hiddenInfo:Array.isArray(incoming.hiddenInfo)?incoming.hiddenInfo:undefined,
+        startDay:(Number.isInteger(incoming.startDay)&&incoming.startDay>1)?incoming.startDay:undefined,
         gsheetsClientId:data.gsheetsClientId||'',
         gsheetsSpreadsheetId:file.id
       };
@@ -5550,6 +5663,9 @@ function App(){
   const [showSettings,setShowSettings]=React.useState(false);
   const [showBackup,setShowBackup]=React.useState(false);
   const [showProjects,setShowProjects]=React.useState(false);
+  // Bumped when something outside CameraReport rewrites rolls (e.g. renumbering shoot days), so it reloads them.
+  const [remountNonce,setRemountNonce]=React.useState(0);
+  const remountReport=()=>setRemountNonce(n=>n+1);
   // True once a localStorage write has actually FAILED (quota full, private
   // browsing, storage blocked). Previously saveProjectData's false return was
   // discarded here, so the status pill kept saying "SAVED LOCALLY" while
@@ -5585,9 +5701,10 @@ function App(){
     setData(loadProjectData(id));
     saveCurrentProjectId(id);
   }
-  function createProject(name){
+  function createProject(name,startDay){
     const id=newProjectId();
-    saveProjectData(id,{projectName:(name||'').trim()||'Untitled Production', scenes:[], shootDays:[], rolls:[], gsheetsClientId:'', gsheetsSpreadsheetId:'', hiddenColumns:[]});
+    saveProjectData(id,{projectName:(name||'').trim()||'Untitled Production', scenes:[], shootDays:[], rolls:[], gsheetsClientId:'', gsheetsSpreadsheetId:'', hiddenColumns:[],
+      ...((Number.isInteger(startDay)&&startDay>1)?{startDay}:{})});
     setProjectIds(prev=>{ const next=[...prev,id]; saveProjectsList(next); return next; });
     switchProject(id);
   }
@@ -5636,7 +5753,7 @@ function App(){
   }
 
   return(
-    <DataCtx.Provider value={{data,updateData,projectId,projectIds,switchProject,createProject,deleteProject,storageFailed,findProjectByName,importProject,overwriteProject}}>
+    <DataCtx.Provider value={{data,updateData,projectId,projectIds,switchProject,createProject,deleteProject,storageFailed,findProjectByName,importProject,overwriteProject,remountReport}}>
       {/* height:'100%' (not minHeight) + overflow:'hidden' is the real fix for
           the "header won't stay frozen" bug: html/body/#root are height:100%
           (see <style> above), but this was the ONE link in the chain that
@@ -5701,7 +5818,7 @@ function App(){
               full remount on every switch, so it always starts fresh from
               the newly-selected project's own data instead of showing
               whichever project happened to be loaded first. */}
-          <CameraReport key={projectId}/>
+          <CameraReport key={projectId+'#'+remountNonce}/>
         </div>
         {showSettings&&<SettingsModal onClose={()=>setShowSettings(false)}/>}
         {showBackup&&<BackupModal onClose={()=>setShowBackup(false)}/>}
@@ -5787,6 +5904,7 @@ function HandoverModal({onClose}){
         scenes:data.scenes||[], shootDays:data.shootDays||[], rolls:data.rolls||[],
         hiddenColumns:data.hiddenColumns||[],
         hiddenInfo:Array.isArray(data.hiddenInfo)?data.hiddenInfo:undefined,
+        startDay:data.startDay,
         keepDrawerOpen:!!data.keepDrawerOpen, autoTakeOnSceneShot:!!data.autoTakeOnSceneShot
       };
       const d=await handoverCall('POST',null,{action:'put',project:JSON.stringify(project)});
@@ -5821,6 +5939,7 @@ function HandoverModal({onClose}){
         rolls:rolls,
         hiddenColumns:Array.isArray(proj.hiddenColumns)?proj.hiddenColumns:[],
         hiddenInfo:Array.isArray(proj.hiddenInfo)?proj.hiddenInfo:undefined,
+        startDay:(Number.isInteger(proj.startDay)&&proj.startDay>1)?proj.startDay:undefined,
         keepDrawerOpen:!!proj.keepDrawerOpen, autoTakeOnSceneShot:!!proj.autoTakeOnSceneShot,
         gsheetsClientId:data.gsheetsClientId||'', gsheetsSpreadsheetId:''
       };
@@ -5928,6 +6047,7 @@ function ProjectSwitcherModal({onClose}){
   const [editingId,setEditingId]=React.useState(null);
   const [editName,setEditName]=React.useState('');
   const [newName,setNewName]=React.useState('');
+  const [newStart,setNewStart]=React.useState('');
   const [showHandover,setShowHandover]=React.useState(false);
 
   function startEdit(id){ setEditingId(id); setEditName(names[id]||''); }
@@ -5943,7 +6063,8 @@ function ProjectSwitcherModal({onClose}){
   function addProject(){
     const name=newName.trim();
     if(!name)return;
-    createProject(name);
+    const sd=parseInt(newStart,10);
+    createProject(name,(Number.isInteger(sd)&&sd>1)?sd:undefined);
     onClose();
   }
   function removeProject(id){
@@ -5997,7 +6118,9 @@ function ProjectSwitcherModal({onClose}){
           ))}
           <div style={{display:'flex',gap:6,marginTop:6,borderTop:`1px solid ${T.rule}`,paddingTop:14}}>
             <input value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addProject()}
-              placeholder="New project name" style={{...inp,flex:1}}/>
+              placeholder="New project name" style={{...inp,flex:1,minWidth:0}}/>
+            <input type="number" min="1" value={newStart} onChange={e=>setNewStart(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addProject()}
+              placeholder="Day 1" title="First shoot day number (leave empty to start at Day 1)" aria-label="Start at day" style={{...inp,width:68,textAlign:'center'}}/>
             <button onClick={addProject} style={{padding:'8px 16px',borderRadius:6,background:T.accent,border:'none',color:'#0e0d0b',fontWeight:600,fontSize:12,cursor:'pointer'}}>+ Add</button>
           </div>
           <button onClick={()=>setShowHandover(true)}
