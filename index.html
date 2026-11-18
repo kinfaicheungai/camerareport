@@ -1999,7 +1999,7 @@ var SB_WB_PRESETS_KEY = 'sb_camrep_wb_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-var APP_VERSION = 'v4.14';
+var APP_VERSION = 'v4.15';
 var CAM_CONFIG = {
   A: {
     label: 'A',
@@ -6721,12 +6721,12 @@ function CameraReport() {
                Any failure here falls back to the old single table. */
             PAGE_FIT = {
               L: {
-                w: 980,
-                h: 620
+                w: 880,
+                h: 540
               },
               P: {
-                w: 660,
-                h: 930
+                w: 600,
+                h: 800
               }
             }; // px: usable width / height per orientation
             sheetOpen = function sheetOpen(p, cont) {

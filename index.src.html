@@ -1204,7 +1204,7 @@ const SB_WB_PRESETS_KEY='sb_camrep_wb_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-const APP_VERSION='v4.14';
+const APP_VERSION='v4.15';
 
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
@@ -3613,7 +3613,7 @@ function CameraReport(){
        still fits a page in BOTH orientations. Page sizes are deliberately a little smaller
        than a real A4 page, because iOS ignores @page margins and prints with bigger ones.
        Any failure here falls back to the old single table. */
-    const PAGE_FIT={L:{w:980,h:620},P:{w:660,h:930}};   // px: usable width / height per orientation
+    const PAGE_FIT={L:{w:880,h:540},P:{w:600,h:800}};   // px: usable width / height per orientation
     const sheetOpen=(p,cont)=>`<div class="sheet${cont?' cont':''}" style="--cam:${p.cam}${cont?';page-break-before:always;break-before:page':''}">`;
     const renderSingle=(p)=>`${sheetOpen(p,false)}${p.headHtml}${p.tableTop}${p.rowArr.join('')}</tbody></table>${p.footHtml}</div>`;
     const renderChunks=(p,chunks)=>chunks.map((c,ci)=>
