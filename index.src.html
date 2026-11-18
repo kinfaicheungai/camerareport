@@ -1204,7 +1204,7 @@ const SB_WB_PRESETS_KEY='sb_camrep_wb_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-const APP_VERSION='v4.15';
+const APP_VERSION='v4.16';
 
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
@@ -3456,7 +3456,7 @@ function CameraReport(){
         {key:'focal',     always:false, w:4.6,  label:'FOCAL',    align:'left',   val:t=>esc(t.focal)},
         {key:'stop',      always:false, w:4,    label:'STOP',     align:'left',   val:t=>esc(t.stop)},
         {key:'shutter',   always:false, w:6,    label:'SHUTTER',  align:'left',   val:t=>esc(t.shutter||rk.shutter)},
-        {key:'ei',        always:false, w:3,    label:'EI',       align:'left',   val:t=>esc(t.ei)},
+        {key:'ei',        always:false, w:4,    label:'EI',       align:'left',   val:t=>esc(t.ei)},
         {key:'intFilters',always:false, w:6,    label:'FILTER 1', align:'left',   val:t=>esc(t.intFilters)},
         {key:'filters',   always:false, w:6,    label:'FILTER 2', align:'left',   val:t=>esc(t.filters)},
         {key:'filters3',  always:false, w:6,    label:'FILTER 3', align:'left',   val:t=>esc(t.filters3)},
