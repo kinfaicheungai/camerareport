@@ -1204,7 +1204,7 @@ const SB_WB_PRESETS_KEY='sb_camrep_wb_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-const APP_VERSION='v4.13';
+const APP_VERSION='v4.14';
 
 const CAM_CONFIG={
   A:{label:'A', header:'#7a1f1f', accent:'#e5484d', tint:'rgba(229,72,77,0.14)'},   // red
@@ -2640,6 +2640,35 @@ function CameraReport(){
   function toggleTakeSel(id){
     setSelTakeIds(prev=>prev.includes(id)?prev.filter(x=>x!==id):[...prev,id]);
   }
+  /* Move the ticked rows up or down one place, inside the same roll. Rows are moved exactly as they are
+     (clip number, scene, shot, take, everything) - nothing is renumbered; the Resequence tool does that
+     when wanted. Several ticked rows move together and keep their order relative to each other. A ticked
+     row already at the edge stays put, and the ones behind it stop against it, like any list reorder.
+     Returns null when nothing would change (so the buttons can grey out). */
+  function shiftedTakes(takes,ids,dir){
+    const sel=new Set(ids);
+    const out=takes.slice();
+    if(dir<0){
+      for(let i=1;i<out.length;i++){
+        if(sel.has(out[i].id)&&!sel.has(out[i-1].id)){ const x=out[i]; out[i]=out[i-1]; out[i-1]=x; }
+      }
+    }else{
+      for(let i=out.length-2;i>=0;i--){
+        if(sel.has(out[i].id)&&!sel.has(out[i+1].id)){ const x=out[i]; out[i]=out[i+1]; out[i+1]=x; }
+      }
+    }
+    return out.some((t,i)=>t!==takes[i])?out:null;
+  }
+  function moveSelectedTakes(dir){
+    if(!roll||selTakeIds.length===0)return;
+    const next=shiftedTakes(roll.takes||[],selTakeIds,dir);
+    if(!next)return;
+    const updated=rolls.map(r=>r.id===roll.id?{...r,takes:next}:r);
+    setRolls(updated); saveRolls(updated);
+    // Keep the moved block on screen: a row can travel a long way over repeated taps.
+    const firstId=next.find(t=>selTakeIds.includes(t.id));
+    setTimeout(()=>{ const el=firstId&&rowRefs.current[firstId.id]; if(el&&el.scrollIntoView)try{ el.scrollIntoView({block:'nearest'}); }catch(e){} },0);
+  }
   // Clear selection whenever the active roll changes (selection is per-roll).
   React.useEffect(()=>{ setSelTakeIds([]); },[activeRoll]);
 
@@ -3441,7 +3470,7 @@ function CameraReport(){
          a repeated scene or shot is left blank rather than restated on every
          take. The underlying data still carries them (CSV and the Sheets
          backup export the full values for machines to read). */
-      const rows=(rk.takes||[]).map((t,ti,arr)=>{
+      const rowArr=(rk.takes||[]).map((t,ti,arr)=>{
         const pv=ti>0?arr[ti-1]:null;
         const sc=(pv&&String(pv.scene||'')===String(t.scene||''))?'':sceneWithIE(t.scene);
         const sh=(pv&&String(pv.shot||'')===String(t.shot||''))?'':t.shot;
@@ -3459,9 +3488,10 @@ function CameraReport(){
         ${cells}
         ${hasPhoto?`<td>${photoMap[t.id]?`<img src="${esc(photoMap[t.id])}" style="width:46px;height:34px;object-fit:cover;border-radius:2px;border:1px solid #999;">`:''}</td>`:''}
         </tr>`;
-      }).join('');
-      return `<div class="sheet" style="--cam:${cfg.header}">
-      <div class="hdr">
+      });
+      // The sheet is returned in PIECES (header block, table top, rows, footer) so the page-aware
+      // layout below can re-assemble it as one table or as several page-sized tables.
+      const headHtml=`<div class="hdr">
         <div class="crew">
           ${[['director','DIRECTOR:',rk.director],['dop','DOP:',rk.dop],['ac','1ST AC:',rk.ac]].filter(f=>!hiddenInfo.has(f[0])).map(f=>`<b>${f[1]}</b>${esc(f[2])}`).join('<br>')}
         </div>
@@ -3492,34 +3522,22 @@ function CameraReport(){
           }
           return rowsOut.join('');
         })()}
-      </tbody></table>
-      <table class="main">
+      </tbody></table>`;
+      const tableTop=`<table class="main">
       <colgroup>
         ${visCols.map((c,idx)=>idx===visCols.length-1?'<col/>':`<col style="width:${c.w}%"/>`).join('')}
         ${hasPhoto?'<col style="width:5%"/>':''}
       </colgroup>
       <thead><tr>
         ${visCols.map(c=>`<th>${c.label}</th>`).join('')}${hasPhoto?'<th>PHOTO</th>':''}
-      </tr></thead><tbody>${rows}</tbody></table>
-      <table class="meta"><tbody><tr class="foot">
+      </tr></thead><tbody>`;
+      const footHtml=`<table class="meta"><tbody><tr class="foot">
         <td class="k">NOTES:</td><td>End of ${esc(rk.roll)}${rk.shootDay?' &middot; SD '+esc(String(rk.shootDay).padStart(2,'0')):''}</td>
-      </tr></tbody></table>
-      </div>`;
+      </tr></tbody></table>`;
+      return {cam:cfg.header,headHtml,tableTop,rowArr,footHtml};
     }
 
-    // One page per roll. page-break-after on every sheet but the last means a
-    // new roll - and therefore any new camera - always starts a fresh page.
-    const sheets=ordered.map((rk,i)=>
-      `<div class="page"${i<ordered.length-1?' style="page-break-after:always;break-after:page"':''}>${sheetFor(rk)}</div>`
-    ).join('');
-
-    const days=[...new Set(ordered.map(r=>r.shootDay).filter(Boolean))];
-    const dayLabel=days.length===1?('Day '+days[0]):'';
-    const camLabel=[...new Set(ordered.map(r=>camOf(r)))].join('+');
-    const docTitle=`${proj.projectName||'Camera Report'}${dayLabel?' - '+dayLabel:''} - Cam ${camLabel}`;
-
-    const html=`<!doctype html><html><head><meta charset="utf-8"><title>${esc(docTitle)}</title>
-    <style>
+    const printCss=`
       /* THE colour fix. By default Safari (and Chrome) strip background colours
          when printing unless the user happens to tick "Print backgrounds" in
          the print dialog - which is why this report came out plain white. These
@@ -3577,10 +3595,95 @@ function CameraReport(){
       .toolbar .print{background:#c98a3a;color:#111;font-weight:bold;}
       .toolbar .spacer-note{flex:1;font-size:11px;color:#aaa;text-align:left;}
       .content{margin-top:52px;}
-      @media print{ .toolbar{display:none!important;} .content{margin-top:0;} body{margin:0;} .page+.page{margin-top:0;} }
-    </style></head><body>
+      /* Header row repeats where the browser supports it; rows never split across a page. (The page-aware
+         layout above is what guarantees the header on iPad Safari.) */
+      table.main thead{display:table-header-group;}
+      table.main tr{page-break-inside:avoid;break-inside:avoid;}
+      .sheet.cont{margin-top:22px;}
+      @media print{ .toolbar{display:none!important;} .content{margin-top:0;} body{margin:0;} .page+.page{margin-top:0;} .sheet.cont{margin-top:0;} }
+    `;
+
+    /* ---- Page-aware layout -------------------------------------------------
+       A long roll runs onto a second page. A table's header row is meant to repeat there
+       (<thead>), and does in Chrome - but iPad Safari does not, so page 2 had no column
+       titles. Instead of trusting the browser, the roll is cut into page-sized pieces HERE,
+       each piece is its own table with its own header row, and each starts a fresh page.
+       Row heights are MEASURED (in a hidden frame, in the same engine that will print), at
+       both a landscape and a portrait page width, and a piece only takes another row while it
+       still fits a page in BOTH orientations. Page sizes are deliberately a little smaller
+       than a real A4 page, because iOS ignores @page margins and prints with bigger ones.
+       Any failure here falls back to the old single table. */
+    const PAGE_FIT={L:{w:980,h:620},P:{w:660,h:930}};   // px: usable width / height per orientation
+    const sheetOpen=(p,cont)=>`<div class="sheet${cont?' cont':''}" style="--cam:${p.cam}${cont?';page-break-before:always;break-before:page':''}">`;
+    const renderSingle=(p)=>`${sheetOpen(p,false)}${p.headHtml}${p.tableTop}${p.rowArr.join('')}</tbody></table>${p.footHtml}</div>`;
+    const renderChunks=(p,chunks)=>chunks.map((c,ci)=>
+      `${sheetOpen(p,ci>0)}${ci===0?p.headHtml:''}${p.tableTop}${p.rowArr.slice(c[0],c[1]).join('')}</tbody></table>${ci===chunks.length-1?p.footHtml:''}</div>`
+    ).join('');
+    async function measureSheets(parts,W){
+      const ifr=document.createElement('iframe');
+      ifr.setAttribute('aria-hidden','true');
+      ifr.style.cssText=`position:fixed;left:-20000px;top:0;width:${W}px;height:900px;border:0;visibility:hidden;`;
+      document.body.appendChild(ifr);
+      try{
+        const d=ifr.contentDocument;
+        d.open();
+        d.write(`<!doctype html><html><head><meta charset="utf-8"><style>${printCss}body{margin:0}</style></head><body>${parts.map(renderSingle).join('')}</body></html>`);
+        d.close();
+        await new Promise(r=>setTimeout(r,80));
+        const R=el=>el.getBoundingClientRect();
+        return [...d.querySelectorAll('.sheet')].map(sh=>{
+          const sr=R(sh), mt=sh.querySelector('table.main'), mr=R(mt);
+          const trs=[...mt.querySelectorAll('tbody tr')].map(R);
+          const foot=sh.querySelector('tr.foot').closest('table');
+          return {
+            headH:mr.top-sr.top, theadH:R(mt.querySelector('thead')).height, footH:R(foot).height,
+            rowHs:trs.map((rc,i)=>(i+1<trs.length?trs[i+1].top:mr.bottom)-rc.top)
+          };
+        });
+      } finally { try{ document.body.removeChild(ifr); }catch(e){} }
+    }
+    async function layoutPages(parts){
+      const mL=await measureSheets(parts,PAGE_FIT.L.w), mP=await measureSheets(parts,PAGE_FIT.P.w);
+      if(mL.length!==parts.length||mP.length!==parts.length)throw new Error('measure mismatch');
+      return parts.map((p,i)=>{
+        const L=mL[i], P=mP[i], n=p.rowArr.length, chunks=[];
+        if(!n)return [[0,0]];
+        let a=0;
+        while(a<n){
+          const first=chunks.length===0;
+          let hL=(first?L.headH:0)+L.theadH+2, hP=(first?P.headH:0)+P.theadH+2, b=a;
+          while(b<n){
+            const lastRow=b===n-1;
+            const nl=hL+L.rowHs[b]+(lastRow?L.footH:0), np=hP+P.rowHs[b]+(lastRow?P.footH:0);
+            if(b>a&&(nl>PAGE_FIT.L.h||np>PAGE_FIT.P.h))break;
+            hL+=L.rowHs[b]; hP+=P.rowHs[b]; b++;
+          }
+          chunks.push([a,b]); a=b;
+        }
+        return chunks;
+      });
+    }
+    const parts=ordered.map(sheetFor);
+    let layouts=null;
+    try{ layouts=await layoutPages(parts); }
+    catch(e){ console.warn('page layout failed, printing as one table per roll',e); }
+    // One page (or more) per roll. page-break-after on every roll but the last means a
+    // new roll - and therefore any new camera - always starts a fresh page.
+    const sheets=parts.map((p,i)=>{
+      const body=(layouts&&layouts[i].length>1)?renderChunks(p,layouts[i]):renderSingle(p);
+      return `<div class="page"${i<parts.length-1?' style="page-break-after:always;break-after:page"':''}>${body}</div>`;
+    }).join('');
+    const pageCount=layouts?layouts.reduce((n,c)=>n+c.length,0):ordered.length;
+
+    const days=[...new Set(ordered.map(r=>r.shootDay).filter(Boolean))];
+    const dayLabel=days.length===1?('Day '+days[0]):'';
+    const camLabel=[...new Set(ordered.map(r=>camOf(r)))].join('+');
+    const docTitle=`${proj.projectName||'Camera Report'}${dayLabel?' - '+dayLabel:''} - Cam ${camLabel}`;
+
+        const html=`<!doctype html><html><head><meta charset="utf-8"><title>${esc(docTitle)}</title>
+    <style>${printCss}</style></head><body>
     <div class="toolbar">
-      <span class="spacer-note">${esc(docTitle)} &middot; ${ordered.length} page${ordered.length!==1?'s':''} &middot; use Print to save as PDF</span>
+      <span class="spacer-note">${esc(docTitle)} &middot; ${pageCount} page${pageCount!==1?'s':''} &middot; use Print to save as PDF</span>
       <button class="close" onclick="window.close()">&times; Close</button>
       <button class="print" onclick="window.print()">&#128424; Print / Save PDF</button>
     </div>
@@ -4268,6 +4371,16 @@ function CameraReport(){
               <span style={{fontSize:11,fontFamily:"'Geist Mono',monospace",color:CAM.accent,fontWeight:600}}>
                 {selTakeIds.length} clip{selTakeIds.length!==1?'s':''} selected
               </span>
+              {(()=>{
+                const canUp=!!shiftedTakes(roll.takes||[],selTakeIds,-1), canDn=!!shiftedTakes(roll.takes||[],selTakeIds,1);
+                const mv=(on)=>({padding:'4px 10px',borderRadius:5,fontSize:11,fontFamily:"'Geist Mono',monospace",fontWeight:600,
+                  background:'transparent',border:`1px solid ${CAM.accent}88`,color:CAM.accent,
+                  cursor:on?'pointer':'not-allowed',opacity:on?1:0.35});
+                return(<>
+                  <button onClick={()=>moveSelectedTakes(-1)} disabled={!canUp} aria-label="Move selected up" title="Move the ticked rows up one place" style={mv(canUp)}>{'\u25B2'} Up</button>
+                  <button onClick={()=>moveSelectedTakes(1)} disabled={!canDn} aria-label="Move selected down" title="Move the ticked rows down one place" style={mv(canDn)}>{'\u25BC'} Down</button>
+                </>);
+              })()}
               <span style={{fontSize:10,color:T.textDim,fontFamily:"'Geist Mono',monospace"}}>Move to roll:</span>
               {sameCamRolls.length===0
                 ?<span style={{fontSize:10,color:T.textDim,fontStyle:'italic'}}>no other {activeCam} cam roll  -  create one first</span>

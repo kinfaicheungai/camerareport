@@ -758,18 +758,18 @@ function camRepPutPhoto(_x, _x2) {
   return _camRepPutPhoto.apply(this, arguments);
 }
 function _camRepPutPhoto() {
-  _camRepPutPhoto = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee18(projId, item) {
+  _camRepPutPhoto = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee20(projId, item) {
     var db, key, projTake;
-    return _regeneratorRuntime().wrap(function _callee18$(_context18) {
-      while (1) switch (_context18.prev = _context18.next) {
+    return _regeneratorRuntime().wrap(function _callee20$(_context20) {
+      while (1) switch (_context20.prev = _context20.next) {
         case 0:
-          _context18.next = 2;
+          _context20.next = 2;
           return openCamRepDB();
         case 2:
-          db = _context18.sent;
+          db = _context20.sent;
           key = projId + '::' + item.imgId;
           projTake = projId + '::' + item.takeId;
-          return _context18.abrupt("return", new Promise(function (resolve, reject) {
+          return _context20.abrupt("return", new Promise(function (resolve, reject) {
             var tx = db.transaction(CAMREP_STORE, 'readwrite');
             tx.objectStore(CAMREP_STORE).put(_objectSpread({
               key: key,
@@ -785,9 +785,9 @@ function _camRepPutPhoto() {
           }));
         case 6:
         case "end":
-          return _context18.stop();
+          return _context20.stop();
       }
-    }, _callee18);
+    }, _callee20);
   }));
   return _camRepPutPhoto.apply(this, arguments);
 }
@@ -795,17 +795,17 @@ function camRepGetForTake(_x3, _x4) {
   return _camRepGetForTake.apply(this, arguments);
 }
 function _camRepGetForTake() {
-  _camRepGetForTake = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee19(projId, takeId) {
+  _camRepGetForTake = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee21(projId, takeId) {
     var db, projTake;
-    return _regeneratorRuntime().wrap(function _callee19$(_context19) {
-      while (1) switch (_context19.prev = _context19.next) {
+    return _regeneratorRuntime().wrap(function _callee21$(_context21) {
+      while (1) switch (_context21.prev = _context21.next) {
         case 0:
-          _context19.next = 2;
+          _context21.next = 2;
           return openCamRepDB();
         case 2:
-          db = _context19.sent;
+          db = _context21.sent;
           projTake = projId + '::' + takeId;
-          return _context19.abrupt("return", new Promise(function (resolve, reject) {
+          return _context21.abrupt("return", new Promise(function (resolve, reject) {
             var tx = db.transaction(CAMREP_STORE, 'readonly');
             var req = tx.objectStore(CAMREP_STORE).index('projTake').getAll(projTake);
             req.onsuccess = function () {
@@ -817,9 +817,9 @@ function _camRepGetForTake() {
           }));
         case 5:
         case "end":
-          return _context19.stop();
+          return _context21.stop();
       }
-    }, _callee19);
+    }, _callee21);
   }));
   return _camRepGetForTake.apply(this, arguments);
 }
@@ -834,17 +834,17 @@ function camRepDeletePhoto(_x5, _x6) {
    eventually fill a phone. Walks the store once and drops every record whose
    projId matches (optionally narrowed to a set of take ids). */
 function _camRepDeletePhoto() {
-  _camRepDeletePhoto = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee20(projId, imgId) {
+  _camRepDeletePhoto = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee22(projId, imgId) {
     var db, key;
-    return _regeneratorRuntime().wrap(function _callee20$(_context20) {
-      while (1) switch (_context20.prev = _context20.next) {
+    return _regeneratorRuntime().wrap(function _callee22$(_context22) {
+      while (1) switch (_context22.prev = _context22.next) {
         case 0:
-          _context20.next = 2;
+          _context22.next = 2;
           return openCamRepDB();
         case 2:
-          db = _context20.sent;
+          db = _context22.sent;
           key = projId + '::' + imgId;
-          return _context20.abrupt("return", new Promise(function (resolve, reject) {
+          return _context22.abrupt("return", new Promise(function (resolve, reject) {
             var tx = db.transaction(CAMREP_STORE, 'readwrite');
             tx.objectStore(CAMREP_STORE)["delete"](key);
             tx.oncomplete = function () {
@@ -856,9 +856,9 @@ function _camRepDeletePhoto() {
           }));
         case 5:
         case "end":
-          return _context20.stop();
+          return _context22.stop();
       }
-    }, _callee20);
+    }, _callee22);
   }));
   return _camRepDeletePhoto.apply(this, arguments);
 }
@@ -866,19 +866,19 @@ function camRepDeleteMany(_x7, _x8) {
   return _camRepDeleteMany.apply(this, arguments);
 }
 function _camRepDeleteMany() {
-  _camRepDeleteMany = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee21(projId, takeIds) {
+  _camRepDeleteMany = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee23(projId, takeIds) {
     var db, wanted;
-    return _regeneratorRuntime().wrap(function _callee21$(_context21) {
-      while (1) switch (_context21.prev = _context21.next) {
+    return _regeneratorRuntime().wrap(function _callee23$(_context23) {
+      while (1) switch (_context23.prev = _context23.next) {
         case 0:
-          _context21.next = 2;
+          _context23.next = 2;
           return openCamRepDB();
         case 2:
-          db = _context21.sent;
+          db = _context23.sent;
           wanted = takeIds ? new Set(takeIds.map(function (id) {
             return projId + '::' + id;
           })) : null;
-          return _context21.abrupt("return", new Promise(function (resolve, reject) {
+          return _context23.abrupt("return", new Promise(function (resolve, reject) {
             var tx = db.transaction(CAMREP_STORE, 'readwrite');
             var req = tx.objectStore(CAMREP_STORE).openCursor();
             req.onsuccess = function () {
@@ -899,9 +899,9 @@ function _camRepDeleteMany() {
           }));
         case 5:
         case "end":
-          return _context21.stop();
+          return _context23.stop();
       }
-    }, _callee21);
+    }, _callee23);
   }));
   return _camRepDeleteMany.apply(this, arguments);
 }
@@ -948,11 +948,11 @@ function analyseCameraSlate(_x9, _x10) {
    correctly with no separate photo migration needed.
 ================================================================ */
 function _analyseCameraSlate() {
-  _analyseCameraSlate = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee22(dataUrlOrArray, existingRoll) {
+  _analyseCameraSlate = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee24(dataUrlOrArray, existingRoll) {
     var _data$content;
     var key, dataUrls, imageBlocks, rollCtx, multi, prompt, resp, _e$error, _e, data, raw, clean, parsed;
-    return _regeneratorRuntime().wrap(function _callee22$(_context22) {
-      while (1) switch (_context22.prev = _context22.next) {
+    return _regeneratorRuntime().wrap(function _callee24$(_context24) {
+      while (1) switch (_context24.prev = _context24.next) {
         case 0:
           key = getAnthropicKey(); // Accept single dataUrl or array of up to 2
           dataUrls = Array.isArray(dataUrlOrArray) ? dataUrlOrArray : [dataUrlOrArray];
@@ -971,7 +971,7 @@ function _analyseCameraSlate() {
           rollCtx = existingRoll ? ["Current roll: ".concat(existingRoll.roll || '', ", Camera: ").concat(existingRoll.camera || '', ", Codec: ").concat(existingRoll.codec || '', ", LUT: ").concat(existingRoll.lut || '', "."), "Default lens: ".concat(existingRoll.lens || '', ". Base EI: ").concat(existingRoll.baseEI || '', ".")].join(' ') : '';
           multi = dataUrls.length > 1;
           prompt = [multi ? 'You are given TWO production photos. Extract information from BOTH and combine into one JSON  -  e.g. one photo may be a camera monitor overlay (EI, WB, FPS, clip number etc.) and the other a slate/clapperboard (scene, shot, take). Merge all readable fields.' : 'You are analysing a film production photo. It may be any of these sources:', multi ? '' : '  • A camera slate / clapperboard (scene, shot, take numbers)', multi ? '' : '  • A camera monitor / EVF overlay screenshot (e.g. SmallHD, Teradek, ARRI, RED) showing live camera metadata: FPS, shutter, EI/ISO, WB, roll name, clip number, ND filter, codec, timecode etc.', multi ? '' : '  • A handwritten take sheet or label', multi ? '' : '  • Any other on-set reference material with camera/take information', 'Extract ONLY what is clearly visible. Never invent values. For monitor screenshots, read the HUD/overlay text carefully (usually displayed as white or coloured text around the image frame).', rollCtx, 'Return a single JSON object (no markdown, no explanation) with these keys (all strings, all optional  -  omit any key you cannot read clearly):', '  scene    -  scene number/ID (from slate, e.g. "S05", "05", "12A")', '  shot     -  shot letter (from slate, e.g. "A", "B"); "/" means no shot letter', '  take     -  take number as string (e.g. "1", "3")', '  tail     -  "true" if TAIL or TAIL SLATE is visible', '  clip     -  clip/card name visible on monitor (e.g. "C026", "A026") or slate', '  roll     -  roll/magazine name if visible on monitor (e.g. "A001")', '  lens     -  lens brand/series if visible (e.g. "Cooke Panchro i")', '  focal    -  focal length if visible (e.g. "32mm")', '  stop     -  aperture/T-stop if visible (e.g. "T2.8", "f4")', '  ei       -  ISO/EI value from monitor or slate (e.g. "1600")', '  fps      -  frame rate from monitor (e.g. "24.000", "25")', '  shutter  -  shutter angle/speed from monitor (e.g. "180.0", "1/50")', '  nd       -  ND filter value from monitor if visible (e.g. "0.6", "ND6")', '  intFilters  -  internal/in-camera filter if visible', '  filters  -  external filter(s) if visible (e.g. "ND1.2", "Polariser")', '  wb       -  white balance from monitor or slate (e.g. "4000K", "5600K")', '  focus    -  focus distance if visible; use cm (e.g. "180")', '  codec    -  codec/recording format from monitor (e.g. "RAW", "ProRes 4444")', '  notes    -  any other relevant text (timecode, battery, remarks etc.)', multi ? 'Example: {"scene":"S05","shot":"A","take":"2","ei":"1600","wb":"4000K","fps":"24.000","clip":"C026"}' : 'Example for monitor: {"ei":"1600","wb":"4000K","fps":"24.000","shutter":"180.0","clip":"C026","codec":"RAW"}', 'Return ONLY the JSON object.'].filter(Boolean).join('\n');
-          _context22.next = 8;
+          _context24.next = 8;
           return fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
             headers: {
@@ -993,45 +993,45 @@ function _analyseCameraSlate() {
             })
           });
         case 8:
-          resp = _context22.sent;
+          resp = _context24.sent;
           if (resp.ok) {
-            _context22.next = 14;
+            _context24.next = 14;
             break;
           }
-          _context22.next = 12;
+          _context24.next = 12;
           return resp.json()["catch"](function () {
             return {};
           });
         case 12:
-          _e = _context22.sent;
+          _e = _context24.sent;
           throw new Error((_e === null || _e === void 0 || (_e$error = _e.error) === null || _e$error === void 0 ? void 0 : _e$error.message) || 'Anthropic API error ' + resp.status);
         case 14:
-          _context22.next = 16;
+          _context24.next = 16;
           return resp.json();
         case 16:
-          data = _context22.sent;
+          data = _context24.sent;
           raw = (((_data$content = data.content) === null || _data$content === void 0 || (_data$content = _data$content.find(function (b) {
             return b.type === 'text';
           })) === null || _data$content === void 0 ? void 0 : _data$content.text) || '').trim();
           clean = raw.replace(/^```json?/, '').replace(/```$/, '').trim();
-          _context22.prev = 19;
+          _context24.prev = 19;
           parsed = JSON.parse(clean);
           if (!(_typeof(parsed) === 'object' && parsed !== null)) {
-            _context22.next = 23;
+            _context24.next = 23;
             break;
           }
-          return _context22.abrupt("return", parsed);
+          return _context24.abrupt("return", parsed);
         case 23:
           throw new Error('Unexpected response shape.');
         case 26:
-          _context22.prev = 26;
-          _context22.t0 = _context22["catch"](19);
+          _context24.prev = 26;
+          _context24.t0 = _context24["catch"](19);
           throw new Error('Could not parse AI response. Raw: ' + raw.slice(0, 200));
         case 29:
         case "end":
-          return _context22.stop();
+          return _context24.stop();
       }
-    }, _callee22, null, [[19, 26]]);
+    }, _callee24, null, [[19, 26]]);
   }));
   return _analyseCameraSlate.apply(this, arguments);
 }
@@ -1437,22 +1437,22 @@ function ensureSheetsToken(_x11) {
   return _ensureSheetsToken.apply(this, arguments);
 }
 function _ensureSheetsToken() {
-  _ensureSheetsToken = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee23(clientId) {
-    return _regeneratorRuntime().wrap(function _callee23$(_context23) {
-      while (1) switch (_context23.prev = _context23.next) {
+  _ensureSheetsToken = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee25(clientId) {
+    return _regeneratorRuntime().wrap(function _callee25$(_context25) {
+      while (1) switch (_context25.prev = _context25.next) {
         case 0:
           if (!_sheetsToken) {
-            _context23.next = 2;
+            _context25.next = 2;
             break;
           }
-          return _context23.abrupt("return", _sheetsToken);
+          return _context25.abrupt("return", _sheetsToken);
         case 2:
-          return _context23.abrupt("return", sheetsSignIn(clientId));
+          return _context25.abrupt("return", sheetsSignIn(clientId));
         case 3:
         case "end":
-          return _context23.stop();
+          return _context25.stop();
       }
-    }, _callee23);
+    }, _callee25);
   }));
   return _ensureSheetsToken.apply(this, arguments);
 }
@@ -1476,42 +1476,42 @@ function fetchGoogleEmail(_x12) {
    to defend against a motivated attacker.
 ================================================================ */
 function _fetchGoogleEmail() {
-  _fetchGoogleEmail = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee24(token) {
+  _fetchGoogleEmail = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee26(token) {
     var r, d, email;
-    return _regeneratorRuntime().wrap(function _callee24$(_context24) {
-      while (1) switch (_context24.prev = _context24.next) {
+    return _regeneratorRuntime().wrap(function _callee26$(_context26) {
+      while (1) switch (_context26.prev = _context26.next) {
         case 0:
-          _context24.next = 2;
+          _context26.next = 2;
           return fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
             headers: {
               Authorization: 'Bearer ' + token
             }
           });
         case 2:
-          r = _context24.sent;
+          r = _context26.sent;
           if (r.ok) {
-            _context24.next = 5;
+            _context26.next = 5;
             break;
           }
           throw new Error('Could not read your Google account email (HTTP ' + r.status + ').');
         case 5:
-          _context24.next = 7;
+          _context26.next = 7;
           return r.json();
         case 7:
-          d = _context24.sent;
+          d = _context26.sent;
           email = (d.email || '').trim().toLowerCase();
           if (email) {
-            _context24.next = 11;
+            _context26.next = 11;
             break;
           }
           throw new Error('Your Google account did not return an email address.');
         case 11:
-          return _context24.abrupt("return", email);
+          return _context26.abrupt("return", email);
         case 12:
         case "end":
-          return _context24.stop();
+          return _context26.stop();
       }
-    }, _callee24);
+    }, _callee26);
   }));
   return _fetchGoogleEmail.apply(this, arguments);
 }
@@ -1521,28 +1521,28 @@ function fetchAllowlist() {
   return _fetchAllowlist.apply(this, arguments);
 }
 function _fetchAllowlist() {
-  _fetchAllowlist = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee25() {
+  _fetchAllowlist = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee27() {
     var res, text;
-    return _regeneratorRuntime().wrap(function _callee25$(_context25) {
-      while (1) switch (_context25.prev = _context25.next) {
+    return _regeneratorRuntime().wrap(function _callee27$(_context27) {
+      while (1) switch (_context27.prev = _context27.next) {
         case 0:
-          _context25.next = 2;
+          _context27.next = 2;
           return fetch(ALLOWLIST_CSV_URL, {
             cache: 'no-store'
           });
         case 2:
-          res = _context25.sent;
+          res = _context27.sent;
           if (res.ok) {
-            _context25.next = 5;
+            _context27.next = 5;
             break;
           }
           throw new Error('Could not load the access list (HTTP ' + res.status + ').');
         case 5:
-          _context25.next = 7;
+          _context27.next = 7;
           return res.text();
         case 7:
-          text = _context25.sent;
-          return _context25.abrupt("return", text.split(/\r?\n/).slice(1) // drop the "Email" header row
+          text = _context27.sent;
+          return _context27.abrupt("return", text.split(/\r?\n/).slice(1) // drop the "Email" header row
           .map(function (line) {
             return line.split(',')[0];
           }).map(function (e) {
@@ -1550,9 +1550,9 @@ function _fetchAllowlist() {
           }).filter(Boolean));
         case 9:
         case "end":
-          return _context25.stop();
+          return _context27.stop();
       }
-    }, _callee25);
+    }, _callee27);
   }));
   return _fetchAllowlist.apply(this, arguments);
 }
@@ -1636,39 +1636,39 @@ function ensureTab(_x13, _x14, _x15) {
   return _ensureTab.apply(this, arguments);
 }
 function _ensureTab() {
-  _ensureTab = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee26(token, sid, title) {
+  _ensureTab = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee28(token, sid, title) {
     var meta, d, exists, r;
-    return _regeneratorRuntime().wrap(function _callee26$(_context26) {
-      while (1) switch (_context26.prev = _context26.next) {
+    return _regeneratorRuntime().wrap(function _callee28$(_context28) {
+      while (1) switch (_context28.prev = _context28.next) {
         case 0:
-          _context26.next = 2;
+          _context28.next = 2;
           return fetch('https://sheets.googleapis.com/v4/spreadsheets/' + sid + '?fields=sheets.properties.title', {
             headers: {
               Authorization: 'Bearer ' + token
             }
           });
         case 2:
-          meta = _context26.sent;
+          meta = _context28.sent;
           if (meta.ok) {
-            _context26.next = 5;
+            _context28.next = 5;
             break;
           }
-          return _context26.abrupt("return", false);
+          return _context28.abrupt("return", false);
         case 5:
-          _context26.next = 7;
+          _context28.next = 7;
           return meta.json();
         case 7:
-          d = _context26.sent;
+          d = _context28.sent;
           exists = (d.sheets || []).some(function (s) {
             return s.properties && s.properties.title === title;
           });
           if (!exists) {
-            _context26.next = 11;
+            _context28.next = 11;
             break;
           }
-          return _context26.abrupt("return", true);
+          return _context28.abrupt("return", true);
         case 11:
-          _context26.next = 13;
+          _context28.next = 13;
           return fetch('https://sheets.googleapis.com/v4/spreadsheets/' + sid + ':batchUpdate', {
             method: 'POST',
             headers: {
@@ -1686,13 +1686,13 @@ function _ensureTab() {
             })
           });
         case 13:
-          r = _context26.sent;
-          return _context26.abrupt("return", r.ok);
+          r = _context28.sent;
+          return _context28.abrupt("return", r.ok);
         case 15:
         case "end":
-          return _context26.stop();
+          return _context28.stop();
       }
-    }, _callee26);
+    }, _callee28);
   }));
   return _ensureTab.apply(this, arguments);
 }
@@ -1704,23 +1704,23 @@ function backupToSheets(_x16) {
    files this OAuth client created, so this listing is naturally limited to
    the user's own Camera Report backups - it cannot see the rest of Drive. */
 function _backupToSheets() {
-  _backupToSheets = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee27(_ref8) {
+  _backupToSheets = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee29(_ref8) {
     var rolls, projectName, clientId, spreadsheetId, rawProject, token, sid, title, resp, _e2, d, rows, lastCol, range, putResp, _e3, ok, payload, chunks, rr;
-    return _regeneratorRuntime().wrap(function _callee27$(_context27) {
-      while (1) switch (_context27.prev = _context27.next) {
+    return _regeneratorRuntime().wrap(function _callee29$(_context29) {
+      while (1) switch (_context29.prev = _context29.next) {
         case 0:
           rolls = _ref8.rolls, projectName = _ref8.projectName, clientId = _ref8.clientId, spreadsheetId = _ref8.spreadsheetId, rawProject = _ref8.rawProject;
-          _context27.next = 3;
+          _context29.next = 3;
           return ensureSheetsToken(clientId);
         case 3:
-          token = _context27.sent;
+          token = _context29.sent;
           sid = spreadsheetId;
           if (sid) {
-            _context27.next = 19;
+            _context29.next = 19;
             break;
           }
           title = (projectName || 'Untitled Production') + ' - Camera Report Backup';
-          _context27.next = 9;
+          _context29.next = 9;
           return fetch('https://sheets.googleapis.com/v4/spreadsheets', {
             method: 'POST',
             headers: {
@@ -1739,29 +1739,29 @@ function _backupToSheets() {
             })
           });
         case 9:
-          resp = _context27.sent;
+          resp = _context29.sent;
           if (resp.ok) {
-            _context27.next = 15;
+            _context29.next = 15;
             break;
           }
-          _context27.next = 13;
+          _context29.next = 13;
           return resp.json()["catch"](function () {
             return {};
           });
         case 13:
-          _e2 = _context27.sent;
+          _e2 = _context29.sent;
           throw new Error(_e2 && _e2.error && _e2.error.message || 'Could not create the spreadsheet (HTTP ' + resp.status + ')');
         case 15:
-          _context27.next = 17;
+          _context29.next = 17;
           return resp.json();
         case 17:
-          d = _context27.sent;
+          d = _context29.sent;
           sid = d.spreadsheetId;
         case 19:
           rows = flattenRollsForSheet(rolls);
           lastCol = colLetter(rows[0].length);
-          _context27.prev = 21;
-          _context27.next = 24;
+          _context29.prev = 21;
+          _context29.next = 24;
           return fetch('https://sheets.googleapis.com/v4/spreadsheets/' + sid + '/values/' + encodeURIComponent(GSHEETS_TAB_NAME) + ':clear', {
             method: 'POST',
             headers: {
@@ -1770,14 +1770,14 @@ function _backupToSheets() {
             }
           });
         case 24:
-          _context27.next = 28;
+          _context29.next = 28;
           break;
         case 26:
-          _context27.prev = 26;
-          _context27.t0 = _context27["catch"](21);
+          _context29.prev = 26;
+          _context29.t0 = _context29["catch"](21);
         case 28:
           range = GSHEETS_TAB_NAME + '!A1:' + lastCol + rows.length;
-          _context27.next = 31;
+          _context29.next = 31;
           return fetch('https://sheets.googleapis.com/v4/spreadsheets/' + sid + '/values/' + encodeURIComponent(range) + '?valueInputOption=RAW', {
             method: 'PUT',
             headers: {
@@ -1791,30 +1791,30 @@ function _backupToSheets() {
             })
           });
         case 31:
-          putResp = _context27.sent;
+          putResp = _context29.sent;
           if (putResp.ok) {
-            _context27.next = 37;
+            _context29.next = 37;
             break;
           }
-          _context27.next = 35;
+          _context29.next = 35;
           return putResp.json()["catch"](function () {
             return {};
           });
         case 35:
-          _e3 = _context27.sent;
+          _e3 = _context29.sent;
           throw new Error(_e3 && _e3.error && _e3.error.message || 'Could not write to the spreadsheet (HTTP ' + putResp.status + ')');
         case 37:
           if (!rawProject) {
-            _context27.next = 55;
+            _context29.next = 55;
             break;
           }
-          _context27.prev = 38;
-          _context27.next = 41;
+          _context29.prev = 38;
+          _context29.next = 41;
           return ensureTab(token, sid, GSHEETS_RAW_TAB);
         case 41:
-          ok = _context27.sent;
+          ok = _context29.sent;
           if (!ok) {
-            _context27.next = 50;
+            _context29.next = 50;
             break;
           }
           payload = JSON.stringify({
@@ -1823,7 +1823,7 @@ function _backupToSheets() {
             project: rawProject
           });
           chunks = chunkRaw(payload);
-          _context27.next = 47;
+          _context29.next = 47;
           return fetch('https://sheets.googleapis.com/v4/spreadsheets/' + sid + '/values/' + encodeURIComponent(GSHEETS_RAW_TAB) + ':clear', {
             method: 'POST',
             headers: {
@@ -1833,7 +1833,7 @@ function _backupToSheets() {
           });
         case 47:
           rr = GSHEETS_RAW_TAB + '!A1:A' + chunks.length;
-          _context27.next = 50;
+          _context29.next = 50;
           return fetch('https://sheets.googleapis.com/v4/spreadsheets/' + sid + '/values/' + encodeURIComponent(rr) + '?valueInputOption=RAW', {
             method: 'PUT',
             headers: {
@@ -1847,19 +1847,19 @@ function _backupToSheets() {
             })
           });
         case 50:
-          _context27.next = 55;
+          _context29.next = 55;
           break;
         case 52:
-          _context27.prev = 52;
-          _context27.t1 = _context27["catch"](38);
-          console.warn('camrep: raw restore tab could not be written', _context27.t1);
+          _context29.prev = 52;
+          _context29.t1 = _context29["catch"](38);
+          console.warn('camrep: raw restore tab could not be written', _context29.t1);
         case 55:
-          return _context27.abrupt("return", sid);
+          return _context29.abrupt("return", sid);
         case 56:
         case "end":
-          return _context27.stop();
+          return _context29.stop();
       }
-    }, _callee27, null, [[21, 26], [38, 52]]);
+    }, _callee29, null, [[21, 26], [38, 52]]);
   }));
   return _backupToSheets.apply(this, arguments);
 }
@@ -1870,46 +1870,46 @@ function listBackupSheets(_x17) {
    this feature (backed up by an older build), which the caller reports as
    "this backup is too old to restore from" rather than a hard error. */
 function _listBackupSheets() {
-  _listBackupSheets = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee28(clientId) {
+  _listBackupSheets = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee30(clientId) {
     var token, q, r, _e4, d;
-    return _regeneratorRuntime().wrap(function _callee28$(_context28) {
-      while (1) switch (_context28.prev = _context28.next) {
+    return _regeneratorRuntime().wrap(function _callee30$(_context30) {
+      while (1) switch (_context30.prev = _context30.next) {
         case 0:
-          _context28.next = 2;
+          _context30.next = 2;
           return ensureSheetsToken(clientId);
         case 2:
-          token = _context28.sent;
+          token = _context30.sent;
           q = encodeURIComponent("mimeType='application/vnd.google-apps.spreadsheet' and trashed=false");
-          _context28.next = 6;
+          _context30.next = 6;
           return fetch('https://www.googleapis.com/drive/v3/files?q=' + q + '&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc&pageSize=50', {
             headers: {
               Authorization: 'Bearer ' + token
             }
           });
         case 6:
-          r = _context28.sent;
+          r = _context30.sent;
           if (r.ok) {
-            _context28.next = 12;
+            _context30.next = 12;
             break;
           }
-          _context28.next = 10;
+          _context30.next = 10;
           return r.json()["catch"](function () {
             return {};
           });
         case 10:
-          _e4 = _context28.sent;
+          _e4 = _context30.sent;
           throw new Error(_e4 && _e4.error && _e4.error.message || 'Could not list your backups (HTTP ' + r.status + ')');
         case 12:
-          _context28.next = 14;
+          _context30.next = 14;
           return r.json();
         case 14:
-          d = _context28.sent;
-          return _context28.abrupt("return", d.files || []);
+          d = _context30.sent;
+          return _context30.abrupt("return", d.files || []);
         case 16:
         case "end":
-          return _context28.stop();
+          return _context30.stop();
       }
-    }, _callee28);
+    }, _callee30);
   }));
   return _listBackupSheets.apply(this, arguments);
 }
@@ -1917,68 +1917,68 @@ function loadProjectFromSheet(_x18, _x19) {
   return _loadProjectFromSheet.apply(this, arguments);
 }
 function _loadProjectFromSheet() {
-  _loadProjectFromSheet = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee29(clientId, sid) {
+  _loadProjectFromSheet = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee31(clientId, sid) {
     var token, r, d, joined, parsed, p;
-    return _regeneratorRuntime().wrap(function _callee29$(_context29) {
-      while (1) switch (_context29.prev = _context29.next) {
+    return _regeneratorRuntime().wrap(function _callee31$(_context31) {
+      while (1) switch (_context31.prev = _context31.next) {
         case 0:
-          _context29.next = 2;
+          _context31.next = 2;
           return ensureSheetsToken(clientId);
         case 2:
-          token = _context29.sent;
-          _context29.next = 5;
+          token = _context31.sent;
+          _context31.next = 5;
           return fetch('https://sheets.googleapis.com/v4/spreadsheets/' + sid + '/values/' + encodeURIComponent(GSHEETS_RAW_TAB) + '!A1:A1000', {
             headers: {
               Authorization: 'Bearer ' + token
             }
           });
         case 5:
-          r = _context29.sent;
+          r = _context31.sent;
           if (r.ok) {
-            _context29.next = 8;
+            _context31.next = 8;
             break;
           }
-          return _context29.abrupt("return", null);
+          return _context31.abrupt("return", null);
         case 8:
-          _context29.next = 10;
+          _context31.next = 10;
           return r.json();
         case 10:
-          d = _context29.sent;
+          d = _context31.sent;
           joined = (d.values || []).map(function (row) {
             return row && row[0] || '';
           }).join('');
           if (joined.trim()) {
-            _context29.next = 14;
+            _context31.next = 14;
             break;
           }
-          return _context29.abrupt("return", null);
+          return _context31.abrupt("return", null);
         case 14:
           parsed = null;
-          _context29.prev = 15;
+          _context31.prev = 15;
           parsed = JSON.parse(joined);
-          _context29.next = 22;
+          _context31.next = 22;
           break;
         case 19:
-          _context29.prev = 19;
-          _context29.t0 = _context29["catch"](15);
-          return _context29.abrupt("return", null);
+          _context31.prev = 19;
+          _context31.t0 = _context31["catch"](15);
+          return _context31.abrupt("return", null);
         case 22:
           p = parsed && parsed.project;
           if (!(!p || _typeof(p) !== 'object')) {
-            _context29.next = 25;
+            _context31.next = 25;
             break;
           }
-          return _context29.abrupt("return", null);
+          return _context31.abrupt("return", null);
         case 25:
-          return _context29.abrupt("return", {
+          return _context31.abrupt("return", {
             savedAt: parsed.savedAt || '',
             project: p
           });
         case 26:
         case "end":
-          return _context29.stop();
+          return _context31.stop();
       }
-    }, _callee29, null, [[15, 19]]);
+    }, _callee31, null, [[15, 19]]);
   }));
   return _loadProjectFromSheet.apply(this, arguments);
 }
@@ -1999,7 +1999,7 @@ var SB_WB_PRESETS_KEY = 'sb_camrep_wb_presets';
    whether their PWA actually picked up the latest deploy - the recurring
    "is this the new one or a stale cache?" question. Keep it in step with
    CACHE_NAME in sw.js. */
-var APP_VERSION = 'v4.13';
+var APP_VERSION = 'v4.14';
 var CAM_CONFIG = {
   A: {
     label: 'A',
@@ -5108,6 +5108,59 @@ function CameraReport() {
       }) : [].concat(_toConsumableArray(prev), [id]);
     });
   }
+  /* Move the ticked rows up or down one place, inside the same roll. Rows are moved exactly as they are
+     (clip number, scene, shot, take, everything) - nothing is renumbered; the Resequence tool does that
+     when wanted. Several ticked rows move together and keep their order relative to each other. A ticked
+     row already at the edge stays put, and the ones behind it stop against it, like any list reorder.
+     Returns null when nothing would change (so the buttons can grey out). */
+  function shiftedTakes(takes, ids, dir) {
+    var sel = new Set(ids);
+    var out = takes.slice();
+    if (dir < 0) {
+      for (var i = 1; i < out.length; i++) {
+        if (sel.has(out[i].id) && !sel.has(out[i - 1].id)) {
+          var x = out[i];
+          out[i] = out[i - 1];
+          out[i - 1] = x;
+        }
+      }
+    } else {
+      for (var _i = out.length - 2; _i >= 0; _i--) {
+        if (sel.has(out[_i].id) && !sel.has(out[_i + 1].id)) {
+          var _x26 = out[_i];
+          out[_i] = out[_i + 1];
+          out[_i + 1] = _x26;
+        }
+      }
+    }
+    return out.some(function (t, i) {
+      return t !== takes[i];
+    }) ? out : null;
+  }
+  function moveSelectedTakes(dir) {
+    if (!roll || selTakeIds.length === 0) return;
+    var next = shiftedTakes(roll.takes || [], selTakeIds, dir);
+    if (!next) return;
+    var updated = rolls.map(function (r) {
+      return r.id === roll.id ? _objectSpread(_objectSpread({}, r), {}, {
+        takes: next
+      }) : r;
+    });
+    setRolls(updated);
+    saveRolls(updated);
+    // Keep the moved block on screen: a row can travel a long way over repeated taps.
+    var firstId = next.find(function (t) {
+      return selTakeIds.includes(t.id);
+    });
+    setTimeout(function () {
+      var el = firstId && rowRefs.current[firstId.id];
+      if (el && el.scrollIntoView) try {
+        el.scrollIntoView({
+          block: 'nearest'
+        });
+      } catch (e) {}
+    }, 0);
+  }
   // Clear selection whenever the active roll changes (selection is per-roll).
   React.useEffect(function () {
     setSelTakeIds([]);
@@ -5900,7 +5953,7 @@ function CameraReport() {
   // saves the source image to IndexedDB as the take's reference photo.
   // If the photo was a monitor screenshot, also updates roll-level fields
   // (fps, shutter, ei, wb, codec) that are more reliably read from the HUD.
-  function applyAITake(_x26) {
+  function applyAITake(_x27) {
     return _applyAITake.apply(this, arguments);
   } // Scene changed manually -> shot back to "/" (new-scene convention), take recomputed.
   function _applyAITake() {
@@ -6106,7 +6159,7 @@ function CameraReport() {
     });
     setJustAddedId(newTake.id);
   }
-  function deleteTake(_x27) {
+  function deleteTake(_x28) {
     return _deleteTake.apply(this, arguments);
   } // Resequence all clips in the current roll: starting from the first
   // parseable clip, fill every take with a contiguous number sequence.
@@ -6227,15 +6280,127 @@ function CameraReport() {
      all of B's) so the stack can be split by camera afterwards.
      async: gathers one representative photo per take from IndexedDB first
      (thumbnail only, embedded directly in the print HTML - never in CSV). */
-  function exportReport(_x28) {
+  function exportReport(_x29) {
     return _exportReport.apply(this, arguments);
   }
   function _exportReport() {
-    _exportReport = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee10(rollList) {
-      var list, preOpened, esc, photoMap, jobs, ordered, sheetFor, sheets, days, dayLabel, camLabel, docTitle, html, blob, blobUrl, iframe;
-      return _regeneratorRuntime().wrap(function _callee10$(_context10) {
-        while (1) switch (_context10.prev = _context10.next) {
+    _exportReport = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee12(rollList) {
+      var list, preOpened, esc, photoMap, jobs, ordered, sheetFor, printCss, PAGE_FIT, sheetOpen, renderSingle, renderChunks, measureSheets, _measureSheets, layoutPages, _layoutPages, parts, layouts, sheets, pageCount, days, dayLabel, camLabel, docTitle, html, blob, blobUrl, iframe;
+      return _regeneratorRuntime().wrap(function _callee12$(_context12) {
+        while (1) switch (_context12.prev = _context12.next) {
           case 0:
+            _layoutPages = function _layoutPages3() {
+              _layoutPages = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee11(parts) {
+                var mL, mP;
+                return _regeneratorRuntime().wrap(function _callee11$(_context11) {
+                  while (1) switch (_context11.prev = _context11.next) {
+                    case 0:
+                      _context11.next = 2;
+                      return measureSheets(parts, PAGE_FIT.L.w);
+                    case 2:
+                      mL = _context11.sent;
+                      _context11.next = 5;
+                      return measureSheets(parts, PAGE_FIT.P.w);
+                    case 5:
+                      mP = _context11.sent;
+                      if (!(mL.length !== parts.length || mP.length !== parts.length)) {
+                        _context11.next = 8;
+                        break;
+                      }
+                      throw new Error('measure mismatch');
+                    case 8:
+                      return _context11.abrupt("return", parts.map(function (p, i) {
+                        var L = mL[i],
+                          P = mP[i],
+                          n = p.rowArr.length,
+                          chunks = [];
+                        if (!n) return [[0, 0]];
+                        var a = 0;
+                        while (a < n) {
+                          var first = chunks.length === 0;
+                          var hL = (first ? L.headH : 0) + L.theadH + 2,
+                            hP = (first ? P.headH : 0) + P.theadH + 2,
+                            b = a;
+                          while (b < n) {
+                            var lastRow = b === n - 1;
+                            var nl = hL + L.rowHs[b] + (lastRow ? L.footH : 0),
+                              np = hP + P.rowHs[b] + (lastRow ? P.footH : 0);
+                            if (b > a && (nl > PAGE_FIT.L.h || np > PAGE_FIT.P.h)) break;
+                            hL += L.rowHs[b];
+                            hP += P.rowHs[b];
+                            b++;
+                          }
+                          chunks.push([a, b]);
+                          a = b;
+                        }
+                        return chunks;
+                      }));
+                    case 9:
+                    case "end":
+                      return _context11.stop();
+                  }
+                }, _callee11);
+              }));
+              return _layoutPages.apply(this, arguments);
+            };
+            layoutPages = function _layoutPages2(_x32) {
+              return _layoutPages.apply(this, arguments);
+            };
+            _measureSheets = function _measureSheets3() {
+              _measureSheets = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee10(parts, W) {
+                var ifr, d, R;
+                return _regeneratorRuntime().wrap(function _callee10$(_context10) {
+                  while (1) switch (_context10.prev = _context10.next) {
+                    case 0:
+                      ifr = document.createElement('iframe');
+                      ifr.setAttribute('aria-hidden', 'true');
+                      ifr.style.cssText = "position:fixed;left:-20000px;top:0;width:".concat(W, "px;height:900px;border:0;visibility:hidden;");
+                      document.body.appendChild(ifr);
+                      _context10.prev = 4;
+                      d = ifr.contentDocument;
+                      d.open();
+                      d.write("<!doctype html><html><head><meta charset=\"utf-8\"><style>".concat(printCss, "body{margin:0}</style></head><body>").concat(parts.map(renderSingle).join(''), "</body></html>"));
+                      d.close();
+                      _context10.next = 11;
+                      return new Promise(function (r) {
+                        return setTimeout(r, 80);
+                      });
+                    case 11:
+                      R = function R(el) {
+                        return el.getBoundingClientRect();
+                      };
+                      return _context10.abrupt("return", _toConsumableArray(d.querySelectorAll('.sheet')).map(function (sh) {
+                        var sr = R(sh),
+                          mt = sh.querySelector('table.main'),
+                          mr = R(mt);
+                        var trs = _toConsumableArray(mt.querySelectorAll('tbody tr')).map(R);
+                        var foot = sh.querySelector('tr.foot').closest('table');
+                        return {
+                          headH: mr.top - sr.top,
+                          theadH: R(mt.querySelector('thead')).height,
+                          footH: R(foot).height,
+                          rowHs: trs.map(function (rc, i) {
+                            return (i + 1 < trs.length ? trs[i + 1].top : mr.bottom) - rc.top;
+                          })
+                        };
+                      }));
+                    case 13:
+                      _context10.prev = 13;
+                      try {
+                        document.body.removeChild(ifr);
+                      } catch (e) {}
+                      return _context10.finish(13);
+                    case 16:
+                    case "end":
+                      return _context10.stop();
+                  }
+                }, _callee10, null, [[4,, 13, 16]]);
+              }));
+              return _measureSheets.apply(this, arguments);
+            };
+            measureSheets = function _measureSheets2(_x30, _x31) {
+              return _measureSheets.apply(this, arguments);
+            };
             sheetFor = function _sheetFor(rk) {
               var dayD = shootDays.find(function (d) {
                 return d.day === rk.shootDay;
@@ -6420,7 +6585,7 @@ function CameraReport() {
                  a repeated scene or shot is left blank rather than restated on every
                  take. The underlying data still carries them (CSV and the Sheets
                  backup export the full values for machines to read). */
-              var rows = (rk.takes || []).map(function (t, ti, arr) {
+              var rowArr = (rk.takes || []).map(function (t, ti, arr) {
                 var pv = ti > 0 ? arr[ti - 1] : null;
                 var sc = pv && String(pv.scene || '') === String(t.scene || '') ? '' : sceneWithIE(t.scene);
                 var sh = pv && String(pv.shot || '') === String(t.shot || '') ? '' : t.shot;
@@ -6435,8 +6600,10 @@ function CameraReport() {
                 }).join('');
                 var rowStyle = t.rowHL ? " style=\"background:".concat(HL_BG, "\"") : '';
                 return "<tr".concat(rowStyle, ">\n        ").concat(cells, "\n        ").concat(hasPhoto ? "<td>".concat(photoMap[t.id] ? "<img src=\"".concat(esc(photoMap[t.id]), "\" style=\"width:46px;height:34px;object-fit:cover;border-radius:2px;border:1px solid #999;\">") : '', "</td>") : '', "\n        </tr>");
-              }).join('');
-              return "<div class=\"sheet\" style=\"--cam:".concat(cfg.header, "\">\n      <div class=\"hdr\">\n        <div class=\"crew\">\n          ").concat([['director', 'DIRECTOR:', rk.director], ['dop', 'DOP:', rk.dop], ['ac', '1ST AC:', rk.ac]].filter(function (f) {
+              });
+              // The sheet is returned in PIECES (header block, table top, rows, footer) so the page-aware
+              // layout below can re-assemble it as one table or as several page-sized tables.
+              var headHtml = "<div class=\"hdr\">\n        <div class=\"crew\">\n          ".concat([['director', 'DIRECTOR:', rk.director], ['dop', 'DOP:', rk.dop], ['ac', '1ST AC:', rk.ac]].filter(function (f) {
                 return !hiddenInfo.has(f[0]);
               }).map(function (f) {
                 return "<b>".concat(f[1], "</b>").concat(esc(f[2]));
@@ -6459,25 +6626,34 @@ function CameraReport() {
                   _loop();
                 }
                 return rowsOut.join('');
-              }(), "\n      </tbody></table>\n      <table class=\"main\">\n      <colgroup>\n        ").concat(visCols.map(function (c, idx) {
+              }(), "\n      </tbody></table>");
+              var tableTop = "<table class=\"main\">\n      <colgroup>\n        ".concat(visCols.map(function (c, idx) {
                 return idx === visCols.length - 1 ? '<col/>' : "<col style=\"width:".concat(c.w, "%\"/>");
               }).join(''), "\n        ").concat(hasPhoto ? '<col style="width:5%"/>' : '', "\n      </colgroup>\n      <thead><tr>\n        ").concat(visCols.map(function (c) {
                 return "<th>".concat(c.label, "</th>");
-              }).join('')).concat(hasPhoto ? '<th>PHOTO</th>' : '', "\n      </tr></thead><tbody>").concat(rows, "</tbody></table>\n      <table class=\"meta\"><tbody><tr class=\"foot\">\n        <td class=\"k\">NOTES:</td><td>End of ").concat(esc(rk.roll)).concat(rk.shootDay ? ' &middot; SD ' + esc(String(rk.shootDay).padStart(2, '0')) : '', "</td>\n      </tr></tbody></table>\n      </div>");
+              }).join('')).concat(hasPhoto ? '<th>PHOTO</th>' : '', "\n      </tr></thead><tbody>");
+              var footHtml = "<table class=\"meta\"><tbody><tr class=\"foot\">\n        <td class=\"k\">NOTES:</td><td>End of ".concat(esc(rk.roll)).concat(rk.shootDay ? ' &middot; SD ' + esc(String(rk.shootDay).padStart(2, '0')) : '', "</td>\n      </tr></tbody></table>");
+              return {
+                cam: cfg.header,
+                headHtml: headHtml,
+                tableTop: tableTop,
+                rowArr: rowArr,
+                footHtml: footHtml
+              };
             };
             list = rollList && rollList.length ? rollList : roll ? [roll] : [];
             if (list.length) {
-              _context10.next = 4;
+              _context12.next = 8;
               break;
             }
-            return _context10.abrupt("return");
-          case 4:
+            return _context12.abrupt("return");
+          case 8:
             if (requireUnlock('PDF export needs the full version. Sign in to unlock.')) {
-              _context10.next = 6;
+              _context12.next = 10;
               break;
             }
-            return _context10.abrupt("return");
-          case 6:
+            return _context12.abrupt("return");
+          case 10:
             // CRITICAL for Safari/iPad: window.open() must be called synchronously,
             // in the same tick as the click, before any `await`. Once we cross an
             // await boundary, Safari no longer considers the call "user-initiated"
@@ -6501,7 +6677,7 @@ function CameraReport() {
               return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
             }; // Photos for every take across every roll being printed, fetched once.
             photoMap = {};
-            _context10.prev = 10;
+            _context12.prev = 14;
             jobs = [];
             list.forEach(function (rk) {
               return (rk.takes || []).forEach(function (t) {
@@ -6513,16 +6689,16 @@ function CameraReport() {
                 })["catch"](function () {}));
               });
             });
-            _context10.next = 15;
+            _context12.next = 19;
             return Promise.all(jobs);
-          case 15:
-            _context10.next = 20;
+          case 19:
+            _context12.next = 24;
             break;
-          case 17:
-            _context10.prev = 17;
-            _context10.t0 = _context10["catch"](10);
-            console.warn('print photo gather failed', _context10.t0);
-          case 20:
+          case 21:
+            _context12.prev = 21;
+            _context12.t0 = _context12["catch"](14);
+            console.warn('print photo gather failed', _context12.t0);
+          case 24:
             // Sort: camera A-E, then roll number within each camera.
             ordered = list.slice().sort(function (a, b) {
               var ca = CAM_ORDER.indexOf(camOf(a)),
@@ -6532,11 +6708,61 @@ function CameraReport() {
                 numeric: true
               });
             });
-            // One page per roll. page-break-after on every sheet but the last means a
+            printCss = "\n      /* THE colour fix. By default Safari (and Chrome) strip background colours\n         when printing unless the user happens to tick \"Print backgrounds\" in\n         the print dialog - which is why this report came out plain white. These\n         two properties override that and force backgrounds to render, so the\n         black title bar and the coloured header row survive into the PDF with\n         no checkbox hunting on an iPad. Both spellings are needed: WebKit still\n         wants the -webkit- prefix, the unprefixed one is the standard. */\n      *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }\n      @page{ size:A4 landscape; margin:8mm; }\n      body{font-family:Arial,Helvetica,sans-serif;margin:14px;color:#111;}\n      .sheet{border:2px solid #999;}\n      .page+.page{margin-top:22px;}\n      .hdr{background:#111;color:#fff;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;gap:12px;}\n      /* Production title: knocked out of a colour wash rather than sitting as\n         flat white text - the letters are a window onto the gradient behind.\n         Guarded by @supports because the transparent text-fill that makes the\n         knockout work would otherwise render the title INVISIBLE on any engine\n         that doesn't do background-clip:text. */\n      .hdr .title{flex:1;text-align:center;}\n      .hdr .title .plate{display:inline-block;padding:2px 6px;font-size:27px;font-weight:bold;\n        line-height:1.15;letter-spacing:0.5px;color:#fff;}\n      @supports ((-webkit-background-clip:text) or (background-clip:text)){\n        .hdr .title .plate{\n          background-image:linear-gradient(100deg,#f0a0a0 0%,#f3d4a0 16%,#ede39a 32%,#a8e8c0 48%,#a8cdf0 64%,#cdb0f0 80%,#f0a0c0 100%);\n          -webkit-background-clip:text;background-clip:text;\n          -webkit-text-fill-color:transparent;\n        }\n      }\n      .hdr .title .sub{display:block;margin-top:2px;font-size:8.5px;\n        letter-spacing:3px;color:#8f8f8f;text-transform:uppercase;}\n      .crew{font-size:10px;line-height:1.6;white-space:nowrap;}\n      .crew b{display:inline-block;min-width:58px;text-align:right;margin-right:5px;font-weight:bold;}\n      .rollbox{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:bold;}\n      .rollbox .lbl{text-align:right;line-height:1.9;}\n      .rollbox .val{text-align:center;}\n      .rollbox .roll{color:#111;font-weight:bold;font-size:21px;padding:2px 16px;}\n      .rollbox .mag{background:#fff;color:#111;font-weight:bold;font-size:15px;padding:1px 16px;margin-top:3px;}\n      table.meta{width:100%;border-collapse:collapse;font-size:10.5px;}\n      table.meta td{border:1px solid #111;padding:3px 6px;vertical-align:middle;}\n      table.meta td.k{background:#e9e9e9;font-weight:bold;white-space:nowrap;width:1%;}\n      table.main{width:100%;border-collapse:collapse;font-size:9.5px;table-layout:fixed;margin-top:0;}\n      /* Every cell fully bordered, header included. nowrap + a tighter type\n         size keeps every heading on ONE line; the column widths are sized so\n         the longest heading in each still fits without clipping. */\n      table.main th{background:var(--cam,#7a1f1f);color:#fff;padding:4px 2px;text-align:left;font-size:8px;\n        border:1px solid #111;white-space:nowrap;overflow:hidden;letter-spacing:-0.1px;\n        line-height:1.2;vertical-align:middle;}\n      table.main td{border:1px solid #444;padding:3px 4px;word-wrap:break-word;vertical-align:top;height:15px;}\n      table.main tr:nth-child(even) td{background:#f4f4f4;}\n      .foot td{border:1px solid #111;background:#e9e9e9;font-size:10px;padding:4px 6px;text-align:center;font-weight:bold;}\n      .foot td.k{text-align:left;width:1%;white-space:nowrap;}\n      .toolbar{position:fixed;top:0;left:0;right:0;background:#1a1a1a;color:#fff;padding:8px 14px;display:flex;gap:10px;align-items:center;justify-content:flex-end;box-shadow:0 2px 8px rgba(0,0,0,0.3);z-index:9999;}\n      .toolbar button{font-family:Arial,sans-serif;font-size:13px;padding:7px 16px;border-radius:6px;border:none;cursor:pointer;}\n      .toolbar .close{background:#444;color:#fff;}\n      .toolbar .print{background:#c98a3a;color:#111;font-weight:bold;}\n      .toolbar .spacer-note{flex:1;font-size:11px;color:#aaa;text-align:left;}\n      .content{margin-top:52px;}\n      /* Header row repeats where the browser supports it; rows never split across a page. (The page-aware\n         layout above is what guarantees the header on iPad Safari.) */\n      table.main thead{display:table-header-group;}\n      table.main tr{page-break-inside:avoid;break-inside:avoid;}\n      .sheet.cont{margin-top:22px;}\n      @media print{ .toolbar{display:none!important;} .content{margin-top:0;} body{margin:0;} .page+.page{margin-top:0;} .sheet.cont{margin-top:0;} }\n    ";
+            /* ---- Page-aware layout -------------------------------------------------
+               A long roll runs onto a second page. A table's header row is meant to repeat there
+               (<thead>), and does in Chrome - but iPad Safari does not, so page 2 had no column
+               titles. Instead of trusting the browser, the roll is cut into page-sized pieces HERE,
+               each piece is its own table with its own header row, and each starts a fresh page.
+               Row heights are MEASURED (in a hidden frame, in the same engine that will print), at
+               both a landscape and a portrait page width, and a piece only takes another row while it
+               still fits a page in BOTH orientations. Page sizes are deliberately a little smaller
+               than a real A4 page, because iOS ignores @page margins and prints with bigger ones.
+               Any failure here falls back to the old single table. */
+            PAGE_FIT = {
+              L: {
+                w: 980,
+                h: 620
+              },
+              P: {
+                w: 660,
+                h: 930
+              }
+            }; // px: usable width / height per orientation
+            sheetOpen = function sheetOpen(p, cont) {
+              return "<div class=\"sheet".concat(cont ? ' cont' : '', "\" style=\"--cam:").concat(p.cam).concat(cont ? ';page-break-before:always;break-before:page' : '', "\">");
+            };
+            renderSingle = function renderSingle(p) {
+              return "".concat(sheetOpen(p, false)).concat(p.headHtml).concat(p.tableTop).concat(p.rowArr.join(''), "</tbody></table>").concat(p.footHtml, "</div>");
+            };
+            renderChunks = function renderChunks(p, chunks) {
+              return chunks.map(function (c, ci) {
+                return "".concat(sheetOpen(p, ci > 0)).concat(ci === 0 ? p.headHtml : '').concat(p.tableTop).concat(p.rowArr.slice(c[0], c[1]).join(''), "</tbody></table>").concat(ci === chunks.length - 1 ? p.footHtml : '', "</div>");
+              }).join('');
+            };
+            parts = ordered.map(sheetFor);
+            layouts = null;
+            _context12.prev = 32;
+            _context12.next = 35;
+            return layoutPages(parts);
+          case 35:
+            layouts = _context12.sent;
+            _context12.next = 41;
+            break;
+          case 38:
+            _context12.prev = 38;
+            _context12.t1 = _context12["catch"](32);
+            console.warn('page layout failed, printing as one table per roll', _context12.t1);
+          case 41:
+            // One page (or more) per roll. page-break-after on every roll but the last means a
             // new roll - and therefore any new camera - always starts a fresh page.
-            sheets = ordered.map(function (rk, i) {
-              return "<div class=\"page\"".concat(i < ordered.length - 1 ? ' style="page-break-after:always;break-after:page"' : '', ">").concat(sheetFor(rk), "</div>");
+            sheets = parts.map(function (p, i) {
+              var body = layouts && layouts[i].length > 1 ? renderChunks(p, layouts[i]) : renderSingle(p);
+              return "<div class=\"page\"".concat(i < parts.length - 1 ? ' style="page-break-after:always;break-after:page"' : '', ">").concat(body, "</div>");
             }).join('');
+            pageCount = layouts ? layouts.reduce(function (n, c) {
+              return n + c.length;
+            }, 0) : ordered.length;
             days = _toConsumableArray(new Set(ordered.map(function (r) {
               return r.shootDay;
             }).filter(Boolean)));
@@ -6545,22 +6771,22 @@ function CameraReport() {
               return camOf(r);
             }))).join('+');
             docTitle = "".concat(proj.projectName || 'Camera Report').concat(dayLabel ? ' - ' + dayLabel : '', " - Cam ").concat(camLabel);
-            html = "<!doctype html><html><head><meta charset=\"utf-8\"><title>".concat(esc(docTitle), "</title>\n    <style>\n      /* THE colour fix. By default Safari (and Chrome) strip background colours\n         when printing unless the user happens to tick \"Print backgrounds\" in\n         the print dialog - which is why this report came out plain white. These\n         two properties override that and force backgrounds to render, so the\n         black title bar and the coloured header row survive into the PDF with\n         no checkbox hunting on an iPad. Both spellings are needed: WebKit still\n         wants the -webkit- prefix, the unprefixed one is the standard. */\n      *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }\n      @page{ size:A4 landscape; margin:8mm; }\n      body{font-family:Arial,Helvetica,sans-serif;margin:14px;color:#111;}\n      .sheet{border:2px solid #999;}\n      .page+.page{margin-top:22px;}\n      .hdr{background:#111;color:#fff;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;gap:12px;}\n      /* Production title: knocked out of a colour wash rather than sitting as\n         flat white text - the letters are a window onto the gradient behind.\n         Guarded by @supports because the transparent text-fill that makes the\n         knockout work would otherwise render the title INVISIBLE on any engine\n         that doesn't do background-clip:text. */\n      .hdr .title{flex:1;text-align:center;}\n      .hdr .title .plate{display:inline-block;padding:2px 6px;font-size:27px;font-weight:bold;\n        line-height:1.15;letter-spacing:0.5px;color:#fff;}\n      @supports ((-webkit-background-clip:text) or (background-clip:text)){\n        .hdr .title .plate{\n          background-image:linear-gradient(100deg,#f0a0a0 0%,#f3d4a0 16%,#ede39a 32%,#a8e8c0 48%,#a8cdf0 64%,#cdb0f0 80%,#f0a0c0 100%);\n          -webkit-background-clip:text;background-clip:text;\n          -webkit-text-fill-color:transparent;\n        }\n      }\n      .hdr .title .sub{display:block;margin-top:2px;font-size:8.5px;\n        letter-spacing:3px;color:#8f8f8f;text-transform:uppercase;}\n      .crew{font-size:10px;line-height:1.6;white-space:nowrap;}\n      .crew b{display:inline-block;min-width:58px;text-align:right;margin-right:5px;font-weight:bold;}\n      .rollbox{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:bold;}\n      .rollbox .lbl{text-align:right;line-height:1.9;}\n      .rollbox .val{text-align:center;}\n      .rollbox .roll{color:#111;font-weight:bold;font-size:21px;padding:2px 16px;}\n      .rollbox .mag{background:#fff;color:#111;font-weight:bold;font-size:15px;padding:1px 16px;margin-top:3px;}\n      table.meta{width:100%;border-collapse:collapse;font-size:10.5px;}\n      table.meta td{border:1px solid #111;padding:3px 6px;vertical-align:middle;}\n      table.meta td.k{background:#e9e9e9;font-weight:bold;white-space:nowrap;width:1%;}\n      table.main{width:100%;border-collapse:collapse;font-size:9.5px;table-layout:fixed;margin-top:0;}\n      /* Every cell fully bordered, header included. nowrap + a tighter type\n         size keeps every heading on ONE line; the column widths are sized so\n         the longest heading in each still fits without clipping. */\n      table.main th{background:var(--cam,#7a1f1f);color:#fff;padding:4px 2px;text-align:left;font-size:8px;\n        border:1px solid #111;white-space:nowrap;overflow:hidden;letter-spacing:-0.1px;\n        line-height:1.2;vertical-align:middle;}\n      table.main td{border:1px solid #444;padding:3px 4px;word-wrap:break-word;vertical-align:top;height:15px;}\n      table.main tr:nth-child(even) td{background:#f4f4f4;}\n      .foot td{border:1px solid #111;background:#e9e9e9;font-size:10px;padding:4px 6px;text-align:center;font-weight:bold;}\n      .foot td.k{text-align:left;width:1%;white-space:nowrap;}\n      .toolbar{position:fixed;top:0;left:0;right:0;background:#1a1a1a;color:#fff;padding:8px 14px;display:flex;gap:10px;align-items:center;justify-content:flex-end;box-shadow:0 2px 8px rgba(0,0,0,0.3);z-index:9999;}\n      .toolbar button{font-family:Arial,sans-serif;font-size:13px;padding:7px 16px;border-radius:6px;border:none;cursor:pointer;}\n      .toolbar .close{background:#444;color:#fff;}\n      .toolbar .print{background:#c98a3a;color:#111;font-weight:bold;}\n      .toolbar .spacer-note{flex:1;font-size:11px;color:#aaa;text-align:left;}\n      .content{margin-top:52px;}\n      @media print{ .toolbar{display:none!important;} .content{margin-top:0;} body{margin:0;} .page+.page{margin-top:0;} }\n    </style></head><body>\n    <div class=\"toolbar\">\n      <span class=\"spacer-note\">").concat(esc(docTitle), " &middot; ").concat(ordered.length, " page").concat(ordered.length !== 1 ? 's' : '', " &middot; use Print to save as PDF</span>\n      <button class=\"close\" onclick=\"window.close()\">&times; Close</button>\n      <button class=\"print\" onclick=\"window.print()\">&#128424; Print / Save PDF</button>\n    </div>\n    <div class=\"content\">").concat(sheets, "</div>\n    </body></html>"); // Write the finished report into the tab we opened synchronously above -
+            html = "<!doctype html><html><head><meta charset=\"utf-8\"><title>".concat(esc(docTitle), "</title>\n    <style>").concat(printCss, "</style></head><body>\n    <div class=\"toolbar\">\n      <span class=\"spacer-note\">").concat(esc(docTitle), " &middot; ").concat(pageCount, " page").concat(pageCount !== 1 ? 's' : '', " &middot; use Print to save as PDF</span>\n      <button class=\"close\" onclick=\"window.close()\">&times; Close</button>\n      <button class=\"print\" onclick=\"window.print()\">&#128424; Print / Save PDF</button>\n    </div>\n    <div class=\"content\">").concat(sheets, "</div>\n    </body></html>"); // Write the finished report into the tab we opened synchronously above -
             // this works even on Safari/iPad because that tab was opened in direct
             // response to the click, before any async work happened.
             if (!(preOpened && !preOpened.closed)) {
-              _context10.next = 37;
+              _context12.next = 58;
               break;
             }
-            _context10.prev = 28;
+            _context12.prev = 49;
             preOpened.document.open();
             preOpened.document.write(html);
             preOpened.document.close();
-            return _context10.abrupt("return");
-          case 35:
-            _context10.prev = 35;
-            _context10.t1 = _context10["catch"](28);
-          case 37:
+            return _context12.abrupt("return");
+          case 56:
+            _context12.prev = 56;
+            _context12.t2 = _context12["catch"](49);
+          case 58:
             // Fallback (pre-open was blocked, e.g. some in-app browsers): print via a
             // hidden iframe on the current page - no new window/tab involved at all.
             blob = new Blob([html], {
@@ -6590,11 +6816,11 @@ function CameraReport() {
             setTimeout(function () {
               return URL.revokeObjectURL(blobUrl);
             }, 60000);
-          case 51:
+          case 72:
           case "end":
-            return _context10.stop();
+            return _context12.stop();
         }
-      }, _callee10, null, [[10, 17], [28, 35]]);
+      }, _callee12, null, [[14, 21], [32, 38], [49, 56]]);
     }));
     return _exportReport.apply(this, arguments);
   }
@@ -8291,7 +8517,41 @@ function CameraReport() {
         color: CAM.accent,
         fontWeight: 600
       }
-    }, selTakeIds.length, " clip", selTakeIds.length !== 1 ? 's' : '', " selected"), /*#__PURE__*/React.createElement("span", {
+    }, selTakeIds.length, " clip", selTakeIds.length !== 1 ? 's' : '', " selected"), function () {
+      var canUp = !!shiftedTakes(roll.takes || [], selTakeIds, -1),
+        canDn = !!shiftedTakes(roll.takes || [], selTakeIds, 1);
+      var mv = function mv(on) {
+        return {
+          padding: '4px 10px',
+          borderRadius: 5,
+          fontSize: 11,
+          fontFamily: "'Geist Mono',monospace",
+          fontWeight: 600,
+          background: 'transparent',
+          border: "1px solid ".concat(CAM.accent, "88"),
+          color: CAM.accent,
+          cursor: on ? 'pointer' : 'not-allowed',
+          opacity: on ? 1 : 0.35
+        };
+      };
+      return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
+        onClick: function onClick() {
+          return moveSelectedTakes(-1);
+        },
+        disabled: !canUp,
+        "aria-label": "Move selected up",
+        title: "Move the ticked rows up one place",
+        style: mv(canUp)
+      }, "\u25B2", " Up"), /*#__PURE__*/React.createElement("button", {
+        onClick: function onClick() {
+          return moveSelectedTakes(1);
+        },
+        disabled: !canDn,
+        "aria-label": "Move selected down",
+        title: "Move the ticked rows down one place",
+        style: mv(canDn)
+      }, "\u25BC", " Down"));
+    }(), /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 10,
         color: T.textDim,
@@ -11383,15 +11643,15 @@ function BackupModal(_ref38) {
     return _runBackup.apply(this, arguments);
   }
   function _runBackup() {
-    _runBackup = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee11() {
+    _runBackup = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee13() {
       var sid;
-      return _regeneratorRuntime().wrap(function _callee11$(_context11) {
-        while (1) switch (_context11.prev = _context11.next) {
+      return _regeneratorRuntime().wrap(function _callee13$(_context13) {
+        while (1) switch (_context13.prev = _context13.next) {
           case 0:
             setStatus('working');
             setErrMsg('');
-            _context11.prev = 2;
-            _context11.next = 5;
+            _context13.prev = 2;
+            _context13.next = 5;
             return backupToSheets({
               rolls: data.rolls || [],
               projectName: data.projectName,
@@ -11410,23 +11670,23 @@ function BackupModal(_ref38) {
               }
             });
           case 5:
-            sid = _context11.sent;
+            sid = _context13.sent;
             updateData({
               gsheetsSpreadsheetId: sid
             });
             setStatus('done');
-            _context11.next = 14;
+            _context13.next = 14;
             break;
           case 10:
-            _context11.prev = 10;
-            _context11.t0 = _context11["catch"](2);
+            _context13.prev = 10;
+            _context13.t0 = _context13["catch"](2);
             setStatus('error');
-            setErrMsg(_context11.t0 && _context11.t0.message || 'Backup failed.');
+            setErrMsg(_context13.t0 && _context13.t0.message || 'Backup failed.');
           case 14:
           case "end":
-            return _context11.stop();
+            return _context13.stop();
         }
-      }, _callee11, null, [[2, 10]]);
+      }, _callee13, null, [[2, 10]]);
     }));
     return _runBackup.apply(this, arguments);
   }
@@ -11439,61 +11699,61 @@ function BackupModal(_ref38) {
      stop and ask when a project of the same name is already here, because
      that is the single case where local work could be lost. */
   function _findBackups() {
-    _findBackups = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee12() {
-      return _regeneratorRuntime().wrap(function _callee12$(_context12) {
-        while (1) switch (_context12.prev = _context12.next) {
+    _findBackups = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee14() {
+      return _regeneratorRuntime().wrap(function _callee14$(_context14) {
+        while (1) switch (_context14.prev = _context14.next) {
           case 0:
             setRestoring(true);
             setErrMsg('');
-            _context12.prev = 2;
-            _context12.t0 = setSheets;
-            _context12.next = 6;
+            _context14.prev = 2;
+            _context14.t0 = setSheets;
+            _context14.next = 6;
             return listBackupSheets(effectiveClientId);
           case 6:
-            _context12.t1 = _context12.sent;
-            (0, _context12.t0)(_context12.t1);
-            _context12.next = 14;
+            _context14.t1 = _context14.sent;
+            (0, _context14.t0)(_context14.t1);
+            _context14.next = 14;
             break;
           case 10:
-            _context12.prev = 10;
-            _context12.t2 = _context12["catch"](2);
-            setErrMsg(_context12.t2 && _context12.t2.message || 'Could not list your backups.');
+            _context14.prev = 10;
+            _context14.t2 = _context14["catch"](2);
+            setErrMsg(_context14.t2 && _context14.t2.message || 'Could not list your backups.');
             setStatus('error');
           case 14:
-            _context12.prev = 14;
+            _context14.prev = 14;
             setRestoring(false);
-            return _context12.finish(14);
+            return _context14.finish(14);
           case 17:
           case "end":
-            return _context12.stop();
+            return _context14.stop();
         }
-      }, _callee12, null, [[2, 10, 14, 17]]);
+      }, _callee14, null, [[2, 10, 14, 17]]);
     }));
     return _findBackups.apply(this, arguments);
   }
-  function restoreFrom(_x29) {
+  function restoreFrom(_x33) {
     return _restoreFrom.apply(this, arguments);
   }
   function _restoreFrom() {
-    _restoreFrom = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee13(file) {
+    _restoreFrom = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee15(file) {
       var found, incoming, name, payload, nRolls, nTakes, existing, curRolls, curTakes;
-      return _regeneratorRuntime().wrap(function _callee13$(_context13) {
-        while (1) switch (_context13.prev = _context13.next) {
+      return _regeneratorRuntime().wrap(function _callee15$(_context15) {
+        while (1) switch (_context15.prev = _context15.next) {
           case 0:
             setRestoring(true);
             setErrMsg('');
-            _context13.prev = 2;
-            _context13.next = 5;
+            _context15.prev = 2;
+            _context15.next = 5;
             return loadProjectFromSheet(effectiveClientId, file.id);
           case 5:
-            found = _context13.sent;
+            found = _context15.sent;
             if (found) {
-              _context13.next = 10;
+              _context15.next = 10;
               break;
             }
             setErrMsg('That sheet has no restorable copy in it. It was probably backed up by an older version of this app - run "Backup Now" from the device that has the data, then try again.');
             setStatus('error');
-            return _context13.abrupt("return");
+            return _context15.abrupt("return");
           case 10:
             incoming = found.project;
             name = (incoming.projectName || '').trim() || 'Untitled Production';
@@ -11514,7 +11774,7 @@ function BackupModal(_ref38) {
             }, 0);
             existing = findProjectByName(name);
             if (!existing) {
-              _context13.next = 25;
+              _context15.next = 25;
               break;
             }
             curRolls = (existing.data.rolls || []).length;
@@ -11522,14 +11782,14 @@ function BackupModal(_ref38) {
               return n + (r.takes || []).length;
             }, 0);
             if (confirm("\"".concat(name, "\" already exists on this device.\n\n") + "From the sheet: ".concat(nRolls, " roll(s), ").concat(nTakes, " take(s)") + (found.savedAt ? "\nBacked up: ".concat(new Date(found.savedAt).toLocaleString()) : '') + "\n\nAlready here: ".concat(curRolls, " roll(s), ").concat(curTakes, " take(s)") + "\n\nReplace this device's copy? This cannot be undone.")) {
-              _context13.next = 21;
+              _context15.next = 21;
               break;
             }
-            return _context13.abrupt("return");
+            return _context15.abrupt("return");
           case 21:
             overwriteProject(existing.id, payload);
             alert("Replaced \"".concat(name, "\" with the backup (").concat(nRolls, " roll(s)). Reloading."));
-            _context13.next = 27;
+            _context15.next = 27;
             break;
           case 25:
             importProject(payload);
@@ -11538,22 +11798,22 @@ function BackupModal(_ref38) {
             // CameraReport loads rolls into its own state once on mount, so a reload
             // is the simplest way to guarantee the table shows the restored data.
             window.location.reload();
-            _context13.next = 34;
+            _context15.next = 34;
             break;
           case 30:
-            _context13.prev = 30;
-            _context13.t0 = _context13["catch"](2);
-            setErrMsg(_context13.t0 && _context13.t0.message || 'Restore failed.');
+            _context15.prev = 30;
+            _context15.t0 = _context15["catch"](2);
+            setErrMsg(_context15.t0 && _context15.t0.message || 'Restore failed.');
             setStatus('error');
           case 34:
-            _context13.prev = 34;
+            _context15.prev = 34;
             setRestoring(false);
-            return _context13.finish(34);
+            return _context15.finish(34);
           case 37:
           case "end":
-            return _context13.stop();
+            return _context15.stop();
         }
-      }, _callee13, null, [[2, 30, 34, 37]]);
+      }, _callee15, null, [[2, 30, 34, 37]]);
     }));
     return _restoreFrom.apply(this, arguments);
   }
@@ -12191,21 +12451,21 @@ function App() {
 // If this is ever emptied the Handover screen says it is not set up yet.
 var HANDOVER_URL = 'https://script.google.com/macros/s/AKfycbyOTg_xpMicPjpMryW-U9-CbtMH-tVkWZYjDF9jm9AkEQC16ci-Mz6InvtbgW0GHXY1sA/exec';
 var HANDOVER_KEY = 'ZzJhklrQkbFCRMrQeYWkzdLim8JF';
-function handoverCall(_x30, _x31, _x32) {
+function handoverCall(_x34, _x35, _x36) {
   return _handoverCall.apply(this, arguments);
 }
 function _handoverCall() {
-  _handoverCall = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee30(method, params, body) {
+  _handoverCall = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee32(method, params, body) {
     var res, d, m;
-    return _regeneratorRuntime().wrap(function _callee30$(_context30) {
-      while (1) switch (_context30.prev = _context30.next) {
+    return _regeneratorRuntime().wrap(function _callee32$(_context32) {
+      while (1) switch (_context32.prev = _context32.next) {
         case 0:
-          _context30.prev = 0;
+          _context32.prev = 0;
           if (!(method === 'POST')) {
-            _context30.next = 7;
+            _context32.next = 7;
             break;
           }
-          _context30.next = 4;
+          _context32.next = 4;
           return fetch(HANDOVER_URL, {
             method: 'POST',
             body: JSON.stringify(_objectSpread(_objectSpread({}, body), {}, {
@@ -12213,45 +12473,45 @@ function _handoverCall() {
             }))
           });
         case 4:
-          res = _context30.sent;
-          _context30.next = 10;
+          res = _context32.sent;
+          _context32.next = 10;
           break;
         case 7:
-          _context30.next = 9;
+          _context32.next = 9;
           return fetch(HANDOVER_URL + '?' + new URLSearchParams(_objectSpread(_objectSpread({}, params), {}, {
             key: HANDOVER_KEY
           })).toString());
         case 9:
-          res = _context30.sent;
+          res = _context32.sent;
         case 10:
-          _context30.next = 15;
+          _context32.next = 15;
           break;
         case 12:
-          _context30.prev = 12;
-          _context30.t0 = _context30["catch"](0);
+          _context32.prev = 12;
+          _context32.t0 = _context32["catch"](0);
           throw new Error('No connection. Handover needs internet on both devices.');
         case 15:
           if (res.ok) {
-            _context30.next = 17;
+            _context32.next = 17;
             break;
           }
           throw new Error('Handover service error (HTTP ' + res.status + '). Try again.');
         case 17:
           d = null;
-          _context30.prev = 18;
-          _context30.next = 21;
+          _context32.prev = 18;
+          _context32.next = 21;
           return res.json();
         case 21:
-          d = _context30.sent;
-          _context30.next = 27;
+          d = _context32.sent;
+          _context32.next = 27;
           break;
         case 24:
-          _context30.prev = 24;
-          _context30.t1 = _context30["catch"](18);
+          _context32.prev = 24;
+          _context32.t1 = _context32["catch"](18);
           throw new Error('Handover service gave an unexpected reply. Try again.');
         case 27:
           if (!(!d || !d.ok)) {
-            _context30.next = 30;
+            _context32.next = 30;
             break;
           }
           m = {
@@ -12262,12 +12522,12 @@ function _handoverCall() {
           };
           throw new Error(d && m[d.error] || 'Handover failed. Try again.');
         case 30:
-          return _context30.abrupt("return", d);
+          return _context32.abrupt("return", d);
         case 31:
         case "end":
-          return _context30.stop();
+          return _context32.stop();
       }
-    }, _callee30, null, [[0, 12], [18, 24]]);
+    }, _callee32, null, [[0, 12], [18, 24]]);
   }));
   return _handoverCall.apply(this, arguments);
 }
@@ -12324,21 +12584,21 @@ function HandoverModal(_ref39) {
     return _send.apply(this, arguments);
   }
   function _send() {
-    _send = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee14() {
+    _send = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee16() {
       var project, d;
-      return _regeneratorRuntime().wrap(function _callee14$(_context14) {
-        while (1) switch (_context14.prev = _context14.next) {
+      return _regeneratorRuntime().wrap(function _callee16$(_context16) {
+        while (1) switch (_context16.prev = _context16.next) {
           case 0:
             if (requireUnlock('Project handover needs the full version. Sign in to unlock.')) {
-              _context14.next = 2;
+              _context16.next = 2;
               break;
             }
-            return _context14.abrupt("return");
+            return _context16.abrupt("return");
           case 2:
             setBusy(true);
             setErr('');
             setSentCode('');
-            _context14.prev = 5;
+            _context16.prev = 5;
             project = {
               projectName: myName,
               scenes: data.scenes || [],
@@ -12350,30 +12610,30 @@ function HandoverModal(_ref39) {
               keepDrawerOpen: !!data.keepDrawerOpen,
               autoTakeOnSceneShot: !!data.autoTakeOnSceneShot
             };
-            _context14.next = 9;
+            _context16.next = 9;
             return handoverCall('POST', null, {
               action: 'put',
               project: JSON.stringify(project)
             });
           case 9:
-            d = _context14.sent;
+            d = _context16.sent;
             setSentCode(d.code);
             setSentExpires(d.expires_ms || 0);
-            _context14.next = 17;
+            _context16.next = 17;
             break;
           case 14:
-            _context14.prev = 14;
-            _context14.t0 = _context14["catch"](5);
-            setErr(_context14.t0 && _context14.t0.message || 'Handover failed.');
+            _context16.prev = 14;
+            _context16.t0 = _context16["catch"](5);
+            setErr(_context16.t0 && _context16.t0.message || 'Handover failed.');
           case 17:
-            _context14.prev = 17;
+            _context16.prev = 17;
             setBusy(false);
-            return _context14.finish(17);
+            return _context16.finish(17);
           case 20:
           case "end":
-            return _context14.stop();
+            return _context16.stop();
         }
-      }, _callee14, null, [[5, 14, 17, 20]]);
+      }, _callee16, null, [[5, 14, 17, 20]]);
     }));
     return _send.apply(this, arguments);
   }
@@ -12392,42 +12652,42 @@ function HandoverModal(_ref39) {
     return _receive.apply(this, arguments);
   }
   function _receive() {
-    _receive = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee15() {
+    _receive = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee17() {
       var c, d, proj, name, rolls, payload, info;
-      return _regeneratorRuntime().wrap(function _callee15$(_context15) {
-        while (1) switch (_context15.prev = _context15.next) {
+      return _regeneratorRuntime().wrap(function _callee17$(_context17) {
+        while (1) switch (_context17.prev = _context17.next) {
           case 0:
             if (requireUnlock('Project handover needs the full version. Sign in to unlock.')) {
-              _context15.next = 2;
+              _context17.next = 2;
               break;
             }
-            return _context15.abrupt("return");
+            return _context17.abrupt("return");
           case 2:
             c = handoverNormCode(codeIn);
             if (!(c.length !== 8)) {
-              _context15.next = 6;
+              _context17.next = 6;
               break;
             }
             setErr('Enter the 8-character code (letters and numbers).');
-            return _context15.abrupt("return");
+            return _context17.abrupt("return");
           case 6:
             setBusy(true);
             setErr('');
             setPending(null);
-            _context15.prev = 9;
-            _context15.next = 12;
+            _context17.prev = 9;
+            _context17.next = 12;
             return handoverCall('GET', {
               action: 'get',
               code: c
             });
           case 12:
-            d = _context15.sent;
+            d = _context17.sent;
             proj = null;
             try {
               proj = JSON.parse(d.project);
             } catch (e) {}
             if (!(!proj || _typeof(proj) !== 'object' || !Array.isArray(proj.rolls))) {
-              _context15.next = 17;
+              _context17.next = 17;
               break;
             }
             throw new Error('That handover is damaged or is not a Camera Report project.');
@@ -12466,28 +12726,28 @@ function HandoverModal(_ref39) {
               existing: findProjectByName(name)
             };
             if (!info.existing) {
-              _context15.next = 25;
+              _context17.next = 25;
               break;
             }
             setPending(info);
             setBusy(false);
-            return _context15.abrupt("return");
+            return _context17.abrupt("return");
           case 25:
-            _context15.next = 27;
+            _context17.next = 27;
             return finish(info, 'new');
           case 27:
-            _context15.next = 33;
+            _context17.next = 33;
             break;
           case 29:
-            _context15.prev = 29;
-            _context15.t0 = _context15["catch"](9);
-            setErr(_context15.t0 && _context15.t0.message || 'Handover failed.');
+            _context17.prev = 29;
+            _context17.t0 = _context17["catch"](9);
+            setErr(_context17.t0 && _context17.t0.message || 'Handover failed.');
             setBusy(false);
           case 33:
           case "end":
-            return _context15.stop();
+            return _context17.stop();
         }
-      }, _callee15, null, [[9, 29]]);
+      }, _callee17, null, [[9, 29]]);
     }));
     return _receive.apply(this, arguments);
   }
@@ -12498,18 +12758,18 @@ function HandoverModal(_ref39) {
     }
     return name + ' (' + Date.now() + ')';
   }
-  function finish(_x33, _x34) {
+  function finish(_x37, _x38) {
     return _finish.apply(this, arguments);
   }
   function _finish() {
-    _finish = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee16(info, mode) {
+    _finish = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee18(info, mode) {
       var p, shown;
-      return _regeneratorRuntime().wrap(function _callee16$(_context16) {
-        while (1) switch (_context16.prev = _context16.next) {
+      return _regeneratorRuntime().wrap(function _callee18$(_context18) {
+        while (1) switch (_context18.prev = _context18.next) {
           case 0:
             setBusy(true);
             setErr('');
-            _context16.prev = 2;
+            _context18.prev = 2;
             p = info.payload, shown = p.projectName;
             if (mode === 'replace') {
               overwriteProject(info.existing.id, p);
@@ -12524,18 +12784,18 @@ function HandoverModal(_ref39) {
             }
             // Burn the code only now that the import has really happened. If this
             // call fails the code just stays valid until it expires - harmless.
-            _context16.prev = 5;
-            _context16.next = 8;
+            _context18.prev = 5;
+            _context18.next = 8;
             return handoverCall('GET', {
               action: 'done',
               code: info.code
             });
           case 8:
-            _context16.next = 12;
+            _context18.next = 12;
             break;
           case 10:
-            _context16.prev = 10;
-            _context16.t0 = _context16["catch"](5);
+            _context18.prev = 10;
+            _context18.t0 = _context18["catch"](5);
           case 12:
             alert('Received "' + shown + '" (' + info.nRolls + ' roll(s), ' + info.nTakes + ' take(s)).' + (mode === 'replace' ? ' Reloading.' : ''));
             if (mode === 'replace') {
@@ -12543,18 +12803,18 @@ function HandoverModal(_ref39) {
             } else {
               onClose();
             }
-            _context16.next = 20;
+            _context18.next = 20;
             break;
           case 16:
-            _context16.prev = 16;
-            _context16.t1 = _context16["catch"](2);
-            setErr(_context16.t1 && _context16.t1.message || 'Import failed.');
+            _context18.prev = 16;
+            _context18.t1 = _context18["catch"](2);
+            setErr(_context18.t1 && _context18.t1.message || 'Import failed.');
             setBusy(false);
           case 20:
           case "end":
-            return _context16.stop();
+            return _context18.stop();
         }
-      }, _callee16, null, [[2, 16], [5, 10]]);
+      }, _callee18, null, [[2, 16], [5, 10]]);
     }));
     return _finish.apply(this, arguments);
   }
@@ -13153,14 +13413,14 @@ function AccessGate(_ref41) {
     return _signIn.apply(this, arguments);
   }
   function _signIn() {
-    _signIn = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee17() {
+    _signIn = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee19() {
       var data, clientId, token, email, list;
-      return _regeneratorRuntime().wrap(function _callee17$(_context17) {
-        while (1) switch (_context17.prev = _context17.next) {
+      return _regeneratorRuntime().wrap(function _callee19$(_context19) {
+        while (1) switch (_context19.prev = _context19.next) {
           case 0:
             setState('working');
             setErrMsg('');
-            _context17.prev = 2;
+            _context19.prev = 2;
             // The Client ID override (Settings) is per-project, but the gate runs
             // before any project is even selected - 'default' is the one project
             // every device has always had (see the multi-project storage
@@ -13168,18 +13428,18 @@ function AccessGate(_ref41) {
             // override if this deployment was forked to a different hosting URL.
             data = loadProjectData('default');
             clientId = getEffectiveClientId(data);
-            _context17.next = 7;
+            _context19.next = 7;
             return ensureSheetsToken(clientId);
           case 7:
-            token = _context17.sent;
-            _context17.next = 10;
+            token = _context19.sent;
+            _context19.next = 10;
             return fetchGoogleEmail(token);
           case 10:
-            email = _context17.sent;
-            _context17.next = 13;
+            email = _context19.sent;
+            _context19.next = 13;
             return fetchAllowlist();
           case 13:
-            list = _context17.sent;
+            list = _context19.sent;
             if (list.includes(email)) {
               saveGateAuth(email);
               setState('allowed');
@@ -13188,18 +13448,18 @@ function AccessGate(_ref41) {
               sheetsSignOut();
               setState('denied');
             }
-            _context17.next = 21;
+            _context19.next = 21;
             break;
           case 17:
-            _context17.prev = 17;
-            _context17.t0 = _context17["catch"](2);
-            setErrMsg(_context17.t0 && _context17.t0.message || 'Sign-in failed.');
+            _context19.prev = 17;
+            _context19.t0 = _context19["catch"](2);
+            setErrMsg(_context19.t0 && _context19.t0.message || 'Sign-in failed.');
             setState('error');
           case 21:
           case "end":
-            return _context17.stop();
+            return _context19.stop();
         }
-      }, _callee17, null, [[2, 17]]);
+      }, _callee19, null, [[2, 17]]);
     }));
     return _signIn.apply(this, arguments);
   }
